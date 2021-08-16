@@ -1,29 +1,50 @@
+// Copyright 2018 The xfsgo Authors
+// This file is part of the xfsgo library.
+//
+// The xfsgo library is free software: you can redistribute it and/or modify
+// it under the terms of the MIT Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The xfsgo library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MIT Lesser General Public License for more details.
+//
+// You should have received a copy of the MIT Lesser General Public License
+// along with the xfsgo library. If not, see <https://mit-license.org/>.
+
 package p2p
 
-import "testing"
+import (
+	"testing"
+	"xfsgo/crypto"
+	"xfsgo/p2p/discover"
+)
 
-func TestMessage_MarshalMsg(t *testing.T) {
-	msg := &Message{
-		Header: &Header{
-			Version: 0,
-			MsgCode: 0,
-		},
-		Body: nil,
-	}
-	var bs []byte = nil
-	var err error = nil
-	if bs, err = msg.MarshalMsg(); err != nil {
+func TestHello(t *testing.T) {
+	key, err := crypto.GenPrvKey()
+	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("msg: %s\n", string(bs))
+	pubKey := key.PublicKey
+	id := discover.PubKey2NodeId(pubKey)
+	hello := &helloRequestMsg{
+		version: 1,
+		id:      id,
+	}
+	data := hello.marshal()
+	t.Logf("data: %v\n", data)
+	got := new(helloRequestMsg)
+	got.unmarshal(data)
+	gothash := got.id
+	t.Logf("gothash: %v\n", gothash)
+	t.Logf("wanthash: %v\n", id)
 }
 
-func TestUnmarshalMsg(t *testing.T) {
-	bs := []byte("{\"header\":{\"length\":10,\"checksum\":4068781620,\"version\":0,\"msg_code\":0},\"body\":\"YWJjZGVmc2dzZw==\"}")
-	var m = &Message{}
-	var err error = nil
-	if err = UnmarshalMsg(bs, m); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("msgBody: %s\n", string(m.Body))
+func TestHello2(t *testing.T) {
+	data := []byte{1, 0, 32, 0, 0, 0}
+	t.Logf("data: %v\n", data)
+	n := uint32(data[2]) | uint32(data[3])<<8 | uint32(data[4])<<16 | uint32(data[5])<<24
+	t.Logf("n: %v\n", n)
 }

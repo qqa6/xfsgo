@@ -1,103 +1,170 @@
+// Copyright 2018 The xfsgo Authors
+// This file is part of the xfsgo library.
+//
+// The xfsgo library is free software: you can redistribute it and/or modify
+// it under the terms of the MIT Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The xfsgo library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MIT Lesser General Public License for more details.
+//
+// You should have received a copy of the MIT Lesser General Public License
+// along with the xfsgo library. If not, see <https://mit-license.org/>.
+
 package p2p
 
 import (
-	"crypto/md5"
+	"bytes"
 	"encoding/binary"
-	"encoding/json"
-	"errors"
+	"io"
+	"xfsgo/p2p/discover"
 )
 
-var MsgCodePing = uint32(1)
-var MsgCodePong = uint32(2)
-
-
-
-var DefaultVersion = uint32(1)
-
-type Header struct {
-	Length  uint32 `json:"length"`
-	Checksum uint32 `json:"checksum"`
-	Version uint32 `json:"version"`
-	MsgCode uint32 `json:"msg_code"`
+const headerLen = 6
+//MessageReader interface defines type of message and reading methods,
+//messageReader implements this interface.
+type MessageReader interface {
+	Type() uint8                // message type
+	Read(p []byte) (int, error) // read given data to buffer
+	ReadAll() ([]byte, error)   // read all of messages
+	RawReader() io.Reader       // read raw messages(include version and mType fields)
+	DataReader() io.Reader      // read data of message
 }
 
-type Message struct {
-	Header *Header `json:"header"`
-	Body   []byte `json:"body"`
+//messageReader defines the message struct
+type messageReader struct {
+	version uint8
+	mType   uint8
+	raw     io.Reader
+	data    io.Reader
 }
 
-func UnmarshalMsg(bs []byte, msgp *Message) error {
-	if err := json.Unmarshal(bs, &msgp); err != nil {
-		return err
-	}
-	header := msgp.Header
-	checksum := msgp.calcChecksum()
-	if header.Checksum != checksum {
-		return errors.New("check err")
-	}
-	return nil
+// Type returns message type
+func (m *messageReader) Type() uint8 {
+	return m.mType
 }
 
-func (m Message) String() string {
-	var bs []byte = nil
-	var err error = nil
-	if bs, err = m.MarshalMsg(); err != nil {
-		return ""
-	}
-	return string(bs)
+// Read reads the given data in the data part from messageReader
+func (m *messageReader) Read(p []byte) (int, error) {
+	return m.data.Read(p)
 }
 
-func (m *Message) MarshalMsg() ([]byte,error) {
-	m.reSetupHeader()
-	return json.Marshal(m)
-}
-func (m *Message) reSetupHeader() {
-	m.Header.Length = uint32(len(m.Body))
-	m.Header.Checksum = m.calcChecksum()
+// ReadAll reads all of data in the message
+func (m *messageReader) ReadAll() ([]byte, error) {
+	return io.ReadAll(m.data)
 }
 
-func (m *Message) calcChecksum() uint32 {
-	if m.Body == nil {
-		return uint32(0)
-	}
-	bs0 := md5.Sum(m.Body)
-	bs := md5.Sum(bs0[:])
-	return binary.BigEndian.Uint32(bs[0:4])
+// RawReader reads the whole package from other peer.
+func (m *messageReader) RawReader() io.Reader {
+	return m.raw
 }
 
-func SendMsg(peer *Peer, msgCode uint32, data []byte) error {
-	msg := &Message{
-		Header: &Header{
-			Version: DefaultVersion,
-			MsgCode: msgCode,
-		},
-		Body: data,
-	}
-	var err error = nil
-	var bs []byte = nil
-	if bs, err = msg.MarshalMsg(); err != nil {
-		return err
-	}
-	peer.sendData(bs)
-	return nil
+// DataReader  reads the data from the messageReader
+func (m *messageReader) DataReader() io.Reader {
+	return m.data
 }
-func SendMsgJSONData(peer *Peer, msgCode uint32, data interface{}) error {
-	var err error = nil
-	var bs []byte = nil
-	if bs, err = json.Marshal(data); err != nil {
-		return err
+
+// ReadMessage reads message from other peer and returns MessageReader by header of message.
+// message = version(1byte)+type(1byte)+length(4byte)+data
+func ReadMessage(reader io.Reader) (MessageReader, error) {
+	mBuffer := bytes.NewBuffer(nil)
+
+	//vertion and type
+	for mBuffer.Len() < 6 {
+		b := make([]byte, 1)
+		if _, err := reader.Read(b); err != nil {
+			return nil, err
+		}
+		mBuffer.Write(b)
 	}
-	msg := &Message{
-		Header: &Header{
-			Version: DefaultVersion,
-			MsgCode: msgCode,
-		},
-		Body: bs,
+	header := mBuffer.Bytes()
+	//length of data in message.4 bytes stored by LittleEndian model.
+	n := binary.LittleEndian.Uint32(header[2:])
+
+	for mBuffer.Len() < 6+int(n) {
+		b := make([]byte, 1)
+
+		if _, err := reader.Read(b); err != nil {
+			return nil, err
+		}
+
+		mBuffer.Write(b)
 	}
-	var msgBs []byte = nil
-	if msgBs, err = msg.MarshalMsg(); err != nil {
-		return err
+
+	data := mBuffer.Bytes()
+
+	return &messageReader{
+		raw:   mBuffer,
+		mType: data[1],
+		data:  bytes.NewReader(data[6:]),
+	}, nil
+}
+
+type helloRequestMsg struct {
+	raw       []byte
+	version   uint8
+	id        discover.NodeId
+	receiveId discover.NodeId
+}
+
+func (m *helloRequestMsg) marshal() []byte {
+	if m.raw != nil {
+		return m.raw
 	}
-	peer.sendData(msgBs)
-	return nil
+	cLen := len(m.id) + len(m.receiveId)
+	val := make([]byte, cLen+4)
+	binary.LittleEndian.PutUint32(val, uint32(cLen))
+	copy(val[4:], append(m.id[:], m.receiveId[:]...))
+	base := []byte{m.version, typeHelloRequest}
+	base = append(base, val...)
+	return base
+}
+
+func (m *helloRequestMsg) unmarshal(data []byte) bool {
+	m.raw = data
+	m.version = data[0]
+	if data[1] != typeHelloRequest {
+		return false
+	}
+	cLen := binary.LittleEndian.Uint32(data[2:headerLen])
+	body := data[headerLen: headerLen + cLen]
+	copy(m.id[:], body[:len(m.id)])
+	copy(m.receiveId[:], body[len(m.id):])
+	return true
+}
+
+type helloReRequestMsg struct {
+	raw       []byte
+	version   uint8
+	id        discover.NodeId
+	receiveId discover.NodeId
+}
+
+func (m *helloReRequestMsg) marshal() []byte {
+	if m.raw != nil {
+		return m.raw
+	}
+	cLen := len(m.id) + len(m.receiveId)
+	val := make([]byte, cLen+4)
+	binary.LittleEndian.PutUint32(val, uint32(cLen))
+	copy(val[4:], append(m.id[:], m.receiveId[:]...))
+	base := []byte{m.version, typeReHelloRequest}
+	base = append(base, val...)
+	return base
+}
+
+func (m *helloReRequestMsg) unmarshal(data []byte) bool {
+	m.raw = data
+	m.version = data[0]
+	if data[1] != typeReHelloRequest {
+		return false
+	}
+	cLen := binary.LittleEndian.Uint32(data[2:headerLen])
+	body := data[headerLen: headerLen + cLen]
+	copy(m.id[:], body[:len(m.id)])
+	copy(m.receiveId[:], body[len(m.id):])
+	return true
 }

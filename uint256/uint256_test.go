@@ -1,3 +1,19 @@
+// Copyright 2018 The xfsgo Authors
+// This file is part of the xfsgo library.
+//
+// The xfsgo library is free software: you can redistribute it and/or modify
+// it under the terms of the MIT Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The xfsgo library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MIT Lesser General Public License for more details.
+//
+// You should have received a copy of the MIT Lesser General Public License
+// along with the xfsgo library. If not, see <https://mit-license.org/>.
+
 package uint256
 
 import (
@@ -53,7 +69,6 @@ func TestUInt256_Rsh(t *testing.T) {
 	}
 }
 
-
 func TestUInt256NumberFor(t *testing.T) {
 	want := NewUInt256ByHex("0x953614b4")
 	got := NewUInt256ByUInt32(uint32(2503349428))
@@ -91,7 +106,7 @@ func TestUInt256_Gt(t *testing.T) {
 func TestUInt256_Lt(t *testing.T) {
 	u1 := NewUInt256("0x0000008de0044d7282933b4a5a1573bb9f40e0891e7a8da1d01f72ee3d239810")
 	u2 := NewUInt256("0x0000010000000000000000000000000000000000000000000000000000000000")
-	if !u1.Lt(u2){
+	if !u1.Lt(u2) {
 		t.Fatalf("u1 got: '0x%s' u2: '0x%s'", u1.HexstrFull(), u2.HexstrFull())
 	}
 }
@@ -107,7 +122,7 @@ func TestUInt256_Cmp(t *testing.T) {
 
 func TestUInt256_MarshalJSON(t *testing.T) {
 	uz := NewUInt256One()
-	jb,err := uz.MarshalJSON()
+	jb, err := uz.MarshalJSON()
 	if err != nil {
 		t.Fatal(err)
 		return

@@ -1,156 +1,256 @@
+// Copyright 2018 The xfsgo Authors
+// This file is part of the xfsgo library.
+//
+// The xfsgo library is free software: you can redistribute it and/or modify
+// it under the terms of the MIT Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The xfsgo library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MIT Lesser General Public License for more details.
+//
+// You should have received a copy of the MIT Lesser General Public License
+// along with the xfsgo library. If not, see <https://mit-license.org/>.
+
 package p2p
 
 import (
-	"context"
+	"crypto/ecdsa"
 	"errors"
-	"github.com/perlin-network/noise"
-	"github.com/perlin-network/noise/kademlia"
-	"github.com/sirupsen/logrus"
 	"net"
 	"sync"
 	"time"
+	"xfsgo/common"
+	"xfsgo/p2p/discover"
+
+	"github.com/sirupsen/logrus"
 )
 
-type Server struct {
-	ListenAddr string
-	BootstrapNodes []string
-	p2pNode *noise.Node
-	p2pOverlay *kademlia.Protocol
-	lock  sync.Mutex
+const (
+	defaultListenAddr = ":9002"
+	flagInbound = 1
+	flagOutbound = 1 << 1
+	flagStatic = 1 << 2
+	flagDynamic = 1 << 3
+)
+
+
+type Server interface {
+	Bind(p Protocol)
+	Start() error
+	Stop()
+}
+
+// server manages all peer connections.
+//
+// The fields of Server are used as configuration parameters.
+// You should set them before starting the Server. Fields may not be
+// modified while the server is running.
+type server struct {
+	config Config
+	mu     sync.Mutex
 	running bool
-	addPeerCh chan noise.ID
-	runPeerCh chan noise.ID
-	delPeerCh chan noise.ID
-	targetWriteCh chan targetWrite
-	PeerHandlerFn func(peer *Peer) error
-	peers map[noise.PublicKey]*Peer
+	//protocols contains the protocols supported by the server.
+	//Matching protocols are launched for each peer.
+	protocols []Protocol
+
+	addpeer chan *peerConn
+	delpeer chan Peer
+	table *discover.Table
 }
 
-type targetWrite struct {
-	target noise.ID
-	data []byte
+// Config Background network service configuration
+type Config struct {
+	ProtocolVersion uint8
+	ListenAddr      string
+	Key             *ecdsa.PrivateKey
+	Discover bool
+	NodeDBPath string
+	StaticNodes     []*discover.Node
+	BootstrapNodes []*discover.Node
+	MaxPeers int
 }
 
-func (srv *Server) Start() error {
-	srv.lock.Lock()
-	defer srv.lock.Unlock()
+// NewServer Creates background service object
+func NewServer(config Config) Server {
+	return &server{
+		config:  config,
+	}
+}
+
+// Bind network protocol function
+func (srv *server) Bind(p Protocol) {
+	if srv.protocols == nil {
+		srv.protocols = make([]Protocol, 0)
+	}
+	// Add network protocol
+	srv.protocols = append(srv.protocols, p)
+}
+
+// Stop background network function
+func (srv *server) Stop() {
+
+}
+
+// Start start running the server.
+func (srv *server) Start() error {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	if srv.running {
 		return errors.New("server already running")
 	}
-	srv.running = true
-	srv.addPeerCh = make(chan noise.ID)
-	srv.delPeerCh = make(chan noise.ID)
-	srv.targetWriteCh = make(chan targetWrite)
-	srv.peers = make(map[noise.PublicKey]*Peer)
-	if err := srv.setupLocalNode(); err != nil {
-		return err
-	}
-	if err := srv.p2pNode.Listen() ; err != nil {
-		return err
-	}
-	go srv.bootstrap()
-	go srv.run()
-	srv.running = true
-	return nil
-}
 
-func (srv *Server) setupLocalNode() error {
-	var err error = nil
-	var addr *net.TCPAddr = nil
-	if srv.ListenAddr != "" {
-		if addr,err = net.ResolveTCPAddr(
-			"tcp", srv.ListenAddr); err != nil {
+	srv.running = true
+	// Peer to peer session entity
+	srv.addpeer = make(chan *peerConn)
+	// 创建对等网络 Bert1
+	srv.delpeer = make(chan Peer)
+	var err error
+	// launch node discovery and UDP listener
+	if srv.config.Discover {
+		srv.table, err = discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath)
+		if err != nil {
 			return err
 		}
 	}
-	if addr == nil {
-		if addr,err = net.ResolveTCPAddr(
-			"tcp", "0.0.0.0:9066"); err != nil {
-			return err
-		}
+	dynPeers := srv.config.MaxPeers / 2
+	if !srv.config.Discover {
+		dynPeers = 0
 	}
-	if srv.p2pNode, err = noise.NewNode(
-		noise.WithNodeBindHost(addr.IP),
-		noise.WithNodeBindPort(uint16(addr.Port)),
-	); err != nil {
+	dialer := newDialState(srv.config.StaticNodes, srv.table, dynPeers)
+	// launch TCP listener to accept connection
+	if err := srv.listenAndServe(); err != nil {
 		return err
 	}
 
-	srv.p2pNode.Handle(srv.handleP2PMessage)
-	srv.p2pOverlay = srv.createOverlay()
-	srv.p2pNode.Bind(srv.p2pOverlay.Protocol())
+	// 网络地址 bert2
+	go srv.run(dialer)
+	srv.running = true
 	return nil
 }
 
-func (srv *Server) handleOverlayOnPeerAdmitted(id noise.ID) {
-	srv.addPeerCh <- id
-}
-
-func (srv *Server) handleOverlayOnPeerEvicted(id noise.ID) {
-	srv.delPeerCh <- id
-}
-
-func (srv *Server) handleP2PMessage(ctx noise.HandlerContext) error  {
-	if ctx.IsRequest() {
-		return nil
-	}
-	id := ctx.ID()
-	p := srv.peers[id.ID]
-	if p == nil {
-		logrus.Warnf("peer not found1")
-		return nil
-	}
-	if err := p.handleData(ctx.Data()); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (srv *Server) createOverlay() *kademlia.Protocol {
-	events := kademlia.Events{
-		OnPeerAdmitted: srv.handleOverlayOnPeerAdmitted,
-		OnPeerEvicted: srv.handleOverlayOnPeerEvicted,
-	}
-	return kademlia.New(kademlia.WithProtocolEvents(events))
-}
-
-func (srv *Server) bootstrap() {
-	for _, addr := range srv.BootstrapNodes {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		if _, err := srv.p2pNode.Ping(ctx, addr); err != nil {
-			logrus.Warnf("find bootstrap node err: %s\n", err)
-		}
-		cancel()
-	}
-}
-
-
-func (srv *Server) run() {
-	for {
-		select {
-		case p := <-srv.addPeerCh:
-			np := newPeer(srv.targetWriteCh, p)
-			srv.peers[p.ID] = np
-			if srv.PeerHandlerFn == nil {
-				return
-			}
-			go func() {
-				if err := np.run(srv.PeerHandlerFn); err != nil {
-					srv.delPeerCh <- p
-				}
-			}()
-		case tw := <-srv.targetWriteCh:
-			target := tw.target
-			if srv.peers[target.ID] == nil {
-				logrus.Warnf("peer not found2")
+func (srv *server) run(dialer *dialstate) {
+	// create map peers 创建对等map
+	peers := make(map[discover.NodeId]Peer)
+	// 创建连接任务表map
+	tasks := make([]task, 0)
+	// (预备执行)执行任务队列
+	pendingTasks := make([]task, 0)
+	// 任务完成
+	taskdone := make(chan task)
+	// 删除完成的任务列表
+	delTask := func(t task) {
+		for i := range tasks {
+			if tasks[i] == t {
+				tasks = append(tasks[:i], tasks[i+1:]...)
 				break
 			}
-			if err := srv.p2pNode.Send(context.Background(), target.Address, tw.data); err!=nil {
-				srv.delPeerCh <- tw.target
-			}
-		case id := <-srv.delPeerCh:
-			logrus.Infof("node exit: %s", id.Address)
-			delete(srv.peers, id.ID)
 		}
 	}
+
+	// 执行任务
+	scheduleTasks := func(new []task) {
+		logrus.Infof("Running connection tasks scheduling, number of current tasks: %d", len(new))
+		pt := append(pendingTasks, new...)
+		start := 8 - len(tasks)
+		// 预备队列长度小于开始长度
+		if len(pt) < start {
+			start = len(pt)
+		}
+		if start > 0 {
+			tasks = append(tasks, pt[:start]...)
+			for _, t := range pt[:start] {
+				tt := t
+				go func() {
+					tt.Do(srv)
+					taskdone <- tt
+				}()
+			}
+			copy(pt, pt[start:])
+			// peeding tasks
+			pendingTasks = pt[:len(pt)-start]
+		}
+		time.Sleep(20 * time.Second)
+	}
+	//_ = scheduleTasks
+	for {
+		nt := dialer.newTasks(peers)
+		// schedule tasks
+		scheduleTasks(nt)
+		select {
+		// add peer
+		case c := <-srv.addpeer:
+			p := newPeer(c, srv.protocols)
+			peers[c.id] = p
+			logrus.Infof("save peer id to peers: %s", c.id)
+			go srv.runPeer(p)
+		// task is done
+		case t := <-taskdone:
+			dialer.taskDone(t)
+			delTask(t)
+		// delete peer
+		case p := <-srv.delpeer:
+			delete(peers, p.ID())
+		}
+	}
+}
+
+func (srv *server) runPeer(peer Peer) {
+	peer.Run()
+	srv.delpeer <- peer
+}
+
+func (srv *server) listenAndServe() error {
+	addr := srv.config.ListenAddr
+	if addr == "" {
+		addr = defaultListenAddr
+	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		logrus.Errorf("p2p server listen and serve on %s err: %v", addr, err)
+		return err
+	}
+	logrus.Infof("p2p server listen and serve on %s", addr)
+	currentKey := srv.config.Key
+	nId := discover.PubKey2NodeId(currentKey.PublicKey)
+	tcpAddr,_ := net.ResolveTCPAddr("", addr)
+	n := discover.NewNode(tcpAddr.IP, uint16(tcpAddr.Port), uint16(tcpAddr.Port),nId)
+	logrus.Infof("p2p server node id: %s", n)
+	go srv.listenLoop(ln)
+	return nil
+}
+
+// listenLoop runs in its own goroutine and accepts
+// request of connections.
+func (srv *server) listenLoop(ln net.Listener) {
+	defer common.Safeclose(ln.Close)
+	for {
+		rw, err := ln.Accept()
+		if err != nil {
+			logrus.Errorf("p2p listenner accept err %v", err)
+			return
+		}
+		c := srv.newPeerConn(rw, flagInbound, nil)
+		go c.serve()
+	}
+}
+
+func (srv *server) newPeerConn(rw net.Conn, flag int, dst *discover.NodeId) *peerConn {
+	pubKey := srv.config.Key.PublicKey
+	mId := discover.PubKey2NodeId(pubKey)
+	c := &peerConn{
+		self:    mId,
+		flag: flag,
+		server:  srv,
+		key:     srv.config.Key,
+		rw:      rw,
+		version: srv.config.ProtocolVersion,
+	}
+	if dst != nil {
+		c.id = *dst
+	}
+	return c
 }

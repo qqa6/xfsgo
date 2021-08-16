@@ -1,81 +1,147 @@
-package xblockchain
+// Copyright 2018 The xfsgo Authors
+// This file is part of the xfsgo library.
+//
+// The xfsgo library is free software: you can redistribute it and/or modify
+// it under the terms of the MIT Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The xfsgo library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MIT Lesser General Public License for more details.
+//
+// You should have received a copy of the MIT Lesser General Public License
+// along with the xfsgo library. If not, see <https://mit-license.org/>.
+
+package xfsgo
 
 import (
-	"crypto/sha256"
-	"encoding/json"
-	"github.com/btcsuite/btcutil/base58"
-	"xblockchain/util/crypto/ecdsa"
-	"xblockchain/util/urlsafeb64"
+	"crypto/ecdsa"
+	"crypto/x509"
+	"sync"
+	"xfsgo/common"
+	"xfsgo/crypto"
+	"xfsgo/storage/badger"
 )
 
+// Wallet represents a software wallet that has a default address derived from private key.
 type Wallet struct {
-	privateKey []byte
+	db          *keyStoreDB
+	mu          sync.RWMutex
+	cacheMu     sync.RWMutex
+	defaultAddr common.Address
+	cache       map[common.Address]*ecdsa.PrivateKey
 }
 
-func NewRandomWallet() *Wallet {
-	var privateKey []byte = nil
-	privateKey = ecdsa.GenP256PrivateKey()
-	return &Wallet{
-		privateKey: privateKey,
+// NewWallet constructs and returns a new Wallet instance with badger db.
+func NewWallet(storage *badger.Storage) *Wallet {
+	w := &Wallet{
+		db:    newKeyStoreDB(storage),
+		cache: make(map[common.Address]*ecdsa.PrivateKey),
 	}
+	w.defaultAddr, _ = w.db.GetDefaultAddress()
+	return w
 }
 
-func ImportWalletWithB64(enc string) (*Wallet,error) {
-	privateKey,err := urlsafeb64.Decode(enc)
+// AddByRandom constructs a new Wallet with a random number and retuens the its address.
+func (w *Wallet) AddByRandom() (common.Address, error) {
+	key, err := crypto.GenPrvKey()
+	if err != nil {
+		return noneAddress, err
+	}
+	return w.AddWallet(key)
+}
+
+func (w *Wallet) AddWallet(key *ecdsa.PrivateKey) (common.Address, error) {
+	addr := crypto.DefaultPubKey2Addr(key.PublicKey)
+	if err := w.db.PutPrivateKey(addr, key); err != nil {
+		return noneAddress, err
+	}
+	if w.defaultAddr.Equals(noneAddress) {
+		if err := w.SetDefault(addr); err != nil {
+			return addr, nil
+		}
+	}
+	return addr, nil
+}
+
+func (w *Wallet) All() map[common.Address]*ecdsa.PrivateKey {
+	data := make(map[common.Address]*ecdsa.PrivateKey)
+	w.db.Foreach(func(address common.Address, key *ecdsa.PrivateKey) {
+		data[address] = key
+	})
+	return data
+}
+
+func (w *Wallet) GetKeyByAddress(address common.Address) (*ecdsa.PrivateKey, error) {
+	w.cacheMu.RLock()
+	if pk, has := w.cache[address]; has {
+		w.cacheMu.RUnlock()
+		return pk, nil
+	}
+	w.cacheMu.RUnlock()
+	key, err := w.db.GetPrivateKey(address)
 	if err != nil {
 		return nil, err
 	}
-	return ImportWalletWithKey(privateKey),err
+	w.cacheMu.Lock()
+	w.cache[address] = key
+	w.cacheMu.Unlock()
+	return key, nil
 }
 
-func ImportWalletWithKey(privateKey []byte) *Wallet {
-	return &Wallet{
-		privateKey: privateKey,
+func (w *Wallet) SetDefault(address common.Address) error {
+	if address.Equals(w.defaultAddr) {
+		return nil
 	}
-}
-
-func (w *Wallet) GetPublicKey() []byte {
-	pubKey := ecdsa.ParsePubKeyWithPrivateKey(w.privateKey)
-	return pubKey
-}
-
-func (w *Wallet) Export() string {
-	return urlsafeb64.Encode(w.privateKey)
-}
-
-func (w *Wallet) GetPrivateKey() []byte  {
-	return w.privateKey
-}
-
-func (w *Wallet) GetAddress() string  {
-	pubkey := w.GetPublicKey()
-	pubKeyHash := PubKeyHash(pubkey)
-	return PubKeyHash2Address(pubKeyHash)
-}
-
-func PubKeyHash(pubKey []byte) []byte  {
-	hash := sha256.Sum256(pubKey)
-	return hash[:]
-}
-
-func PubKeyHash2Address(pubKeyHash []byte) string {
-	fullPayload := append([]byte{0}, pubKeyHash[:]...)
-	addr := base58.Encode(fullPayload)
-	return addr
-}
-
-func ParsePubKeyHashByAddress(address string) []byte {
-	payload := base58.Decode(address)
-	pubKeyHash := payload[1:]
-	return pubKeyHash
-}
-
-
-
-func (ws *Wallets) String() string {
-	jsonByte,err := json.Marshal(ws)
+	err := w.db.SetDefaultAddress(address)
 	if err != nil {
-		return ""
+		return err
 	}
-	return string(jsonByte)
+	w.mu.Lock()
+	w.defaultAddr = address
+	w.mu.Unlock()
+	return nil
+}
+
+func (w *Wallet) GetDefault() common.Address {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.defaultAddr
+}
+
+func (w *Wallet) Remove(address common.Address) error {
+	if address.Equals(w.defaultAddr) {
+		w.mu.Lock()
+		if err := w.db.DelDefault(); err != nil {
+			w.mu.Unlock()
+			return err
+		}
+		w.defaultAddr = noneAddress
+		w.mu.Unlock()
+	}
+	if err := w.db.RemoveAddress(address); err != nil {
+		return err
+	}
+	w.cacheMu.Lock()
+	delete(w.cache, address)
+	w.cacheMu.Unlock()
+	return nil
+}
+
+func (w *Wallet) Export(address common.Address) ([]byte, error) {
+	key, err := w.GetKeyByAddress(address)
+	if err != nil {
+		return nil, err
+	}
+	return x509.MarshalECPrivateKey(key)
+}
+
+func (w *Wallet) Import(der []byte) (common.Address, error) {
+	pKey, err := x509.ParseECPrivateKey(der)
+	if err != nil {
+		return noneAddress, err
+	}
+	return w.AddWallet(pKey)
 }

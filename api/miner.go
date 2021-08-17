@@ -35,3 +35,15 @@ func (handler *MinerAPIHandler) Stop(_ EmptyArgs, resp *string) error {
 	*resp = ""
 	return nil
 }
+
+func (handler *MinerAPIHandler) WorkersAdd(_ EmptyArgs, resp *string) error {
+	NumWorkers := int(handler.Miner.GetNumWorkers()) + 1
+	handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	return nil
+}
+
+func (handler *MinerAPIHandler) WorkersDown(_ EmptyArgs, resp *string) error {
+	NumWorkers := int(handler.Miner.GetNumWorkers()) - 1
+	handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	return nil
+}

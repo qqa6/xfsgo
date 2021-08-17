@@ -16,6 +16,8 @@
 
 package sub
 
+import "encoding/json"
+
 type getBlockHashArgs struct {
 	Address string `json:"address"`
 }
@@ -52,6 +54,6 @@ type transferFromArgs struct {
 }
 
 type getBlockNumArgs struct {
-	From  uint64 `json:"from"`
-	Count uint64 `json:"count"`
+	From  json.Number `json:"from"`
+	Count json.Number `json:"count"`
 }

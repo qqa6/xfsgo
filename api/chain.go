@@ -33,7 +33,7 @@ type ChainAPIHandler struct {
 }
 
 type GetBlockByIdArgs struct {
-	Number uint64 `json:"number"`
+	Number json.Number `json:"number"`
 }
 
 type GetBlockByHashArgs struct {
@@ -53,7 +53,7 @@ type GetReceiptByHashArgs struct {
 }
 
 type GetBlockHeaderByNumberArgs struct {
-	Height uint64 `json:"height"`
+	Height json.Number `json:"height"`
 }
 
 type GetBlockHeaderByHashArgs struct {
@@ -65,12 +65,16 @@ type SendRawTransactionArgs struct {
 }
 
 type GetBlockSectionArgs struct {
-	From  uint64 `json:"from"`
-	Count uint64 `json:"count"`
+	From  json.Number `json:"from"`
+	Count json.Number `json:"count"`
 }
 
 func (receiver *ChainAPIHandler) GetBlockByNumber(args GetBlockByIdArgs, block *GetBlockByNumberBlock) error {
-	b := receiver.BlockChain.GetBlockByNumber(args.Number)
+	numbers, err := common.Uint64s(args.Number)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	b := receiver.BlockChain.GetBlockByNumber(numbers)
 	header := NewBlockByNumBlockHeader(b.Header, b.Hash())
 	result := NewBlockByNumberBlock(b, header)
 	*block = *result
@@ -86,7 +90,11 @@ func (receiver *ChainAPIHandler) Head(_ EmptyArgs, block *GetBlockByNumberBlock)
 }
 
 func (receiver *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNumberArgs, blockHeader *GetBlockByNumberBlockHeader) error {
-	data, Hash := receiver.BlockChain.GetBlockHeaderByNumber(args.Height)
+	numbers, err := common.Uint64s(args.Height)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	data, Hash := receiver.BlockChain.GetBlockHeaderByNumber(numbers)
 	result := NewBlockByNumBlockHeader(data, Hash)
 	*blockHeader = *result
 	return nil
@@ -144,9 +152,21 @@ func (receiver *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs,
 }
 
 func (receiver *ChainAPIHandler) GetBlockSection(args GetBlockSectionArgs, resp *GetBlocks) error {
-	data := receiver.BlockChain.GetBlockSection(args.From, args.Count)
 
+	numbersForm, err := common.Uint64s(args.From)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	numbersCount, err := common.Uint64s(args.Count)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	data := receiver.BlockChain.GetBlockSection(numbersForm, numbersCount)
 	GetBlockByNumberBlock := make([]*GetBlockByNumberBlock, 0)
+	if len(data) == 0 {
+		*resp = GetBlockByNumberBlock
+		return nil
+	}
 	for _, v := range data {
 		blockHeader := NewBlockByNumBlockHeader(v.Header, v.Hash())
 		blocks := NewBlockByNumberBlock(v, blockHeader)

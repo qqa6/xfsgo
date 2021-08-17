@@ -19,7 +19,6 @@ package sub
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"xfsgo"
 
 	"github.com/spf13/cobra"
@@ -44,24 +43,14 @@ var (
 		},
 	}
 	chainGetBlockCommond = &cobra.Command{
-		Use:   "getblock",
+		Use:   "getblock <form> <count>",
 		Short: "get block hash or number count",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
-			return nil
-		},
+		RunE:  getBlockNum,
 	}
 	chainGetBlockHashCommond = &cobra.Command{
-		Use:   "hash <hash>",
+		Use:   "--hash <hash>",
 		Short: "get block <hash>",
 		RunE:  getBlockHash,
-	}
-	chainNumderCountCommand = &cobra.Command{
-		Use:   "number [number] <count>",
-		Short: "get block <number> <count>",
-		RunE:  getBlockNum,
 	}
 	chainGetTransactionCommand = &cobra.Command{
 		Use:   "gettransaction <hash>",
@@ -76,7 +65,7 @@ var (
 )
 
 func getBlockNum(cmd *cobra.Command, args []string) error {
-	if len(args) != 2 {
+	if len(args) < 1 {
 		return cmd.Help()
 	}
 
@@ -85,26 +74,20 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	FormStr := args[0]
-	CountStr := args[1]
-
-	fromUint, err := strconv.Atoi(FormStr)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-
-	CountUint, err := strconv.Atoi(CountStr)
-	if err != nil {
-		fmt.Println(err)
-		return nil
+	var FormStr string
+	var CountStr string
+	if len(args) == 1 {
+		FormStr = args[0]
+	} else {
+		FormStr = args[0]
+		CountStr = args[1]
 	}
 
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	receipt := make(map[string]interface{}, 1)
+	receipt := make([]map[string]interface{}, 1)
 	req := &getBlockNumArgs{
-		From:  uint64(fromUint),
-		Count: uint64(CountUint),
+		From:  json.Number(FormStr),
+		Count: json.Number(CountStr),
 	}
 	err = cli.CallMethod(1, "Chain.GetBlockSection", &req, &receipt)
 	if err != nil {
@@ -187,21 +170,7 @@ func getBlockHash(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Print("key                                value")
-	fmt.Println()
-	for k, v := range block {
-		if v != nil {
-			for ks, vs := range block[k].(map[string]interface{}) {
-				fmt.Printf("%v -> %-25v", k, ks)
-				fmt.Printf("%-50v", vs)
-				fmt.Println()
-			}
-		} else {
-			fmt.Printf("%-35v", k)
-			fmt.Printf("%-50v", v)
-			fmt.Println()
-		}
-	}
+	fmt.Println(block)
 	return nil
 }
 
@@ -212,28 +181,27 @@ func getHead() error {
 		return nil
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	blockHeader := make(map[string]interface{}, 1)
-	err = cli.CallMethod(1, "Chain.Head", nil, &blockHeader)
+	block := make(map[string]interface{}, 1)
+	err = cli.CallMethod(1, "Chain.Head", nil, &block)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-
-	fmt.Print("key                                value")
-	fmt.Println()
-	for k, v := range blockHeader {
-		if v != nil {
-			for ks, vs := range blockHeader[k].(map[string]interface{}) {
-				fmt.Printf("%v -> %-25v", k, ks)
-				fmt.Printf("%-50v", vs)
-				fmt.Println()
-			}
-		} else {
-			fmt.Printf("%-35v", k)
-			fmt.Printf("%-50v", v)
-			fmt.Println()
-		}
-	}
+	// fmt.Println(block)
+	fmt.Printf("transactions %v\n", block["transactions"])
+	fmt.Printf("receipts %v\n", block["receipts"])
+	blockheader := block["header"].(map[string]interface{})
+	fmt.Printf("hash %v\n", blockheader["hash"])
+	fmt.Printf("bits %v\n", blockheader["bits"])
+	fmt.Printf("transactions_root %v\n", blockheader["transactions_root"])
+	fmt.Printf("timestamp %v\n", blockheader["timestamp"])
+	fmt.Printf("receipts_root %v\n", blockheader["receipts_root"])
+	fmt.Printf("nonce %v\n", blockheader["nonce"])
+	fmt.Printf("height %v\n", blockheader["height"])
+	fmt.Printf("hash_prev_block %v\n", blockheader["hash_prev_block"])
+	fmt.Printf("state_root %v\n", blockheader["state_root"])
+	fmt.Printf("coinbase %v\n", blockheader["coinbase"])
+	fmt.Printf("version %v\n", blockheader["version"])
 	return nil
 }
 
@@ -245,6 +213,5 @@ func init() {
 	chainCommand.AddCommand(chainGetTransactionCommand)
 	chainCommand.AddCommand(chainGetReceiptCommand)
 	chainGetBlockCommond.AddCommand(chainGetBlockHashCommond)
-	chainGetBlockCommond.AddCommand(chainNumderCountCommand)
 
 }

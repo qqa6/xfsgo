@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -258,12 +259,16 @@ func (server *RPCServer) getServiceAndMethodType(pack string) (*service, *method
 }
 
 func (server *RPCServer) parseJsonRPCObj(jsonObjMap map[string]interface{}, obj *jsonRPCObj) error {
-	idNumber, ok := jsonObjMap["id"].(float64)
+	idNumber, ok := jsonObjMap["id"].(json.Number)
 	if !ok {
 		return invalidRequestError
 	}
-	idNumberInt := int(idNumber)
-	obj.id = &idNumberInt
+	idNumberStr := idNumber.String()
+	id, err := strconv.Atoi(idNumberStr)
+	if err != nil {
+		return NewRPCError(-32600, err.Error())
+	}
+	obj.id = &id
 	version, ok := jsonObjMap["jsonrpc"].(string)
 	if !ok || version != "2.0" {
 		return invalidRequestError
@@ -279,11 +284,12 @@ func (server *RPCServer) parseJsonRPCObj(jsonObjMap map[string]interface{}, obj 
 }
 
 func (server *RPCServer) jsonRPCCall(data []byte, rpcId **int, w io.Writer) error {
-	jsonObjMap := make(map[string]interface{})
+	var personFromJSON interface{}
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	if err := decoder.Decode(&jsonObjMap); err != nil {
-		return parseError
-	}
+	decoder.UseNumber()
+	decoder.Decode(&personFromJSON)
+
+	jsonObjMap := personFromJSON.(map[string]interface{})
 	rpcObj := &jsonRPCObj{}
 	if err := server.parseJsonRPCObj(jsonObjMap, rpcObj); err != nil {
 		*rpcId = *&rpcObj.id

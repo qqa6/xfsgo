@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 )
 
 const fileJournal string = "residual.log"
@@ -50,19 +49,18 @@ func NewJournal() (*Journal, error) {
 }
 
 func FileExist() error {
-	err := syscall.Access(fileJournal, syscall.F_OK)
-	if !os.IsNotExist(err) {
-		bytes, err := ioutil.ReadFile(fileJournal)
-		if err != nil {
-			return err
-		}
-
-		if len(bytes) == 0 {
-			return errors.New("file has no content")
-		}
-		return nil
+	if _, err := os.Stat(fileJournal); os.IsNotExist(err) {
+		return err
 	}
-	return err
+
+	fileContent, err := ioutil.ReadFile(fileJournal)
+	if err != nil {
+		return err
+	}
+	if len(fileContent) == 0 {
+		return errors.New("file has no content")
+	}
+	return nil
 
 }
 

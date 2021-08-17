@@ -47,28 +47,30 @@ type Miner struct {
 	*Config
 	mu sync.Mutex
 	sync.Mutex
-	started        bool
-	quit           chan struct{}
-	runningWorkers []chan struct{}
-	numWorkers     uint32
-	eventBus       *xfsgo.EventBus
-	canStart       bool
-	pool           *xfsgo.TxPool
-	chain          *xfsgo.BlockChain
-	stateDb        *badger.Storage
+	started          bool
+	quit             chan struct{}
+	runningWorkers   []chan struct{}
+	updateNumWorkers chan uint32
+	numWorkers       uint32
+	eventBus         *xfsgo.EventBus
+	canStart         bool
+	pool             *xfsgo.TxPool
+	chain            *xfsgo.BlockChain
+	stateDb          *badger.Storage
 }
 
 func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, eventBus *xfsgo.EventBus, pool *xfsgo.TxPool) *Miner {
 	m := &Miner{
-		Config:     config,
-		chain:      chain,
-		stateDb:    stateDb,
-		quit:       make(chan struct{}),
-		numWorkers: defaultNumWorkers,
-		pool:       pool,
-		canStart:   true,
-		started:    false,
-		eventBus:   eventBus,
+		Config:           config,
+		chain:            chain,
+		stateDb:          stateDb,
+		quit:             make(chan struct{}),
+		numWorkers:       defaultNumWorkers,
+		updateNumWorkers: make(chan uint32),
+		pool:             pool,
+		canStart:         true,
+		started:          false,
+		eventBus:         eventBus,
 	}
 	go m.mainLoop()
 	return m
@@ -83,6 +85,14 @@ func (m *Miner) Start() {
 	}
 	go m.miningWorkerController()
 	m.started = true
+}
+
+func (m *Miner) GetNumWorkers() uint32 {
+	return m.numWorkers
+}
+
+func (m *Miner) SetNumWorkers(num uint32) {
+	m.updateNumWorkers <- num
 }
 
 // mainLoop is the miner's main event loop, waiting for and reacting to synchronize events.
@@ -253,6 +263,14 @@ out:
 			break out
 		case e := <-txPreEventSub.Chan():
 			_ = e
+		case workers := <-m.updateNumWorkers:
+			if m.numWorkers != workers {
+				m.numWorkers = workers
+				m.Stop()
+				if !m.started {
+					m.Start()
+				}
+			}
 		default:
 		}
 	}

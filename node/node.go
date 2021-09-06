@@ -17,7 +17,11 @@
 package node
 
 import (
+	"crypto/ecdsa"
+	"errors"
+	"io/ioutil"
 	"log"
+	"os"
 	"xfsgo"
 	"xfsgo/api"
 	"xfsgo/crypto"
@@ -41,25 +45,47 @@ type Config struct {
 	P2PListenAddress string
 	ProtocolVersion  uint8
 	P2PBootstraps    []string
-	P2PStaticNodes []string
-	NodeDBPath string
-	RPCConfig *xfsgo.RPCConfig
+	P2PStaticNodes   []string
+	NodeDBPath       string
+	RPCConfig        *xfsgo.RPCConfig
 }
+
+const nodedbKeyName = "/dbkey"
 
 // New creates a new P2P node, ready for protocol registration.
 func New(config *Config) (*Node, error) {
-	key, _ := crypto.GenPrvKey()
+	var key *ecdsa.PrivateKey
+	nodedbKeyDir := config.NodeDBPath + nodedbKeyName
+	NewNodeDBFile(config.NodeDBPath, nodedbKeyName)
+	EncodeKey, err := GetNodeDB(nodedbKeyDir)
+	if err != nil {
+		return nil, err
+	}
+	if EncodeKey != "" {
+		key, _ = crypto.B64StringDecodePrivateKey(EncodeKey)
+	} else {
+		key, _ = crypto.GenPrvKey()
+		str, err := crypto.PrivateKeyEncodeB64String(key)
+		if err != nil {
+			return nil, err
+		}
+		err = SetNodeDB(nodedbKeyDir, str)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	bootstraps := make([]*discover.Node, 0)
-	for _,nodeUri := range config.P2PBootstraps {
-		node,err := discover.ParseNode(nodeUri)
+	for _, nodeUri := range config.P2PBootstraps {
+		node, err := discover.ParseNode(nodeUri)
 		if err != nil {
 			logrus.Warnf("parse node uri err: %s", err)
 		}
 		bootstraps = append(bootstraps, node)
 	}
 	staticNodes := make([]*discover.Node, 0)
-	for _,nodeUri := range config.P2PStaticNodes {
-		node,err := discover.ParseNode(nodeUri)
+	for _, nodeUri := range config.P2PStaticNodes {
+		node, err := discover.ParseNode(nodeUri)
 		if err != nil {
 			logrus.Warnf("parse node uri err: %s", err)
 		}
@@ -69,11 +95,11 @@ func New(config *Config) (*Node, error) {
 		ListenAddr:      config.P2PListenAddress,
 		ProtocolVersion: config.ProtocolVersion,
 		Key:             key,
-		BootstrapNodes: bootstraps,
-		StaticNodes: staticNodes,
-		Discover: true,
-		MaxPeers: 10,
-		NodeDBPath: config.NodeDBPath,
+		BootstrapNodes:  bootstraps,
+		StaticNodes:     staticNodes,
+		Discover:        true,
+		MaxPeers:        10,
+		NodeDBPath:      config.NodeDBPath,
 	})
 	n := &Node{
 		config:    config,
@@ -81,6 +107,43 @@ func New(config *Config) (*Node, error) {
 	}
 	n.rpcServer = xfsgo.NewRPCServer(config.RPCConfig)
 	return n, nil
+}
+
+func NewNodeDBFile(filemkdir string, filename string) error {
+	nodedb := filemkdir + filename
+	if FileExist(nodedb) {
+		return errors.New("file already exists")
+	}
+	os.MkdirAll(filemkdir, os.ModePerm)
+	// if err != nil {
+	_, err := os.Create(nodedb)
+	return err
+	// }
+}
+
+func GetNodeDB(filename string) (string, error) {
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0600)
+	if err != nil {
+		return "", err
+	} else {
+		contentByte, err := ioutil.ReadAll(f)
+		return string(contentByte), err
+	}
+}
+
+func SetNodeDB(filename string, key string) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	} else {
+		_, err = f.Write([]byte(key))
+		return err
+	}
+}
+
+func FileExist(path string) bool {
+	_, err := os.Lstat(path)
+	return !os.IsNotExist(err)
 }
 
 // Start starts p2p networking and RPC services runs in a goroutine.

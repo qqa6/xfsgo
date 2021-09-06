@@ -24,6 +24,7 @@ import (
 )
 
 const headerLen = 6
+
 //MessageReader interface defines type of message and reading methods,
 //messageReader implements this interface.
 type MessageReader interface {
@@ -130,7 +131,7 @@ func (m *helloRequestMsg) unmarshal(data []byte) bool {
 		return false
 	}
 	cLen := binary.LittleEndian.Uint32(data[2:headerLen])
-	body := data[headerLen: headerLen + cLen]
+	body := data[headerLen : headerLen+cLen]
 	copy(m.id[:], body[:len(m.id)])
 	copy(m.receiveId[:], body[len(m.id):])
 	return true
@@ -163,7 +164,7 @@ func (m *helloReRequestMsg) unmarshal(data []byte) bool {
 		return false
 	}
 	cLen := binary.LittleEndian.Uint32(data[2:headerLen])
-	body := data[headerLen: headerLen + cLen]
+	body := data[headerLen : headerLen+cLen]
 	copy(m.id[:], body[:len(m.id)])
 	copy(m.receiveId[:], body[len(m.id):])
 	return true

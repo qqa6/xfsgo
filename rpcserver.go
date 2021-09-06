@@ -27,10 +27,10 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"xfsgo/p2p/log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -75,16 +75,17 @@ type RPCConfig struct {
 
 // RPCServer is an RPC server.
 type RPCServer struct {
+	logger     log.Logger
 	config     *RPCConfig
 	ginEngine  *gin.Engine
 	upgrader   websocket.Upgrader
 	serviceMap map[string]*service
 }
 
-func ginlogger(logger logrus.FieldLogger) gin.HandlerFunc {
+func ginlogger(log log.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if len(c.Errors) > 0 {
-			logger.Errorln(c.Errors.ByType(gin.ErrorTypePrivate).String())
+			log.Errorln(c.Errors.ByType(gin.ErrorTypePrivate).String())
 		}
 	}
 }
@@ -92,6 +93,7 @@ func ginlogger(logger logrus.FieldLogger) gin.HandlerFunc {
 //// NewRPCServer creates a new server instance with given configuration options.
 func NewRPCServer(config *RPCConfig) *RPCServer {
 	server := &RPCServer{
+		logger:     log.DefaultLogger(),
 		config:     config,
 		serviceMap: make(map[string]*service),
 		upgrader: websocket.Upgrader{
@@ -99,7 +101,8 @@ func NewRPCServer(config *RPCConfig) *RPCServer {
 			WriteBufferSize: 1024,
 		},
 	}
-	logger := logrus.StandardLogger()
+
+	logger := log.DefaultLogger()
 	gin.DefaultWriter = logger.Writer()
 	gin.SetMode("release")
 	server.ginEngine = gin.New()
@@ -374,7 +377,7 @@ func (server *RPCServer) Start() error {
 		//handle websocket request
 		if isWebsocketRequest(c) {
 			if err := server.handleWebsocket(c); err != nil {
-				logrus.Warnf("ws connect err")
+				server.logger.Warnf("ws connect err")
 			}
 			c.Abort()
 			return
@@ -407,6 +410,6 @@ func (server *RPCServer) Start() error {
 		}
 		c.Abort()
 	})
-	logrus.Infof("start rpc server runing: %s", server.config.ListenAddr)
+	server.logger.Infof("start rpc server runing: %s", server.config.ListenAddr)
 	return server.ginEngine.Run(server.config.ListenAddr)
 }

@@ -1,19 +1,3 @@
-// Copyright 2018 The xfsgo Authors
-// This file is part of the xfsgo library.
-//
-// The xfsgo library is free software: you can redistribute it and/or modify
-// it under the terms of the MIT Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The xfsgo library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// MIT Lesser General Public License for more details.
-//
-// You should have received a copy of the MIT Lesser General Public License
-// along with the xfsgo library. If not, see <https://mit-license.org/>.
-
 package p2p
 
 import (
@@ -22,20 +6,17 @@ import (
 	"net"
 	"sync"
 	"time"
-	"xfsgo/common"
 	"xfsgo/p2p/discover"
-
-	"github.com/sirupsen/logrus"
+	"xfsgo/p2p/log"
+	"xfsgo/p2p/nat"
 )
 
 const (
-	defaultListenAddr = ":9002"
-	flagInbound = 1
+	flagInbound  = 1
 	flagOutbound = 1 << 1
-	flagStatic = 1 << 2
-	flagDynamic = 1 << 3
+	flagStatic   = 1 << 2
+	flagDynamic  = 1 << 3
 )
-
 
 type Server interface {
 	Bind(p Protocol)
@@ -49,16 +30,20 @@ type Server interface {
 // You should set them before starting the Server. Fields may not be
 // modified while the server is running.
 type server struct {
-	config Config
-	mu     sync.Mutex
+	config  Config
+	mu      sync.Mutex
 	running bool
 	//protocols contains the protocols supported by the server.
 	//Matching protocols are launched for each peer.
 	protocols []Protocol
 
-	addpeer chan *peerConn
-	delpeer chan Peer
-	table *discover.Table
+	addpeer    chan *peerConn
+	delpeer    chan Peer
+	table      *discover.Table
+	logger     log.Logger
+	lastLookup time.Time
+	natm       nat.Listener
+	quit       chan struct{}
 }
 
 // Config Background network service configuration
@@ -66,18 +51,24 @@ type Config struct {
 	ProtocolVersion uint8
 	ListenAddr      string
 	Key             *ecdsa.PrivateKey
-	Discover bool
-	NodeDBPath string
+	Discover        bool
+	NodeDBPath      string
 	StaticNodes     []*discover.Node
-	BootstrapNodes []*discover.Node
-	MaxPeers int
+	BootstrapNodes  []*discover.Node
+	MaxPeers        int
+	Logger          log.Logger
 }
 
 // NewServer Creates background service object
 func NewServer(config Config) Server {
-	return &server{
-		config:  config,
+	srv := &server{
+		config: config,
+		logger: config.Logger,
 	}
+	if config.Logger == nil {
+		srv.logger = log.DefaultLogger()
+	}
+	return srv
 }
 
 // Bind network protocol function
@@ -91,7 +82,10 @@ func (srv *server) Bind(p Protocol) {
 
 // Stop background network function
 func (srv *server) Stop() {
-
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	srv.running = false
+	close(srv.quit)
 }
 
 // Start start running the server.
@@ -105,12 +99,13 @@ func (srv *server) Start() error {
 	srv.running = true
 	// Peer to peer session entity
 	srv.addpeer = make(chan *peerConn)
-	// 创建对等网络 Bert1
 	srv.delpeer = make(chan Peer)
+	srv.quit = make(chan struct{})
+	srv.natm = &nat.DefaultListener{}
 	var err error
 	// launch node discovery and UDP listener
 	if srv.config.Discover {
-		srv.table, err = discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath)
+		srv.table, err = discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath, srv.natm)
 		if err != nil {
 			return err
 		}
@@ -121,26 +116,20 @@ func (srv *server) Start() error {
 	}
 	dialer := newDialState(srv.config.StaticNodes, srv.table, dynPeers)
 	// launch TCP listener to accept connection
-	if err := srv.listenAndServe(); err != nil {
+	if err = srv.listenAndServe(); err != nil {
 		return err
 	}
 
-	// 网络地址 bert2
 	go srv.run(dialer)
 	srv.running = true
 	return nil
 }
 
 func (srv *server) run(dialer *dialstate) {
-	// create map peers 创建对等map
 	peers := make(map[discover.NodeId]Peer)
-	// 创建连接任务表map
 	tasks := make([]task, 0)
-	// (预备执行)执行任务队列
 	pendingTasks := make([]task, 0)
-	// 任务完成
 	taskdone := make(chan task)
-	// 删除完成的任务列表
 	delTask := func(t task) {
 		for i := range tasks {
 			if tasks[i] == t {
@@ -150,12 +139,9 @@ func (srv *server) run(dialer *dialstate) {
 		}
 	}
 
-	// 执行任务
 	scheduleTasks := func(new []task) {
-		logrus.Infof("Running connection tasks scheduling, number of current tasks: %d", len(new))
 		pt := append(pendingTasks, new...)
-		start := 8 - len(tasks)
-		// 预备队列长度小于开始长度
+		start := 16 - len(tasks)
 		if len(pt) < start {
 			start = len(pt)
 		}
@@ -169,26 +155,30 @@ func (srv *server) run(dialer *dialstate) {
 				}()
 			}
 			copy(pt, pt[start:])
-			// peeding tasks
+			// pending tasks
 			pendingTasks = pt[:len(pt)-start]
 		}
-		time.Sleep(20 * time.Second)
 	}
-	//_ = scheduleTasks
+
+running:
 	for {
-		nt := dialer.newTasks(peers)
+		now := time.Now()
+		nt := dialer.newTasks(len(pendingTasks)+len(tasks), peers, now)
 		// schedule tasks
 		scheduleTasks(nt)
 		select {
+		case <-srv.quit:
+			srv.logger.Infof("quit: spinning down")
+			break running
 		// add peer
 		case c := <-srv.addpeer:
 			p := newPeer(c, srv.protocols)
 			peers[c.id] = p
-			logrus.Infof("save peer id to peers: %s", c.id)
+			srv.logger.Infof("save peer id to peers: %s", c.id)
 			go srv.runPeer(p)
 		// task is done
 		case t := <-taskdone:
-			dialer.taskDone(t)
+			dialer.taskDone(t, now)
 			delTask(t)
 		// delete peer
 		case p := <-srv.delpeer:
@@ -204,21 +194,19 @@ func (srv *server) runPeer(peer Peer) {
 
 func (srv *server) listenAndServe() error {
 	addr := srv.config.ListenAddr
-	if addr == "" {
-		addr = defaultListenAddr
-	}
-
 	ln, err := net.Listen("tcp", addr)
+	srv.natm, _ = nat.GetListener(addr, ln)
+	// fmt.Printf("natmIP:%v Port:%v\n", srv.natm.ExternalAddress().IP, srv.natm.ExternalAddress().Port)
 	if err != nil {
-		logrus.Errorf("p2p server listen and serve on %s err: %v", addr, err)
+		srv.logger.Errorf("p2p server listen and serve on %s err: %v", addr, err)
 		return err
 	}
-	logrus.Infof("p2p server listen and serve on %s", addr)
+	srv.logger.Infof("p2p server listen and serve on %s", addr)
 	currentKey := srv.config.Key
 	nId := discover.PubKey2NodeId(currentKey.PublicKey)
-	tcpAddr,_ := net.ResolveTCPAddr("", addr)
-	n := discover.NewNode(tcpAddr.IP, uint16(tcpAddr.Port), uint16(tcpAddr.Port),nId)
-	logrus.Infof("p2p server node id: %s", n)
+	//tcpAddr,_ := net.ResolveTCPAddr("", addr)
+	//n := discover.NewNode(tcpAddr.IP, uint16(tcpAddr.Port), uint16(tcpAddr.Port),nId)
+	srv.logger.Infof("p2p server node id: xfsnode://%s?id=%s", srv.config.ListenAddr, nId)
 	go srv.listenLoop(ln)
 	return nil
 }
@@ -226,11 +214,15 @@ func (srv *server) listenAndServe() error {
 // listenLoop runs in its own goroutine and accepts
 // request of connections.
 func (srv *server) listenLoop(ln net.Listener) {
-	defer common.Safeclose(ln.Close)
+	defer func() {
+		if err := ln.Close(); err != nil {
+			srv.logger.Errorln(err)
+		}
+	}()
 	for {
 		rw, err := ln.Accept()
 		if err != nil {
-			logrus.Errorf("p2p listenner accept err %v", err)
+			srv.logger.Errorf("p2p listenner accept err %v", err)
 			return
 		}
 		c := srv.newPeerConn(rw, flagInbound, nil)
@@ -241,9 +233,11 @@ func (srv *server) listenLoop(ln net.Listener) {
 func (srv *server) newPeerConn(rw net.Conn, flag int, dst *discover.NodeId) *peerConn {
 	pubKey := srv.config.Key.PublicKey
 	mId := discover.PubKey2NodeId(pubKey)
+	// fmt.Printf("ProtocolVersion:%v\n", srv.config.ProtocolVersion)
 	c := &peerConn{
+		logger:  srv.logger,
 		self:    mId,
-		flag: flag,
+		flag:    flag,
 		server:  srv,
 		key:     srv.config.Key,
 		rw:      rw,

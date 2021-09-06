@@ -2,7 +2,6 @@ package discover
 
 import (
 	"bytes"
-	"github.com/sirupsen/logrus"
 	"net"
 	"sync"
 	"testing"
@@ -14,10 +13,10 @@ func TestTable_(t *testing.T) {
 }
 
 type testNet struct {
+	t *testing.T
 	ns []*Node
 }
 func (t *testNet) ping(id NodeId, addr *net.UDPAddr) error {
-	logrus.Infof("net ping request id: %s, addr: %s", id, addr)
 	return nil
 }
 func (t *testNet) waitping(NodeId) error{
@@ -71,7 +70,6 @@ func TestTable_Lookup(t *testing.T) {
 	_=find
 }
 func TestTable_pingpong(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
 	selfId := NodeId{
 		01,43,253,127,128,129,230,91,
 	}
@@ -105,7 +103,6 @@ func TestTable_pingpong(t *testing.T) {
 
 
 func TestTable_bond(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
 	selfId := NodeId{
 		01,43,253,127,128,129,230,91,
 	}

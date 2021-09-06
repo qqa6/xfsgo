@@ -48,19 +48,20 @@ func PubKey2NodeId(pub ecdsa.PublicKey) NodeId {
 	copy(id[:], pHashBytes)
 	return id
 }
+
 type Node struct {
-	IP net.IP
-	TCP,UDP uint16
-	ID NodeId
-	Hash common.Hash
+	IP       net.IP
+	TCP, UDP uint16
+	ID       NodeId
+	Hash     common.Hash
 }
 
 func NewNode(ip net.IP, tcpPort, udpPort uint16, id NodeId) *Node {
-	return newNode(ip,tcpPort,udpPort,id)
+	return newNode(ip, tcpPort, udpPort, id)
 }
 func newNode(ip net.IP, tcpPort, udpPort uint16, id NodeId) *Node {
-	n :=  &Node{
-		IP: ip,
+	n := &Node{
+		IP:  ip,
 		TCP: tcpPort,
 		UDP: udpPort,
 		ID:  id,
@@ -84,12 +85,9 @@ func (n *Node) String() string {
 	addr := net.TCPAddr{IP: n.IP, Port: int(n.TCP)}
 	u := url.URL{
 		Scheme: "xfsnode",
-		User:   url.User(fmt.Sprintf("%x", n.ID[:])),
 		Host:   addr.String(),
 	}
-	if n.UDP != n.TCP {
-		u.RawQuery = "discport=" + strconv.Itoa(int(n.UDP))
-	}
+	u.RawQuery = fmt.Sprintf("id=%x", n.ID[:])
 	return u.String()
 }
 
@@ -101,46 +99,35 @@ func ParseNode(rawurl string) (*Node, error) {
 	)
 	u, err := url.Parse(rawurl)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse url err: %v", err)
 	}
 	if u.Scheme != "xfsnode" {
 		return nil, errors.New("invalid URL scheme, want \"xfsnode\"")
 	}
-	// Parse the Node ID from the user portion.
-	if u.User == nil {
-		return nil, errors.New("does not contain node ID")
-	}
-	if id, err = Hex2NodeId(u.User.String()); err != nil {
-		return nil, fmt.Errorf("invalid node ID (%v)", err)
-	}
-	// Parse the IP address.
 	host, port, err := net.SplitHostPort(u.Host)
 	if err != nil {
 		return nil, fmt.Errorf("invalid host: %v", err)
 	}
 	if ip = net.ParseIP(host); ip == nil {
-		return nil, errors.New("invalid IP address")
+		return nil, errors.New("invalid ip host")
 	}
-	// Ensure the IP is 4 bytes long for IPv4 addresses.
 	if ipv4 := ip.To4(); ipv4 != nil {
 		ip = ipv4
 	}
-	// Parse the port numbers.
 	if tcpPort, err = strconv.ParseUint(port, 10, 16); err != nil {
 		return nil, errors.New("invalid port")
 	}
 	udpPort = tcpPort
-	qv := u.Query()
-	if qv.Get("discport") != "" {
-		udpPort, err = strconv.ParseUint(qv.Get("discport"), 10, 16)
-		if err != nil {
-			return nil, errors.New("invalid discport in query")
-		}
+	q := u.Query()
+	nId := q.Get("id")
+	if nId == "" {
+		return nil, errors.New("does not contain node ID")
 	}
-	return newNode(ip,uint16(tcpPort), uint16(udpPort), id), nil
+	if id, err = Hex2NodeId(nId); err != nil {
+		return nil, fmt.Errorf("invalid node ID (%v)", err)
+	}
+	return newNode(ip, uint16(tcpPort), uint16(udpPort), id), nil
 }
-
-
 
 // recoverNodeID computes the public key used to sign the
 // given hash from the signature.
@@ -149,6 +136,7 @@ func recoverNodeID(buf []byte) (NodeId, error) {
 	copy(id[:], buf)
 	return id, nil
 }
+
 var lzcount = [256]int{
 	8, 7, 6, 6, 5, 5, 5, 5,
 	4, 4, 4, 4, 4, 4, 4, 4,
@@ -183,6 +171,7 @@ var lzcount = [256]int{
 	0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0,
 }
+
 // logdist returns the logarithmic distance between a and b, log2(a ^ b).
 func logdist(a, b []byte) int {
 	lz := 0

@@ -2,11 +2,14 @@ package discover
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
+	"net/url"
+	"strconv"
 	"testing"
-	"xfsgo/crypto"
+	"xlibp2p/crypto"
 )
 
 
@@ -122,3 +125,48 @@ func TestNode_distcmp(t *testing.T) {
 	}
 }
 
+func TestParseNode2(t *testing.T) {
+	str := "xfsnode://127.0.0.1:9091/?id=8835c3a73333e8bf26eb28b3fd958f68ec32b0cd8c7e1fcdc090b2f3cdabd39fc7a5c5e23994cc74d60db5ab41163e966ccf09883fb112fc4f476c06e19035e9"
+	parseNode := func(rawurl string) (*Node, error) {
+		var (
+			id NodeId
+			ip net.IP
+			tcpPort, udpPort uint64
+		)
+		u, err := url.Parse(rawurl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u.Scheme != "xfsnode" {
+			return nil, errors.New("invalid URL scheme, want \"xfsnode\"")
+		}
+		host, port, err := net.SplitHostPort(u.Host)
+		if err != nil {
+			return nil, fmt.Errorf("invalid host: %v", err)
+		}
+		if ip = net.ParseIP(host); ip == nil {
+			return nil, errors.New("invalid ip host")
+		}
+		if ipv4 := ip.To4(); ipv4 != nil {
+			ip = ipv4
+		}
+		if tcpPort, err = strconv.ParseUint(port, 10, 16); err != nil {
+			return nil, errors.New("invalid port")
+		}
+		udpPort = tcpPort
+		q := u.Query()
+		nId := q.Get("id")
+		if nId == "" {
+			return nil, errors.New("does not contain node ID")
+		}
+		if id, err = Hex2NodeId(nId); err != nil {
+			return nil, fmt.Errorf("invalid node ID (%v)", err)
+		}
+		return newNode(ip, uint16(tcpPort), uint16(udpPort), id), nil
+	}
+	n, err := parseNode(str)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_=n
+}

@@ -2,26 +2,27 @@ package discover
 
 import (
 	"bytes"
+	"container/list"
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"time"
 	"xfsgo/common/rawencode"
+	"xfsgo/p2p/nat"
 )
 
 const Version = 4
 
 // Errors
 var (
-	errPacketTooSmall   = errors.New("too small")
 	errExpired          = errors.New("expired")
 	errBadVersion       = errors.New("version mismatch")
 	errUnsolicitedReply = errors.New("unsolicited reply")
 	errUnknownNode      = errors.New("unknown node")
 	errTimeout          = errors.New("RPC timeout")
+	errClockWarp        = errors.New("reply deadline too far in the future")
 	errClosed           = errors.New("socket closed")
 )
 
@@ -55,7 +56,7 @@ func nodeFromRPC(rn rpcNode) (n *Node, valid bool) {
 	if rn.IP.IsMulticast() || rn.IP.IsUnspecified() || rn.UDP == 0 {
 		return nil, false
 	}
-	return newNode(rn.IP,rn.TCP, rn.UDP, rn.ID ), true
+	return newNode(rn.IP, rn.TCP, rn.UDP, rn.ID), true
 }
 
 func nodeToRPC(n *Node) rpcNode {
@@ -75,6 +76,7 @@ type conn interface {
 
 // udp implements the RPC protocol.
 type udp struct {
+	//logger log.Logger
 	conn        conn
 	priv        *ecdsa.PrivateKey
 	ourEndpoint rpcEndpoint
@@ -125,7 +127,7 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm nat.Listener) (*Table, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
 		return nil, err
@@ -134,11 +136,11 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string) (*Table,
 	if err != nil {
 		return nil, err
 	}
-	tab, _ := newUDP(priv, conn, nodeDBPath)
+	tab, _ := newUDP(priv, conn, nodeDBPath, natm)
 	return tab, nil
 }
 
-func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string) (*Table, *udp) {
+func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, natm nat.Listener) (*Table, *udp) {
 	udp := &udp{
 		conn:       c,
 		priv:       priv,
@@ -194,7 +196,7 @@ func (t *udp) findnode(toid NodeId, toaddr *net.UDPAddr, target NodeId) ([]*Node
 		return nreceived >= bucketSize
 	})
 	_ = t.send(toaddr, findnodePacket, findnode{
-		Target: target,
+		Target:     target,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 	})
 	err := <-errc
@@ -230,68 +232,88 @@ func (t *udp) handleReply(from NodeId, ptype byte, req packet) bool {
 // the refresh timer and the pending reply queue.
 func (t *udp) loop() {
 	var (
-		pending      []*pending
-		nextDeadline time.Time
-		timeout      = time.NewTimer(0)
-		refresh      = time.NewTicker(refreshInterval)
+		plist       = list.New()
+		timeout     = time.NewTimer(0)
+		nextTimeout *pending // head of plist when timeout was last reset
+		refresh     = time.NewTicker(refreshInterval)
 	)
 	<-timeout.C // ignore first timeout
 	defer refresh.Stop()
 	defer timeout.Stop()
 
-	rearmTimeout := func() {
-		now := time.Now()
-		if len(pending) == 0 || now.Before(nextDeadline) {
+	resetTimeout := func() {
+		if plist.Front() == nil || nextTimeout == plist.Front().Value {
 			return
 		}
-		nextDeadline = pending[0].deadline
-		timeout.Reset(nextDeadline.Sub(now))
+		// Start the timer so it fires when the next pending reply has expired.
+		now := time.Now()
+		for el := plist.Front(); el != nil; el = el.Next() {
+			nextTimeout = el.Value.(*pending)
+			//t.logger.Debugf("udp loop resetTimeout from: %s, packet type: %x, now: %s, next timeout: %s", nextTimeout.from, nextTimeout.ptype, now.Format(time.RFC3339), nextTimeout.deadline.Format(time.RFC3339))
+			if dist := nextTimeout.deadline.Sub(now); dist < 2*respTimeout {
+				//t.logger.Debugf("udp loop from: %s, packet type: %x, resetTimeout: %s",nextTimeout.from,nextTimeout.ptype, dist)
+				timeout.Reset(dist)
+				return
+			}
+			// Remove pending replies whose deadline is too far in the
+			// future. These can occur if the system clock jumped
+			// backwards after the deadline was assigned.
+			nextTimeout.errc <- errClockWarp
+			plist.Remove(el)
+		}
+		nextTimeout = nil
+		timeout.Stop()
 	}
 
 	for {
+		resetTimeout()
+
 		select {
 		case <-refresh.C:
 			go t.refresh()
 
 		case <-t.closing:
-			for _, p := range pending {
-				p.errc <- errClosed
+			for el := plist.Front(); el != nil; el = el.Next() {
+				el.Value.(*pending).errc <- errClosed
 			}
-			pending = nil
 			return
 
 		case p := <-t.addpending:
 			p.deadline = time.Now().Add(respTimeout)
-			pending = append(pending, p)
-			rearmTimeout()
+
+			//t.logger.Debugf("udp loop receive addpending chan from: %s, type: %x, deadline: %s",p.from,p.ptype, p.deadline.Format(time.RFC3339))
+			plist.PushBack(p)
 
 		case r := <-t.gotreply:
+			//t.logger.Debugf("udp loop receive gotreply chan from: %s, type: %x", r.from, r.ptype)
 			var matched bool
-			for i := 0; i < len(pending); i++ {
-				if p := pending[i]; p.from == r.from && p.ptype == r.ptype {
+			for el := plist.Front(); el != nil; el = el.Next() {
+				p := el.Value.(*pending)
+				if p.from == r.from && p.ptype == r.ptype {
 					matched = true
+					// Remove the matcher if its callback indicates
+					// that all replies have been received. This is
+					// required for packet types that expect multiple
+					// reply packets.
 					if p.callback(r.data) {
-						// callback indicates the request is done, remove it.
 						p.errc <- nil
-						copy(pending[i:], pending[i+1:])
-						pending = pending[:len(pending)-1]
-						i--
+						plist.Remove(el)
 					}
 				}
 			}
 			r.matched <- matched
 
 		case now := <-timeout.C:
-			// notify and remove callbacks whose deadline is in the past.
-			i := 0
-			for ; i < len(pending) && now.After(pending[i].deadline); i++ {
-				pending[i].errc <- errTimeout
+			nextTimeout = nil
+			// Notify and remove callbacks whose deadline is in the past.
+			for el := plist.Front(); el != nil; el = el.Next() {
+				p := el.Value.(*pending)
+				//t.logger.Debugf("udp loop timeout tick, now: %s, p.deadline: %s", now, p.deadline)
+				if now.After(p.deadline) || now.Equal(p.deadline) {
+					p.errc <- errTimeout
+					plist.Remove(el)
+				}
 			}
-			if i > 0 {
-				copy(pending, pending[i:])
-				pending = pending[:len(pending)-i]
-			}
-			rearmTimeout()
 		}
 	}
 }
@@ -300,9 +322,9 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req interface{}) error {
 	if err != nil {
 		return err
 	}
-	logrus.Infof(">>> %v %T\n", toaddr, req)
+	//t.logger.Infof(">>> %v %T\n", toaddr, req)
 	if _, err = t.conn.WriteToUDP(packet, toaddr); err != nil {
-		logrus.Errorln("UDP send failed:", err)
+
 	}
 	return err
 }
@@ -312,13 +334,13 @@ func encodePacket(privateKey *ecdsa.PrivateKey, ptype byte, req interface{}) ([]
 	b.WriteByte(ptype)
 	nId := PubKey2NodeId(privateKey.PublicKey)
 	b.Write(nId[:])
-	bs,err := rawencode.Encode(req)
+	bs, err := rawencode.Encode(req)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	bsLen := uint32(len(bs))
-	if (bsLen >> 8 ) > 0 {
-		return nil,fmt.Errorf("out")
+	if (bsLen >> 8) > 0 {
+		return nil, fmt.Errorf("out")
 	}
 	b.WriteByte(byte(uint32(len(bs))))
 	b.Write(bs)
@@ -329,7 +351,7 @@ func encodePacket(privateKey *ecdsa.PrivateKey, ptype byte, req interface{}) ([]
 func (t *udp) readLoop() {
 	defer func() {
 		if err := t.conn.Close(); err != nil {
-			logrus.Error(err)
+			//t.logger.Errorln(err)
 		}
 	}()
 	// Discovery packets are defined to be no larger than 1280 bytes.
@@ -349,37 +371,36 @@ func (t *udp) readLoop() {
 }
 
 func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
-	buffer :=  bytes.NewBuffer(buf)
+	buffer := bytes.NewBuffer(buf)
 	packet, fromID, err := decodePacket(buffer)
 	if err != nil {
-		logrus.Debugf("Bad packet from %v: %v", from, err)
+		//t.logger.Debugf("Bad packet from %v: %v", from, err)
 		return err
 	}
-	status := "ok"
+	//status := "ok"
 	if err = packet.handle(t, from, fromID); err != nil {
-		status = err.Error()
+		//status = err.Error()
 	}
 
-	logrus.Infof("<<< %v %T: %s\n", from, packet, status)
+	//t.logger.Infof("<<< %v %T: %s\n", from, packet, status)
 	return err
 }
 
-
 type packetHead struct {
-	mType uint8
-	id NodeId
+	mType   uint8
+	id      NodeId
 	dataLen uint8
 }
 
-func decodePacketHead(reader io.Reader) (*packetHead,int,error) {
+func decodePacketHead(reader io.Reader) (*packetHead, int, error) {
 	headerBuf := bytes.NewBuffer(nil)
 	var offset int
-	for headerBuf.Len() < nodeIdLen + 2 {
+	for headerBuf.Len() < nodeIdLen+2 {
 		b := make([]byte, 1)
 		if n, err := reader.Read(b); err != nil {
 			offset += n
 			return nil, offset, err
-		}else {
+		} else {
 			offset += n
 		}
 		headerBuf.Write(b)
@@ -388,12 +409,12 @@ func decodePacketHead(reader io.Reader) (*packetHead,int,error) {
 	h := new(packetHead)
 	h.mType, err = headerBuf.ReadByte()
 	if err != nil {
-		return nil,offset, err
+		return nil, offset, err
 	}
 	nid := NodeId{}
 	_, err = headerBuf.Read(nid[:])
 	if err != nil {
-		return nil,offset, err
+		return nil, offset, err
 	}
 	h.id = nid
 	h.dataLen, err = headerBuf.ReadByte()
@@ -402,12 +423,12 @@ func decodePacketHead(reader io.Reader) (*packetHead,int,error) {
 func decodePacket(reader io.Reader) (packet, NodeId, error) {
 	h, _, err := decodePacketHead(reader)
 	if err != nil {
-		return nil,NodeId{},err
+		return nil, NodeId{}, err
 	}
 	var data = make([]byte, h.dataLen)
 	_, err = reader.Read(data)
 	if err != nil {
-		return nil,NodeId{}, err
+		return nil, NodeId{}, err
 	}
 	var req packet
 	switch ptype := h.mType; ptype {

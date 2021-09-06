@@ -43,6 +43,7 @@ const (
 	BlocksMsg                   uint8 = 9
 	NewBlockMsg                 uint8 = 10
 	TxMsg                       uint8 = 11
+	AllSyncMsg                  uint8 = 12
 )
 
 func newPeer(p p2p.Peer, version uint32, network uint32) *peer {
@@ -70,6 +71,11 @@ type getBlockHashesFromNumberData struct {
 	Count uint64 `json:"count"`
 }
 
+type AllSyncData struct {
+	ID     string      `json:"id"`
+	Head   common.Hash `json:"head"`
+	Height uint64      `json:"height"`
+}
 type remoteTxs []*xfsgo.Transaction
 type remoteHashes []common.Hash
 type remoteBlocks []*xfsgo.Block
@@ -77,6 +83,7 @@ type remoteBlocks []*xfsgo.Block
 // Handshake runs the protocol handshake using messages(hash value and height of current block).
 // to verifies whether the peer matchs the prptocol that attempts to add the connection as a peer.
 func (p *peer) Handshake(head common.Hash, height uint64) error {
+
 	go func() {
 		if err := p2p.SendMsgData(p.p2pPeer, MsgCodeVersion, &statusData{
 			Version: p.version,
@@ -127,6 +134,13 @@ func (p *peer) RequestHashesFromNumber(from uint64, count uint64) error {
 		From:  from,
 		Count: count,
 	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *peer) SendAllSync(allMsg *AllSyncData) error {
+	if err := p2p.SendMsgData(p.p2pPeer, AllSyncMsg, &allMsg); err != nil {
 		return err
 	}
 	return nil

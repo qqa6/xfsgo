@@ -18,7 +18,6 @@ package sub
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,6 +26,8 @@ import (
 	"xfsgo/backend"
 	"xfsgo/common"
 	"xfsgo/node"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/viper"
 )
@@ -114,11 +115,11 @@ func parseConfigStorageParams(v *viper.Viper) storageParams {
 		storageParams.nodesDir = path.Join(
 			storageParams.dataDir, defaultNodesDir)
 	}
-	logrus.Infof("chainDir: %s",storageParams.chainDir )
-	logrus.Infof("stateDir: %s",storageParams.stateDir )
-	logrus.Infof("keysDir: %s",storageParams.keysDir )
-	logrus.Infof("extraDir: %s",storageParams.extraDir )
-	logrus.Infof("nodesDir: %s",storageParams.nodesDir )
+	logrus.Infof("chainDir: %s", storageParams.chainDir)
+	logrus.Infof("stateDir: %s", storageParams.stateDir)
+	logrus.Infof("keysDir: %s", storageParams.keysDir)
+	logrus.Infof("extraDir: %s", storageParams.extraDir)
+	logrus.Infof("nodesDir: %s", storageParams.nodesDir)
 	return storageParams
 }
 func defaultBootstrapNodes(netid uint32) []string {
@@ -140,6 +141,7 @@ func parseConfigNodeParams(v *viper.Viper, netid uint32) node.Config {
 	config.P2PListenAddress = v.GetString("p2pnode.listen")
 	config.P2PBootstraps = v.GetStringSlice("p2pnode.bootstrap")
 	config.P2PStaticNodes = v.GetStringSlice("p2pnode.static")
+	config.ProtocolVersion = uint8(v.GetUint64("protocol.version"))
 	if config.RPCConfig.ListenAddr == "" {
 		config.RPCConfig.ListenAddr = defaultNodeRPCListenAddr
 	}

@@ -2,7 +2,6 @@ package discover
 
 import (
 	"bytes"
-	"github.com/sirupsen/logrus"
 	"net"
 	"sync"
 	"testing"
@@ -171,7 +170,6 @@ func TestNodeDB_deleteNode(t *testing.T)  {
 	_ = db.deleteNode(nodes[1].ID)
 }
 func TestNodeDB_ensureExpire(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
 	var (
 		err error = nil
 	)

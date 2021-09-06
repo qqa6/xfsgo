@@ -8,14 +8,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"xfsgo/common"
 	"xfsgo/p2p/discover"
-
-	"github.com/sirupsen/logrus"
+	"xfsgo/p2p/log"
 )
 
 // Peer to peer connection session
 type peerConn struct {
+	logger          log.Logger
 	inbound         bool
 	id              discover.NodeId
 	self            discover.NodeId
@@ -24,28 +23,29 @@ type peerConn struct {
 	rw              net.Conn
 	version         uint8
 	handshakeStatus int
-	flag int
+	flag            int
 }
 
 func (c *peerConn) serve() {
 	// Get the address and port number of the client
 	fromAddr := c.rw.RemoteAddr()
-	inbound := c.flag & flagInbound != 0
+	inbound := c.flag&flagInbound != 0
 	if inbound {
 		if err := c.serverHandshake(); err != nil {
-			logrus.Warnf("handshake error from %s: %v", fromAddr, err)
+			c.logger.Warnf("handshake error from %s: %v", fromAddr, err)
 			c.close()
 			return
 		}
 	} else {
 		if err := c.clientHandshake(); err != nil {
-			logrus.Warnf("handshake error from %s: %v", fromAddr, err)
+			c.logger.Warnf("handshake error from %s: %v", fromAddr, err)
 			c.close()
 			return
 		}
 	}
-	logrus.Infof("p2p handshake success by %s", fromAddr)
-	// 加入节点p2pserver 节点
+	c.logger.Infof("p2p handshake success by %s", fromAddr)
+
+	//Join node p2pserver node
 	c.server.addpeer <- c
 }
 
@@ -61,17 +61,19 @@ func (c *peerConn) clientHandshake() error {
 		id:        c.self,
 		receiveId: c.id,
 	}
-	logrus.Debugf("send hello request version: %d, id: %s, receiveId: %s", c.version,c.self, c.id)
-	// send data 发送消息
+	c.logger.Debugf("send hello request version: %d, id: %s, to receiveId: %s", c.version, c.self, c.id)
+	// send data
 	_, err := c.rw.Write(request.marshal())
 	if err != nil {
 		return err
 	}
-	// Read reply data 读取消息
+	// Read reply data
 	hello, err := c.readHelloReRequestMsg()
+
 	if err != nil {
 		return err
 	}
+	c.logger.Debugf("receive hello request reply from node: %s, by version: %d", hello.id, c.version)
 	if hello.version != c.version {
 		return fmt.Errorf("handshake check err, got version: %d, want version: %d",
 			hello.version, c.version)
@@ -94,29 +96,31 @@ func (c *peerConn) serverHandshake() error {
 	}
 
 	// Read reply data
-	// 获取接收到的数据
+
 	hello, err := c.readHelloRequestMsg()
 	if err != nil {
 		return err
 	}
+	c.logger.Debugf("receive handshake request by nodeId %s, version: %d", hello.id, hello.version)
 	if hello.version != c.version {
 		return fmt.Errorf("handshake check err, got version: %d, want version: %d",
 			hello.version, c.version)
 	}
 	gotId := hello.receiveId
 	wantId := c.self
-	if !bytes.Equal(gotId[:], wantId[:])  {
+	if !bytes.Equal(gotId[:], wantId[:]) {
 		return fmt.Errorf("handshake check err got my name: 0x%x, my real name: 0x%x",
 			gotId, wantId)
 	}
 	c.id = hello.id
+
 	reply := &helloReRequestMsg{
 		id:        c.self,
 		receiveId: hello.id,
 		version:   c.version,
 	}
-	// 回复
-	logrus.Infof("send hanshake reply %v", reply.marshal())
+
+	c.logger.Debugf("send handshake reply to nodeId %s", reply.receiveId)
 	if _, err = c.rw.Write(reply.marshal()); err != nil {
 		return err
 	}
@@ -177,7 +181,9 @@ func (c *peerConn) readMessage() (MessageReader, error) {
 }
 
 func (c *peerConn) close() {
-	common.Safeclose(c.rw.Close)
+	if err := c.rw.Close(); err != nil {
+		c.logger.Errorln(err)
+	}
 }
 
 func (c *peerConn) handshakeCompiled() bool {

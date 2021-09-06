@@ -3,7 +3,6 @@ package discover
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"github.com/sirupsen/logrus"
 	"net"
 	"sort"
 	"sync"
@@ -23,11 +22,10 @@ const (
 )
 
 type Table struct {
-	mu   sync.Mutex        // protects buckets, their content, and nursery
-	buckets [nBuckets]*bucket // index of known nodes by distance
-	nursery []*Node           // bootstrap nodes
-	db      *nodeDB           // database of known nodes
-
+	mu        sync.Mutex        // protects buckets, their content, and nursery
+	buckets   [nBuckets]*bucket // index of known nodes by distance
+	nursery   []*Node           // bootstrap nodes
+	db        *nodeDB           // database of known nodes
 	bondmu    sync.Mutex
 	bonding   map[NodeId]*bondproc
 	bondslots chan struct{} // limits total number of active bonding processes
@@ -99,12 +97,15 @@ func (tab *Table) ReadRandomNodes(buf []*Node) (n int) {
 	// TODO: tree-based buckets would help here
 	// Find all non-empty buckets and get a fresh slice of their entries.
 	var buckets [][]*Node
+
 	for _, b := range tab.buckets {
 		if len(b.entries) > 0 {
+			//tab.Logger.Debugf("table read random nodes by buckets[%d] find entries count: %d", i, len(b.entries))
 			buckets = append(buckets, b.entries[:])
 		}
 	}
 	if len(buckets) == 0 {
+		//tab.Logger.Debugln("table read random nodes by buckets not found entries")
 		return 0
 	}
 	// Shuffle the buckets.
@@ -133,7 +134,7 @@ func randUint(max uint32) uint32 {
 		return 0
 	}
 	var b [4]byte
-	_,err := rand.Read(b[:])
+	_, err := rand.Read(b[:])
 	if err != nil {
 		panic(err)
 	}
@@ -156,7 +157,7 @@ func (tab *Table) Bootstrap(nodes []*Node) {
 	tab.nursery = make([]*Node, 0, len(nodes))
 	for _, n := range nodes {
 		cpy := *n
-		logrus.Debugf("table bootstrap append node id %s to nursery", &cpy)
+		//tab.Logger.Debugf("table bootstrap append node id %s to nursery", &cpy.ID)
 		tab.nursery = append(tab.nursery, &cpy)
 	}
 	tab.mu.Unlock()
@@ -170,10 +171,10 @@ func (tab *Table) Bootstrap(nodes []*Node) {
 // identifier.
 func (tab *Table) Lookup(targetID NodeId) []*Node {
 	var (
-		target = crypto.ByteHash256(targetID[:])
-		asked = make(map[NodeId]bool)
-		seen = make(map[NodeId]bool)
-		replyCh = make(chan []*Node, alpha)
+		target         = crypto.ByteHash256(targetID[:])
+		asked          = make(map[NodeId]bool)
+		seen           = make(map[NodeId]bool)
+		replyCh        = make(chan []*Node, alpha)
 		pendingQueries = 0
 	)
 	// don't query further if we hit ourself.
@@ -186,14 +187,16 @@ func (tab *Table) Lookup(targetID NodeId) []*Node {
 	tab.buckets[bucketsIndex].lastLookup = time.Now()
 	// generate initial result set
 	result := tab.closest(target, bucketSize)
+	//tab.Logger.Debugf("table lockup: %s, mem have result", targetID)
 	tab.mu.Unlock()
 
 	// If the result set is empty, all nodes were dropped, refresh
 	if len(result.entries) == 0 {
+		//tab.Logger.Debugf("table lockup: %s not found, try to table refresh", targetID)
 		tab.refresh()
 		return nil
 	}
-
+	//tab.Logger.Debugf("table lockup: %s is exists, update entries", targetID)
 	for {
 		// ask the alpha closest nodes that we haven't asked yet
 		for i := 0; i < len(result.entries) && pendingQueries < alpha; i++ {
@@ -207,13 +210,13 @@ func (tab *Table) Lookup(targetID NodeId) []*Node {
 					if err != nil {
 						// Bump the failure counter to detect and evacuate non-bonded entries
 						fails := tab.db.findFails(n.ID) + 1
-						if err = tab.db.updateFindFails(n.ID, fails); err !=nil {
+						if err = tab.db.updateFindFails(n.ID, fails); err != nil {
 							return
 						}
-						logrus.Infof("Bumping failures for %x: %d", n.ID[:8], fails)
+						//tab.Logger.Infof("Bumping failures for %x: %d", n.ID[:8], fails)
 
 						if fails >= maxFindnodeFailures {
-							logrus.Infof("Evacuating node %x: %d findnode failures", n.ID[:8], fails)
+							//tab.Logger.Infof("Evacuating node %x: %d findnode failures", n.ID[:8], fails)
 							tab.del(n)
 						}
 					}
@@ -246,13 +249,11 @@ func (tab *Table) refresh() {
 	tab.mu.Lock()
 	for _, bucket := range tab.buckets {
 		if len(bucket.entries) > 0 {
-			logrus.Debugf("table refresh find bucket entries, reset seed")
+			//tab.Logger.Debugf("table refresh find bucket entries, reset seed and break")
 			seed = false
 			break
 		}
 	}
-	logrus.Debugf("table refresh seed: %v", seed)
-
 	tab.mu.Unlock()
 
 	// If the table is not empty, try to refresh using the live entries
@@ -266,12 +267,12 @@ func (tab *Table) refresh() {
 		// We perform a lookup with a random target instead.
 		var target NodeId
 		if _, err := rand.Read(target[:]); err != nil {
-			logrus.Warnln("rand read err", err)
+			//tab.Logger.Warnln("refresh rand read err", err)
 			return
 		}
-		logrus.Debugf("table is not empty, try to lookup radmon node id: %s", target)
+		//tab.Logger.Debugf("refresh table is not empty, try to lookup radmon node id: %s", target)
 		result := tab.Lookup(target)
-		logrus.Debugf("table lookup node id: %s, result len: %d", target, len(result))
+		//tab.Logger.Debugf("refresh table lookup node id: %s, result len: %d", target, len(result))
 		if len(result) == 0 {
 			// Lookup failed, seed after all
 			seed = true
@@ -282,11 +283,10 @@ func (tab *Table) refresh() {
 
 		// Pick a batch of previously know seeds to lookup with
 		seeds := tab.db.querySeeds(10)
-		for _, seed := range seeds {
-			logrus.Debugln("Seeding network with", seed)
-		}
+		//for _, seed := range seeds {
+		//tab.Logger.Debugln("refresh seeding network with", seed)
+		//}
 		nodes := append(tab.nursery, seeds...)
-
 		// Bond with all the seed nodes (will pingpong only if failed recently)
 		bonded := tab.bondall(nodes)
 		if len(bonded) > 0 {
@@ -324,7 +324,6 @@ func (tab *Table) len() (n int) {
 func (tab *Table) bondall(nodes []*Node) (result []*Node) {
 	rc := make(chan *Node, len(nodes))
 	for i := range nodes {
-		logrus.Debugf("bondall range by index: %d, node: %s", i, nodes[i])
 		go func(n *Node) {
 			nn, _ := tab.bond(false, n.ID, n.addr(), uint16(n.TCP))
 			rc <- nn
@@ -359,15 +358,15 @@ func (tab *Table) bond(pinged bool, id NodeId, addr *net.UDPAddr, tcpPort uint16
 	node, fails := tab.db.node(id), 0
 	if node != nil {
 		fails = tab.db.findFails(id)
+		//tab.Logger.Debugf("table bond found node by id: %s fails: %d from db", id, fails)
 	}
-	logrus.Debugf("try find node by id: %s, fails: %d",id, fails)
 	// If the node is unknown (non-bonded) or failed (remotely unknown), bond from scratch
 	var result error
 	if node == nil || fails > 0 {
 		tab.bondmu.Lock()
 		w := tab.bonding[id]
-		logrus.Debugf("not found node by id: %s, try get bonding: %v", id, w != nil)
 		if w != nil {
+			//tab.Logger.Debugf("table bond node by id: %s is bonding, wait for result",id)
 			// Wait for an existing bonding process to complete.
 			tab.bondmu.Unlock()
 			<-w.done
@@ -375,7 +374,7 @@ func (tab *Table) bond(pinged bool, id NodeId, addr *net.UDPAddr, tcpPort uint16
 			// Register a new bonding process.
 			w = &bondproc{done: make(chan struct{})}
 			tab.bonding[id] = w
-			logrus.Debugf("append id: %s to bonding, and try pingpong", id)
+			//tab.Logger.Debugf("table bond append id: %s to bonding, and try pingpong", id)
 			tab.bondmu.Unlock()
 			// Do the ping/pong. The result goes into w.
 			tab.pingpong(w, pinged, id, addr, tcpPort)
@@ -388,20 +387,23 @@ func (tab *Table) bond(pinged bool, id NodeId, addr *net.UDPAddr, tcpPort uint16
 		result = w.err
 		if result == nil {
 			node = w.n
+		} else {
+			//tab.Logger.Warnf("bond result err", result)
 		}
 	}
+	//tab.Logger.Debugf("bond reconfirm node data: %s", node)
 	// Even if bonding temporarily failed, give the node a chance
 	if node != nil {
 		tab.mu.Lock()
 		defer tab.mu.Unlock()
 		bucketsIndex := logdist(tab.self.Hash[:], node.Hash[:])
 		b := tab.buckets[bucketsIndex]
-		logrus.Debugf("bond target id: %s, get buckets by index: %d", id, bucketsIndex)
+		//tab.Logger.Debugf("bond target id: %s, get buckets by index: %d", id, bucketsIndex)
 		if !b.bump(node) {
 			tab.pingreplace(node, b)
 		}
 		if err := tab.db.updateFindFails(id, 0); err != nil {
-			logrus.Warningln("bond updateFindFails err", err)
+			//tab.Logger.Warnln("bond updateFindFails err", err)
 		}
 	}
 	return node, result
@@ -409,7 +411,7 @@ func (tab *Table) bond(pinged bool, id NodeId, addr *net.UDPAddr, tcpPort uint16
 
 func (tab *Table) pingpong(w *bondproc, pinged bool, id NodeId, addr *net.UDPAddr, tcpPort uint16) {
 	// Request a bonding slot to limit network usage
-	logrus.Debugf("table pingpong call, pinged: %v, target id: %s, bondslots: %d", pinged, id, len(tab.bondslots))
+	//tab.Logger.Debugf("table pingpong call, pinged: %v, target id: %s, bondslots: %d", pinged, id, len(tab.bondslots))
 	<-tab.bondslots
 	defer func() { tab.bondslots <- struct{}{} }()
 	// Ping the remote side and wait for a pong
@@ -421,17 +423,20 @@ func (tab *Table) pingpong(w *bondproc, pinged bool, id NodeId, addr *net.UDPAdd
 		// Give the remote node a chance to ping us before we start
 		// sending findnode requests. If they still remember us,
 		// waitping will simply time out.
-		if err := tab.net.waitping(id); err != nil {
-			close(w.done)
-			return
-		}
+		//if err := tab.net.waitping(id); err != nil {
+		//	tab.Logger.Warnln("wait ping err", err)
+		//	close(w.done)
+		//	return
+		//}
+		tab.net.waitping(id)
 	}
 	// Bonding succeeded, update the node database
 	w.n = newNode(addr.IP, uint16(addr.Port), tcpPort, id)
-	if err := tab.db.updateNode(w.n); err != nil {
-		close(w.done)
-		return
-	}
+	//if err := tab.db.updateNode(w.n); err != nil {
+	//	close(w.done)
+	//	return
+	//}
+	tab.db.updateNode(w.n)
 	close(w.done)
 }
 
@@ -439,19 +444,19 @@ func (tab *Table) pingreplace(new *Node, b *bucket) {
 	if len(b.entries) == bucketSize {
 		oldest := b.entries[bucketSize-1]
 		if err := tab.ping(oldest.ID, oldest.addr()); err == nil {
-			logrus.Debugf("table pingreplace try ping by id: %s success", new.ID)
+			//tab.Logger.Debugf("table pingreplace try ping by id: %s success", new.ID)
 			// The node responded, we don't need to replace it.
 			return
 		}
 	} else {
 		// Add a slot at the end so the last entry doesn't
 		// fall off when adding the new node.
-		logrus.Debugf("table pingreplace append id: %s to bucket entries", new.ID)
+		//tab.Logger.Debugf("table pingreplace append id: %s to bucket entries", new.ID)
 		b.entries = append(b.entries, nil)
 	}
 	copy(b.entries[1:], b.entries)
 	b.entries[0] = new
-	logrus.Debugf("pingreplace move to the front by id: %s", new)
+	//tab.Logger.Debugf("pingreplace move to the front by id: %s", new)
 	if tab.nodeAddedHook != nil {
 		tab.nodeAddedHook(new)
 	}
@@ -523,11 +528,9 @@ func (b *bucket) bump(n *Node) bool {
 			// move it to the front
 			copy(b.entries[1:], b.entries[:i])
 			b.entries[0] = n
-			logrus.Debugf("bucket move to the front by id: %s", n.ID)
 			return true
 		}
 	}
-	logrus.Debugf("current bucket not foud node by id: %s", n.ID)
 	return false
 }
 

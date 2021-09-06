@@ -1,20 +1,4 @@
-// Copyright 2018 The xfsgo Authors
-// This file is part of the xfsgo library.
-//
-// The xfsgo library is free software: you can redistribute it and/or modify
-// it under the terms of the MIT Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The xfsgo library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// MIT Lesser General Public License for more details.
-//
-// You should have received a copy of the MIT Lesser General Public License
-// along with the xfsgo library. If not, see <https://mit-license.org/>.
-
-package p2p
+package nat
 
 import (
 	"errors"
@@ -23,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"xfsgo/p2p/upnp"
+	"xfsgo/p2p/nat/upnp"
 
 	"github.com/sirupsen/logrus"
 	cmn "github.com/tendermint/tmlibs/common"
@@ -56,9 +40,9 @@ func protocolAndAddress(listenAddr string) (string, string) {
 }
 
 // GetListener get listener and listen address.
-func GetListener(ListenAddress string) (Listener, string) {
-	p, address := protocolAndAddress(ListenAddress)
-	l, listenerStatus := NewDefaultListener(p, address, true)
+func GetListener(ListenAddress string, ListeneNet net.Listener) (Listener, string) {
+	_, address := protocolAndAddress(ListenAddress)
+	l, listenerStatus := NewDefaultListener(address, ListeneNet, false)
 
 	if listenerStatus {
 		return l, cmn.Fmt("%v:%v", l.ExternalAddress().IP.String(), l.ExternalAddress().Port)
@@ -156,18 +140,9 @@ func ExternalIPv4() (string, error) {
 }
 
 //NewDefaultListener create a default listener
-func NewDefaultListener(protocol string, lAddr string, skipUPNP bool) (Listener, bool) {
+func NewDefaultListener(lAddr string, listener net.Listener, skipUPNP bool) (Listener, bool) {
 	// Local listen IP & port
 	lAddrIP, lAddrPort := splitHostPort(lAddr)
-
-	listener, err := net.Listen(protocol, lAddr)
-	for i := 0; i < tryListenTimes && err != nil; i++ {
-		time.Sleep(time.Second * 1)
-		listener, err = net.Listen(protocol, lAddr)
-	}
-	if err != nil {
-		logrus.Panic(err)
-	}
 
 	intAddr, err := NewNetAddressString(lAddr)
 	if err != nil {
@@ -200,6 +175,7 @@ func NewDefaultListener(protocol string, lAddr string, skipUPNP bool) (Listener,
 			logrus.WithFields(logrus.Fields{"module": logModule, "addr": extAddr}).Info("get ipv4 external address success")
 		}
 	}
+	fmt.Printf("extAddr:%v\n", extAddr.IP)
 
 	dl := &DefaultListener{
 		listener:    listener,
@@ -274,11 +250,6 @@ func (l *DefaultListener) InternalAddress() *NetAddress {
 //ExternalAddress listener external address for remote peer dial
 func (l *DefaultListener) ExternalAddress() *NetAddress {
 	return l.extAddr
-}
-
-// NetListener the returned listener is already Accept()'ing. So it's not suitable to pass into http.Serve().
-func (l *DefaultListener) NetListener() net.Listener {
-	return l.listener
 }
 
 //String string of default listener

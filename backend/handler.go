@@ -118,7 +118,6 @@ func (h *handler) handleMsg(p *peer) error {
 	msg := <-p.p2pPeer.GetProtocolMsgCh()
 	msgCode := msg.Type()
 	bodyBs, err := msg.ReadAll()
-	// logrus.Printf(" bodybs:%v type:%v\n", string(bodyBs), msgCode)
 	if err != nil {
 		logrus.Printf("handle message err %s", err)
 		return err
@@ -169,7 +168,7 @@ func (h *handler) handleMsg(p *peer) error {
 			logrus.Warnf("send blocks data err: %s", err)
 			return err
 		}
-	case BlocksMsg: // 接受区块列表消息
+	case BlocksMsg: // Accept block list message
 		// Accept block list message
 		var data remoteBlocks = nil
 		if err := json.Unmarshal(bodyBs, &data); err != nil {
@@ -180,9 +179,8 @@ func (h *handler) handleMsg(p *peer) error {
 			peerId: p.p2p().ID(),
 			blocks: data,
 		}
-	case NewBlockMsg: // 处理区块广播
+	case NewBlockMsg: // Processing block broadcasting
 		// Processing block broadcasting
-		logrus.Printf(" bodybs:%v type:%v\n", string(bodyBs), msgCode)
 		var data *xfsgo.Block = nil
 		if err := json.Unmarshal(bodyBs, &data); err != nil {
 			logrus.Warnf("handle NewBlockMsg err: %s", err)
@@ -190,8 +188,9 @@ func (h *handler) handleMsg(p *peer) error {
 		}
 		p.height = data.Height()
 		p.head = data.Hash()
+		go h.lessPeer(p)
 		go h.synchronise(p)
-	case TxMsg: // 处理交易广播
+	case TxMsg: // Process transaction broadcast
 		// Process transaction broadcast
 		var txs remoteTxs = nil
 		if err := json.Unmarshal(bodyBs, &txs); err != nil {
@@ -203,8 +202,41 @@ func (h *handler) handleMsg(p *peer) error {
 				logrus.Warnf("handle TxMsg msg err: %s", err)
 			}
 		}
+	case AllSyncMsg:
+		var txsr *AllSyncData = nil
+		if err := json.Unmarshal(bodyBs, &txsr); err != nil {
+			logrus.Warnf("handle AllSyncData msg err: %s", err)
+			return err
+		}
+		if p.height < txsr.Height {
+			p.height = txsr.Height
+			p.head = txsr.Head
+			go h.synchronise(p)
+		}
 	}
 	return nil
+}
+
+func (h *handler) lessPeer(peer *peer) {
+	peerheight := peer.height
+	peerHeader := peer.head
+	if len(h.peers) < 2 {
+		return
+	}
+	for _, v := range h.peers {
+		if v.height < peerheight {
+			r := &AllSyncData{
+				ID:     v.p2pPeer.ID().String(),
+				Height: peerheight,
+				Head:   peerHeader,
+			}
+			err := v.SendAllSync(r)
+			if err != nil {
+				logrus.Infof("err SendAllSync %v\n", err.Error())
+			}
+
+		}
+	}
 }
 
 func (h *handler) syncer() {
@@ -463,7 +495,6 @@ func (h *handler) BroadcastTx(txs remoteTxs) {
 	}
 }
 
-// 交易广播
 func (h *handler) txBroadcastLoop() {
 	txPreEventSub := h.eventBus.Subscript(xfsgo.TxPreEvent{})
 	defer txPreEventSub.Unsubscribe()
@@ -477,10 +508,8 @@ func (h *handler) txBroadcastLoop() {
 	}
 }
 
-// 区块广播
 func (h *handler) minedBroadcastLoop() {
 	newMinerBlockEventSub := h.eventBus.Subscript(xfsgo.NewMinedBlockEvent{})
-	logrus.Println("minedBroadcastLoop 1212")
 	defer newMinerBlockEventSub.Unsubscribe()
 	for {
 		select {

@@ -37,8 +37,8 @@ func PubKeyEncode(p ecdsa.PublicKey) []byte {
 	}
 	xbs := p.X.Bytes()
 	ybs := p.Y.Bytes()
-	buf := make([]byte, len(xbs) + len(ybs))
-	copy(buf,append(xbs,ybs...))
+	buf := make([]byte, len(xbs)+len(ybs))
+	copy(buf, append(xbs, ybs...))
 	return buf
 }
 

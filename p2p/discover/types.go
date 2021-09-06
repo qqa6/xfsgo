@@ -9,7 +9,7 @@ import (
 var maxNeighbors int = 1024
 
 type ping struct {
-	Version    uint
+	Version    int
 	From, To   rpcEndpoint
 	Expiration uint64
 }
@@ -19,7 +19,7 @@ type pong struct {
 	// This field should mirror the UDP envelope address
 	// of the ping packet, which provides a way to discover the
 	// the external address (after NAT).
-	To rpcEndpoint
+	To         rpcEndpoint
 	Expiration uint64 // Absolute timestamp at which the packet becomes invalid.
 }
 
@@ -52,7 +52,6 @@ func expired(ts uint64) bool {
 	return time.Unix(int64(ts), 0).Before(time.Now())
 }
 
-
 func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeId) error {
 	if expired(req.Expiration) {
 		return errExpired
@@ -61,7 +60,7 @@ func (req *ping) handle(t *udp, from *net.UDPAddr, fromID NodeId) error {
 		return errBadVersion
 	}
 	_ = t.send(from, pongPacket, pong{
-		To: makeEndpoint(from, req.From.TCP),
+		To:         makeEndpoint(from, req.From.TCP),
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 	})
 	if !t.handleReply(fromID, pingPacket, req) {
@@ -124,4 +123,3 @@ func (req *neighbors) handle(t *udp, from *net.UDPAddr, fromID NodeId) error {
 	}
 	return nil
 }
-

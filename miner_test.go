@@ -89,7 +89,7 @@ func TestRunning(t *testing.T) {
 	//
 	//}
 	//mu.Lock()
-	// 互斥锁
+	//
 	//go func() {
 	//	run1("c1")
 	//	mu.Unlock()

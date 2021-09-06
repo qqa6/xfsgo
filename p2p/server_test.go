@@ -17,26 +17,45 @@
 package p2p
 
 import (
-	"github.com/sirupsen/logrus"
 	"strings"
 	"testing"
 	"xfsgo/crypto"
 	"xfsgo/p2p/discover"
+
+	"github.com/sirupsen/logrus"
 )
 
-var XQ = "xfsnode://4b1d7796c65e05f2c93c3d6cb0011251e74530f413cf58cc9e546926d189601f6e74a77704cf43e878b5b8d624d87f79c4197f69fe59cb079e8595cd69c3a53f@127.0.0.1:9092"
+var XQ = "xfsnode://127.0.0.1:9092?id=50e3c5dec0ebcda7059cff8b8c1e623b35bd1a9d0f60dca03fc664376521d5c8f6050bd0b0986ec69c7d51bac4223cd1d7a006f47d745b65431c690a365f16dd"
+
+type testProto struct {
+	t *testing.T
+}
+
+func (tp *testProto) Run(p Peer) error {
+	tp.t.Logf("join peer: %s", p.ID())
+	return nil
+}
+func newTestProto(t *testing.T) Protocol {
+	tp := &testProto{
+		t: t,
+	}
+	return tp
+}
 
 func TestServer_Start(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
+	logger := logrus.StandardLogger()
+	logger.SetLevel(logrus.DebugLevel)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
 		ProtocolVersion: version1,
-		ListenAddr: "127.0.0.1:9092",
-		Key: key,
-		Discover: true,
-		NodeDBPath: "./d1",
-		MaxPeers: 0,
+		ListenAddr:      "127.0.0.1:9092",
+		Key:             key,
+		Discover:        true,
+		NodeDBPath:      "./d1",
+		MaxPeers:        0,
+		Logger:          logger,
 	})
+	s.Bind(newTestProto(t))
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -44,53 +63,58 @@ func TestServer_Start(t *testing.T) {
 }
 
 func TestServer_Start2(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
+	logger := logrus.StandardLogger()
+	logger.SetLevel(logrus.DebugLevel)
 	bootAddress := parseBootAddress(XQ)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
 		ProtocolVersion: version1,
 		ListenAddr:      "127.0.0.1:9093",
 		Key:             key,
-		Discover: true,
-		BootstrapNodes: bootAddress,
-		NodeDBPath: "./d2",
-		MaxPeers: 10,
+		Discover:        true,
+		BootstrapNodes:  bootAddress,
+		NodeDBPath:      "./d2",
+		MaxPeers:        10,
+		Logger:          logger,
 	})
+	s.Bind(newTestProto(t))
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
 	select {}
 }
 func TestServer_Start3(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
+	logger := logrus.StandardLogger()
+	logger.SetLevel(logrus.DebugLevel)
 	bootAddress := parseBootAddress(XQ)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
 		ProtocolVersion: version1,
 		ListenAddr:      "127.0.0.1:9094",
 		Key:             key,
-		Discover: true,
-		BootstrapNodes: bootAddress,
-		NodeDBPath: "./d3",
-		MaxPeers: 10,
+		Discover:        true,
+		BootstrapNodes:  bootAddress,
+		NodeDBPath:      "./d3",
+		MaxPeers:        10,
+		Logger:          logger,
 	})
+	s.Bind(newTestProto(t))
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
 	}
 	select {}
 }
 func TestServer_Start4(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
 	bootAddress := parseBootAddress(XQ)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
 		ProtocolVersion: version1,
 		ListenAddr:      "127.0.0.1:9095",
 		Key:             key,
-		Discover: true,
-		BootstrapNodes: bootAddress,
-		NodeDBPath: "./d4",
-		MaxPeers: 10,
+		Discover:        true,
+		BootstrapNodes:  bootAddress,
+		NodeDBPath:      "./d4",
+		MaxPeers:        10,
 	})
 	if err := s.Start(); err != nil {
 		t.Fatal(err)
@@ -114,7 +138,7 @@ func parseBootAddress(addrs string) []*discover.Node {
 }
 
 func TestABC(t *testing.T) {
-	a := flagOutbound|flagStatic
-	i := a & flagInbound != 0
+	a := flagOutbound | flagStatic
+	i := a&flagInbound != 0
 	t.Logf("abc: %v", i)
 }

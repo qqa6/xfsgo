@@ -187,7 +187,7 @@ func TestGetHeadClient(t *testing.T) {
 	go func() {
 		for {
 			select {
-			case <-timeout: // 等待10s 获取head
+			case <-timeout: // //Wait 10s to get the head
 				err := clientConn.CallMethod(1, "Chain.Head", nil, &block)
 				if err != nil {
 					height := block["header"].(map[string]interface{})["height"].(uint64)

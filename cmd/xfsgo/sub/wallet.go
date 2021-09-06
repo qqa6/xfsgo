@@ -232,7 +232,7 @@ func runWalletList() error {
 	if err != nil {
 		return err
 	}
-	// 获取钱包默认地址
+	//Get wallet default address
 	var defAddr common.Address
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	err = cli.CallMethod(1, "Wallet.GetDefaultAddress", nil, &defAddr)
@@ -240,7 +240,7 @@ func runWalletList() error {
 		fmt.Println(err)
 		return err
 	}
-	// 获取height hash
+	// get height and hash
 	block := make(map[string]interface{}, 1)
 	err = cli.CallMethod(1, "Chain.Head", nil, &block)
 	if err != nil {
@@ -249,7 +249,7 @@ func runWalletList() error {
 	}
 	hash := block["header"].(map[string]interface{})["state_root"].(string)
 
-	// 钱包列表
+	// wallet list
 	addresses := make([]common.Address, 0)
 	err = cli.CallMethod(1, "Wallet.List", nil, &addresses)
 	if err != nil {
@@ -257,7 +257,7 @@ func runWalletList() error {
 		return err
 	}
 
-	// 钱包余额
+	// Wallet balance
 	// getBalance
 	balance := make(map[string]interface{}, 1)
 

@@ -133,28 +133,28 @@ func (n *TreeNode) rehash() {
 
 func (n *TreeNode) insert(t *Tree, k, v []byte) *TreeNode {
 	if n.isLeaf() {
-		// 如果key值一致，更新value
+		// If the key values are consistent, update the value
 		if bytes.Compare(k, n.key) == common.Zero {
 			return n.update(func(node *TreeNode) {
 				node.value = v
 			})
 		}
 		out := n.update(func(node *TreeNode) {
-			// 如果指定k小于节点k，新节点在左边，原节点在右边
+			// If the specified K is less than node K, the new node is on the left and the original node is on the right
 			if bytes.Compare(k, n.key) < common.Zero {
 				newLeft := newLeafNode(k, v)
 				node.left = newLeft.id
 				node.leftNode = newLeft
 				node.right = n.id
 				node.rightNode = n
-			} else { // 否则，新节点在右边，原节点在左边
+			} else { // else，The new node is on the right and the original node is on the left
 				node.left = n.id
 				node.leftNode = n
 				newRight := newLeafNode(k, v)
 				node.right = newRight.id
 				node.rightNode = newRight
 			}
-			// 节点同步至树
+			// Synchronize nodes to tree
 			node.sync(t, nil, nil)
 		})
 		return out
@@ -180,9 +180,9 @@ func (n *TreeNode) insert(t *Tree, k, v []byte) *TreeNode {
 }
 
 func (n *TreeNode) lookup(t *Tree, k []byte) ([]byte, bool) {
-	// 判断当前节点是否为叶子节点
+	// Judge whether the current node is a leaf node
 	if n.isLeaf() {
-		// 如果指定的key是当前节点，直接返回当前节点value
+		// If the specified key is the current node, the current node value is returned directly
 		if bytes.Compare(k, n.key) == common.Zero {
 			return n.value, true
 		}
@@ -274,11 +274,11 @@ func (n *TreeNode) rebalance(tree *Tree) *TreeNode {
 
 func (n *TreeNode) sync(tree *Tree, left, right *TreeNode) {
 	if left == nil {
-		// 加载左节点
+		// Load left node
 		left = tree.mustLoadLeft(n)
 	}
 	if right == nil {
-		// 加载右节点
+		// Load right node
 		right = tree.mustLoadRight(n)
 	}
 	if left.depth > right.depth {

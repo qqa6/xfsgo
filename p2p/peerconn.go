@@ -96,7 +96,6 @@ func (c *peerConn) serverHandshake() error {
 	}
 
 	// Read reply data
-
 	hello, err := c.readHelloRequestMsg()
 	if err != nil {
 		return err

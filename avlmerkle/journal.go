@@ -131,5 +131,5 @@ func (j *Journal) StrToMap(ScanText string, root string) map[string]interface{} 
 
 // Delete successfully submitted data
 func (j *Journal) DelWellDate() error {
-	return j.journals.file.Truncate(0)
+	return os.Truncate(fileJournal, 0)
 }

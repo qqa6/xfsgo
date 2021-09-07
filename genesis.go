@@ -56,12 +56,12 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 	}
 
 	stateTree := NewStateTree(stateDB, nil)
-	logrus.Debugf("initialize genesis account count: %d", len(genesis.Accounts))
+	// logrus.Debugf("initialize genesis account count: %d", len(genesis.Accounts))
 	for addr, a := range genesis.Accounts {
 		address := common.B58ToAddress([]byte(addr))
 		balance := common.ParseString2BigInt(a.Balance)
 		stateTree.AddBalance(address, balance)
-		logrus.Debugf("initialize genesis account: %s, balance: %d", address, balance)
+		// logrus.Debugf("initialize genesis account: %s, balance: %d", address, balance)
 	}
 	stateTree.UpdateAll()
 	timestamp := common.ParseString2BigInt(genesis.Timestamp)

@@ -17,6 +17,7 @@
 package sub
 
 import (
+	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"syscall"
@@ -52,6 +53,11 @@ func runDaemon() error {
 	if err != nil {
 		return err
 	}
+	loglevel,err := logrus.ParseLevel(config.loggerParams.level)
+	if err != nil {
+		return err
+	}
+	logrus.SetLevel(loglevel)
 	if stack, err = node.New(&config.nodeConfig); err != nil {
 		return err
 	}

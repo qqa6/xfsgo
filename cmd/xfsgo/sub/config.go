@@ -45,6 +45,7 @@ const (
 	defaultNodeP2PListenAddr = "127.0.0.1:9002"
 	defaultNetworkId         = uint32(1)
 	defaultProtocolVersion   = uint32(1)
+	defaultLoggerLevel   = "INFO"
 )
 
 type storageParams struct {
@@ -56,7 +57,12 @@ type storageParams struct {
 	nodesDir string
 }
 
+type loggerParams struct {
+	level string
+}
+
 type daemonConfig struct {
+	loggerParams loggerParams
 	storageParams storageParams
 	nodeConfig    node.Config
 	backendParams backend.Params
@@ -77,9 +83,18 @@ func readFromConfigPath(v *viper.Viper, customFile string) error {
 	v.SetConfigName(strings.TrimSuffix(filename, ext))
 	v.SetConfigFile(customFile)
 	if err := v.ReadInConfig(); err != nil {
-		return fmt.Errorf("config file not found")
+		return fmt.Errorf("read config file err: %s",err)
 	}
 	return nil
+}
+
+func parseConfigLoggerParams(v *viper.Viper) loggerParams {
+	params := loggerParams{}
+	params.level = v.GetString("logger.level")
+	if params.level == "" {
+		params.level = defaultLoggerLevel
+	}
+	return params
 }
 
 func parseConfigStorageParams(v *viper.Viper) storageParams {
@@ -178,9 +193,11 @@ func parseDaemonConfig(configFilePath string) (daemonConfig, error) {
 	}
 	mStorageParams := parseConfigStorageParams(config)
 	mBackendParams := parseConfigBackendParams(config)
+	mLoggerParams := parseConfigLoggerParams(config)
 	nodeParams := parseConfigNodeParams(config, mBackendParams.NetworkID)
 	nodeParams.NodeDBPath = mStorageParams.nodesDir
 	return daemonConfig{
+		loggerParams: mLoggerParams,
 		storageParams: mStorageParams,
 		nodeConfig:    nodeParams,
 		backendParams: mBackendParams,

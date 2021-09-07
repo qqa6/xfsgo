@@ -56,9 +56,12 @@ storage:
   # default: ${dbdir}/state
   statedir: ""
   # path of keystore storage
-  # defualt: ${dbdir}/keys
+  # default: ${dbdir}/keys
   keysdir: ""
   # path to store extra data
   # default: ${dbdir}/extra
   extradir: ""
   nodesdir: ""
+
+logger:
+  level: "INFO"

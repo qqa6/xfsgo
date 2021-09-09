@@ -17,10 +17,14 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/common/urlsafeb64"
+	"xfsgo/crypto"
 )
 
 // var (
@@ -30,6 +34,7 @@ import (
 type ChainAPIHandler struct {
 	BlockChain    *xfsgo.BlockChain
 	TxPendingPool *xfsgo.TxPool
+	number        int
 }
 
 type GetBlockByIdArgs struct {
@@ -67,6 +72,14 @@ type SendRawTransactionArgs struct {
 type GetBlockSectionArgs struct {
 	From  json.Number `json:"from"`
 	Count json.Number `json:"count"`
+}
+
+type GetBlocksArgs struct {
+	Blocks string `json:"blocks"`
+}
+
+type ProgressBarArgs struct {
+	Number int `json:"number"`
 }
 
 func (receiver *ChainAPIHandler) GetBlockByNumber(args GetBlockByIdArgs, block *GetBlockByNumberBlock) error {
@@ -173,5 +186,71 @@ func (receiver *ChainAPIHandler) GetBlockSection(args GetBlockSectionArgs, resp 
 		GetBlockByNumberBlock = append(GetBlockByNumberBlock, blocks)
 	}
 	*resp = GetBlockByNumberBlock
+	return nil
+}
+
+func (receiver *ChainAPIHandler) ExportBlock(args GetBlockSectionArgs, resp *string) error {
+	numbersForm, err := common.Uint64s(args.From)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	numbersCount, err := common.Uint64s(args.Count)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	if numbersForm >= numbersCount { // Export all
+		b := receiver.BlockChain.GetHead()
+		header := NewBlockByNumBlockHeader(b.Header, b.Hash())
+		result := NewBlockByNumberBlock(b, header)
+		numbersCount = result.Header.Height // Get the maximum height of the current block
+	}
+
+	data := receiver.BlockChain.GetBlockSection(numbersForm, numbersCount)
+
+	encodeByte, err := json.Marshal(data)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	key := crypto.MD5Str(encodeByte)
+	encryption := crypto.AesEncrypt(encodeByte, key)
+	var bt bytes.Buffer
+	bt.WriteString(key)
+	bt.WriteString(encryption)
+	respStr := bt.String()
+	*resp = respStr
+	return nil
+
+}
+
+func (receiver *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) error {
+	if args.Blocks == "" {
+		return xfsgo.NewRPCError(-1006, "to Blocks file path not be empty")
+	}
+	key := args.Blocks[:32]
+	decodeBuf := args.Blocks[32:]
+	decryption := crypto.AesDecrypt(decodeBuf, key)
+	blockChain := make([]*xfsgo.Block, 0)
+	err := json.Unmarshal([]byte(decryption), &blockChain)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	receiver.number = len(blockChain) - 1
+
+	for _, item := range blockChain {
+		if err := receiver.BlockChain.InsertChain(item); err != nil {
+			continue
+		}
+	}
+	*resp = "Import complete"
+	return nil
+}
+
+func (receiver *ChainAPIHandler) ProgressBar(_ EmptyArgs, resp *string) error {
+	b := receiver.BlockChain.GetHead()
+	height := strconv.FormatInt(int64(b.Header.Height), 10)
+	total := strconv.Itoa(receiver.number)
+	result := height + "/" + total + "(total)"
+	*resp = result
 	return nil
 }

@@ -57,3 +57,7 @@ type getBlockNumArgs struct {
 	From  json.Number `json:"from"`
 	Count json.Number `json:"count"`
 }
+
+type GetBlocksArgs struct {
+	Blocks string `json:"blocks"`
+}

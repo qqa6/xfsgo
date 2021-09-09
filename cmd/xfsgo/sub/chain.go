@@ -19,11 +19,14 @@ package sub
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"xfsgo"
 
 	"github.com/spf13/cobra"
 )
 
+// var fileType string = ".car"
 var (
 	chainCommand = &cobra.Command{
 		Use:   "chain",
@@ -62,6 +65,21 @@ var (
 		Short: "get receipt <hash>",
 		RunE:  getReceipt,
 	}
+	chainExportCommand = &cobra.Command{
+		Use:   "export <address> <form> <count>",
+		Short: "import chain state from a given chain export file or <address> <form> <count>",
+		RunE:  xfsLotusExport,
+	}
+	chainImportCommand = &cobra.Command{
+		Use:   "import <address>",
+		Short: "import chain state from a given chain export file or <address>",
+		RunE:  xfsLotusImport,
+	}
+	chainprogressCommand = &cobra.Command{
+		Use:   "getprogress",
+		Short: "Block pouring progress bar",
+		RunE:  ExportProgressBar,
+	}
 )
 
 func getBlockNum(cmd *cobra.Command, args []string) error {
@@ -94,12 +112,13 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
+
 	jsonStr, err := json.Marshal(receipt)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Println(jsonStr)
+	fmt.Println(string(jsonStr))
 	return nil
 }
 
@@ -205,6 +224,97 @@ func getHead() error {
 	return nil
 }
 
+func xfsLotusImport(cmd *cobra.Command, args []string) error {
+	if len(args) < int(1) {
+		cmd.Help()
+		return nil
+	}
+	address := args[0]
+	data, err := ioutil.ReadFile(address)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	req := &GetBlocksArgs{
+		Blocks: string(data),
+	}
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	var isInsertBlock string
+	err = cli.CallMethod(1, "Chain.ImportBlock", req, &isInsertBlock)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+
+	fmt.Println(isInsertBlock)
+	return nil
+}
+
+func xfsLotusExport(cmd *cobra.Command, args []string) error {
+	if len(args) < int(1) {
+		cmd.Help()
+		return nil
+	}
+
+	var FormStr string
+	var CountStr string
+	exportPath := args[0]
+	if len(args) == 2 {
+		FormStr = args[1]
+	}
+	if len(args) > 2 {
+		FormStr = args[1]
+		CountStr = args[2]
+	}
+
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	req := &getBlockNumArgs{
+		From:  json.Number(FormStr),
+		Count: json.Number(CountStr),
+	}
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	var blockEncodeData string
+	err = cli.CallMethod(1, "Chain.ExportBlock", req, &blockEncodeData)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fp, err := os.Create(exportPath)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fp.Write([]byte(blockEncodeData))
+	defer fp.Close()
+	return nil
+}
+
+func ExportProgressBar(cmd *cobra.Command, args []string) error {
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	var resp string
+	err = cli.CallMethod(1, "Chain.ProgressBar", nil, &resp)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fmt.Println(resp)
+	return nil
+}
+
 func init() {
 
 	rootCmd.AddCommand(chainCommand)
@@ -212,6 +322,9 @@ func init() {
 	chainCommand.AddCommand(chainGetHeadCommond)
 	chainCommand.AddCommand(chainGetTransactionCommand)
 	chainCommand.AddCommand(chainGetReceiptCommand)
+	chainCommand.AddCommand(chainExportCommand)
+	chainCommand.AddCommand(chainImportCommand)
+	chainCommand.AddCommand(chainprogressCommand)
 	chainGetBlockCommond.AddCommand(chainGetBlockHashCommond)
 
 }

@@ -17,6 +17,7 @@
 package api
 
 import (
+	"runtime"
 	"xfsgo/miner"
 )
 
@@ -38,12 +39,20 @@ func (handler *MinerAPIHandler) Stop(_ EmptyArgs, resp *string) error {
 
 func (handler *MinerAPIHandler) WorkersAdd(_ EmptyArgs, resp *string) error {
 	NumWorkers := int(handler.Miner.GetNumWorkers()) + 1
-	handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	maxWorkers := runtime.NumCPU() * 2
+	if maxWorkers > NumWorkers {
+		handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	}
+	*resp = ""
 	return nil
 }
 
 func (handler *MinerAPIHandler) WorkersDown(_ EmptyArgs, resp *string) error {
 	NumWorkers := int(handler.Miner.GetNumWorkers()) - 1
+	if NumWorkers < 1 {
+		NumWorkers = 1
+	}
 	handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	*resp = ""
 	return nil
 }

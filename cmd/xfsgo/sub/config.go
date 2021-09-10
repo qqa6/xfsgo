@@ -42,6 +42,7 @@ const (
 	defaultNodeRPCListenAddr = "127.0.0.1:9001"
 	defaultNodeP2PListenAddr = "127.0.0.1:9002"
 	defaultNetworkId         = uint32(1)
+	defaultTestNetworkId     = uint32(2)
 	defaultProtocolVersion   = uint32(1)
 	defaultLoggerLevel   = "INFO"
 )

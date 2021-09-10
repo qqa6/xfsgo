@@ -30,9 +30,14 @@ import (
 )
 
 var (
+	rpcaddr string
+	p2paddr string
+	datadir string
+	testnet bool
+	netid int
 	daemonCmd = &cobra.Command{
 		Use:   "daemon [flags]",
-		Short: "background services",
+		Short: "Start a xfsgo daemon process",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDaemon()
 		},
@@ -55,6 +60,12 @@ func runDaemon() error {
 	config, err := parseDaemonConfig(cfgFile)
 	if err != nil {
 		return err
+	}
+	config.nodeConfig.RPCConfig.ListenAddr = rpcaddr
+	config.nodeConfig.P2PListenAddress = p2paddr
+	config.backendParams.NetworkID = uint32(netid)
+	if testnet {
+		config.backendParams.NetworkID = defaultTestNetworkId
 	}
 	loglevel,err := logrus.ParseLevel(config.loggerParams.level)
 	if err != nil {
@@ -105,5 +116,11 @@ out:
 }
 
 func init() {
+	mFlags := daemonCmd.PersistentFlags()
+	mFlags.StringVarP(&rpcaddr,"rpcaddr","r","", "Set JSON-RPC Service listen address")
+	mFlags.StringVarP(&p2paddr,"p2paddr","p","", "Set P2P-Node listen address (default \"0.0.0.0:9001\")")
+	mFlags.StringVarP(&datadir,"datadir","d","", "Data directory for the databases and keystore")
+	mFlags.BoolVarP(&testnet,"testnet","t",false, "Enable test network")
+	mFlags.IntVarP(&netid,"netid","n",0,"Explicitly set network id (For testnets: use --testnet) (default \"mainnet\": 0)")
 	rootCmd.AddCommand(daemonCmd)
 }

@@ -198,16 +198,29 @@ func setWalletAddrDef(cmd *cobra.Command, args []string) error {
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	addr := args[0]
-	req := &setWalletAddrDefArgs{
-		Address: addr,
-	}
-	var r *string = nil
-	err = cli.CallMethod(1, "Wallet.SetDefaultAddress", req, &r)
+
+	walletAddress := make([]common.Address, 0)
+	err = cli.CallMethod(1, "Wallet.List", nil, &walletAddress)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	fmt.Println(*r)
+	for _, item := range walletAddress {
+		if item.String() == addr {
+			req := &setWalletAddrDefArgs{
+				Address: addr,
+			}
+			var r *string = nil
+			err = cli.CallMethod(1, "Wallet.SetDefaultAddress", req, &r)
+			if err != nil {
+				fmt.Println(err)
+				return err
+			}
+			fmt.Println(*r)
+			return nil
+		}
+	}
+	fmt.Println("Wallet address does not exist")
 	return nil
 }
 
@@ -250,8 +263,8 @@ func runWalletList() error {
 	hash := block["header"].(map[string]interface{})["state_root"].(string)
 
 	// wallet list
-	addresses := make([]common.Address, 0)
-	err = cli.CallMethod(1, "Wallet.List", nil, &addresses)
+	walletAddress := make([]common.Address, 0)
+	err = cli.CallMethod(1, "Wallet.List", nil, &walletAddress)
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -263,7 +276,7 @@ func runWalletList() error {
 
 	fmt.Print("Address                                 Balance              ")
 	fmt.Println()
-	for _, w := range addresses {
+	for _, w := range walletAddress {
 
 		req := &getStateObjArgs{
 			RootHash: hash,

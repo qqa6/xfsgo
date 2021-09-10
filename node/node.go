@@ -154,7 +154,7 @@ func (n *Node) Start() error {
 	}
 	go func() {
 		if err := n.rpcServer.Start(); err != nil {
-			logrus.Warnf("START RPC ERR: %s", err)
+			logrus.Errorf("start rpc err: %s", err)
 		}
 	}()
 	return nil

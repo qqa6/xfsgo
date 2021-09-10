@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 	"xfsgo/backend"
 	"xfsgo/node"
 	"xfsgo/storage/badger"
@@ -43,6 +44,8 @@ func safeclose(fn func() error) {
 		panic(err)
 	}
 }
+
+
 func runDaemon() error {
 	var (
 		err   error            = nil
@@ -58,6 +61,11 @@ func runDaemon() error {
 		return err
 	}
 	logrus.SetLevel(loglevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		TimestampFormat : time.RFC3339,
+		FullTimestamp:true,
+	})
 	if stack, err = node.New(&config.nodeConfig); err != nil {
 		return err
 	}

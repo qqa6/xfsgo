@@ -27,8 +27,6 @@ import (
 	"xfsgo/common"
 	"xfsgo/node"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/spf13/viper"
 )
 
@@ -130,11 +128,6 @@ func parseConfigStorageParams(v *viper.Viper) storageParams {
 		storageParams.nodesDir = path.Join(
 			storageParams.dataDir, defaultNodesDir)
 	}
-	logrus.Infof("chainDir: %s", storageParams.chainDir)
-	logrus.Infof("stateDir: %s", storageParams.stateDir)
-	logrus.Infof("keysDir: %s", storageParams.keysDir)
-	logrus.Infof("extraDir: %s", storageParams.extraDir)
-	logrus.Infof("nodesDir: %s", storageParams.nodesDir)
 	return storageParams
 }
 func defaultBootstrapNodes(netid uint32) []string {

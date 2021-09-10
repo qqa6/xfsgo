@@ -18,9 +18,6 @@ package badger
 
 import (
 	"github.com/dgraph-io/badger/v3"
-	"github.com/sirupsen/logrus"
-	"io/ioutil"
-	"log"
 )
 
 type Storage struct {
@@ -37,32 +34,18 @@ const (
 )
 
 type defaultLog struct {
-	*log.Logger
-	level loggingLevel
 }
 
 func (l *defaultLog) Errorf(f string, v ...interface{}) {
-	if l.level <= ERROR {
-		l.Printf("ERROR: "+f, v...)
-	}
 }
 
 func (l *defaultLog) Warningf(f string, v ...interface{}) {
-	if l.level <= WARNING {
-		l.Printf("WARNING: "+f, v...)
-	}
 }
 
 func (l *defaultLog) Infof(f string, v ...interface{}) {
-	if l.level <= INFO {
-		l.Printf("INFO: "+f, v...)
-	}
 }
 
 func (l *defaultLog) Debugf(f string, v ...interface{}) {
-	if l.level <= DEBUG {
-		l.Printf("DEBUG: "+f, v...)
-	}
 }
 
 type StorageWriteBatch struct {
@@ -92,17 +75,10 @@ func (b *StorageWriteBatch) Delete(key []byte) error {
 	return b.batch.Delete(key)
 }
 
-func defaultLogger(level loggingLevel) *defaultLog {
-	return &defaultLog{
-		Logger: log.New(ioutil.Discard, "badger ", log.LstdFlags),
-		level:  level,
-	}
-}
-
 func New(pathname string) *Storage {
 	storage := &Storage{}
 	opts := badger.DefaultOptions(pathname)
-	opts.Logger = logrus.StandardLogger()
+	opts.Logger = &defaultLog{}
 	var err error = nil
 	storage.db, err = badger.Open(opts)
 	if err != nil {

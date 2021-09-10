@@ -24,6 +24,7 @@ import (
 	"go/token"
 	"io"
 	"io/ioutil"
+	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -410,6 +411,11 @@ func (server *RPCServer) Start() error {
 		}
 		c.Abort()
 	})
-	server.logger.Infof("start rpc server runing: %s", server.config.ListenAddr)
-	return server.ginEngine.Run(server.config.ListenAddr)
+
+	ln, err := net.Listen("tcp", server.config.ListenAddr)
+	if err != nil {
+		return fmt.Errorf("rpc server listen err: %s", err)
+	}
+	server.logger.Infof("rpc service listen on: %s", ln.Addr())
+	return server.ginEngine.RunListener(ln)
 }

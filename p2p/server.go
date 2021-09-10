@@ -105,9 +105,13 @@ func (srv *server) Start() error {
 	var err error
 	// launch node discovery and UDP listener
 	if srv.config.Discover {
-		srv.table, err = discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath, srv.natm)
+		table, netAddr, err := discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath, srv.natm)
+		srv.table = table
 		if err != nil {
 			return err
+		}
+		if netAddr != nil {
+			srv.config.ListenAddr = netAddr.String()
 		}
 	}
 	dynPeers := srv.config.MaxPeers / 2

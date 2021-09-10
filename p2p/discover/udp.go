@@ -127,17 +127,17 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm nat.Listener) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm nat.Listener) (*Table, net.Addr, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	tab, _ := newUDP(priv, conn, nodeDBPath, natm)
-	return tab, nil
+	return tab, conn.LocalAddr(), nil
 }
 
 func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, natm nat.Listener) (*Table, *udp) {

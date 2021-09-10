@@ -19,7 +19,6 @@ package sub
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"xfsgo"
 	"xfsgo/common"
 
@@ -273,8 +272,7 @@ func runWalletList() error {
 	// Wallet balance
 	// getBalance
 	balance := make(map[string]interface{}, 1)
-
-	fmt.Print("Address                                 Balance              ")
+	fmt.Print("Address                            Balance            default")
 	fmt.Println()
 	for _, w := range walletAddress {
 
@@ -287,20 +285,18 @@ func runWalletList() error {
 			fmt.Println(err)
 			return err
 		}
-		var t uint64
+		var t float64
 		if balance["balance"] != nil {
-			t = uint64(balance["balance"].(float64) * math.Pow10(0))
+			t = balance["balance"].(float64)
 		}
 
+		fmt.Printf("%-35v", w.B58String())
+		fmt.Printf("%-19.4f", t)
+
 		if w == defAddr {
-			fmt.Printf("%-40v", "x")
-			fmt.Printf("%-50d", t)
-			fmt.Println()
-		} else {
-			fmt.Printf("%-40s", w.B58String())
-			fmt.Printf("%-50v", t)
-			fmt.Println()
+			fmt.Printf("%-10v", "x")
 		}
+		fmt.Println()
 	}
 	return nil
 }

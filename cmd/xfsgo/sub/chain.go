@@ -21,7 +21,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
+	"time"
 	"xfsgo"
+	"xfsgo/common"
 
 	"github.com/spf13/cobra"
 )
@@ -206,21 +209,28 @@ func getHead() error {
 		fmt.Println(err)
 		return nil
 	}
-	// fmt.Println(block)
-	fmt.Printf("transactions %v\n", block["transactions"])
-	fmt.Printf("receipts %v\n", block["receipts"])
+	result := make(map[string]interface{}, 1)
 	blockheader := block["header"].(map[string]interface{})
-	fmt.Printf("hash %v\n", blockheader["hash"])
-	fmt.Printf("bits %v\n", blockheader["bits"])
-	fmt.Printf("transactions_root %v\n", blockheader["transactions_root"])
-	fmt.Printf("timestamp %v\n", blockheader["timestamp"])
-	fmt.Printf("receipts_root %v\n", blockheader["receipts_root"])
-	fmt.Printf("nonce %v\n", blockheader["nonce"])
-	fmt.Printf("height %v\n", blockheader["height"])
-	fmt.Printf("hash_prev_block %v\n", blockheader["hash_prev_block"])
-	fmt.Printf("state_root %v\n", blockheader["state_root"])
-	fmt.Printf("coinbase %v\n", blockheader["coinbase"])
-	fmt.Printf("version %v\n", blockheader["version"])
+
+	result["version"] = blockheader["version"]
+	result["height"] = blockheader["height"]
+	result["hash_prev_block"] = blockheader["hash_prev_block"]
+	result["hash"] = blockheader["hash"]
+	result["timestamp"] = time.Unix(int64(blockheader["timestamp"].(float64)), 0).UTC().Format(time.RFC3339)
+	result["state_root"] = blockheader["state_root"]
+	result["transactions_root"] = blockheader["transactions_root"]
+	result["receipts_root"] = blockheader["receipts_root"]
+	bitsStr := strconv.FormatInt(int64(blockheader["bits"].(float64)), 10)
+	bits := common.Hex2Hash(bitsStr)
+	result["bits"] = bits.Hex()
+	result["nonce"] = blockheader["nonce"]
+	result["coinbase"] = blockheader["coinbase"]
+	result["transactions"] = block["transactions"]
+	result["receipts"] = block["receipts"]
+
+	r := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
+	bs, _ := common.Marshal(result, r)
+	fmt.Println(bs)
 	return nil
 }
 

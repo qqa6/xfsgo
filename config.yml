@@ -16,7 +16,7 @@ rpcserver:
   # if need to map outside network you can set [ip]:<port>
   # which port bound support http/s、websocket（ws）protocols
 
-  listen: "127.0.0.1:9091"
+#  listen: "127.0.0.1:9091"
 
 p2pnode:
   # address of node in p2p network to listen services of p2p network.

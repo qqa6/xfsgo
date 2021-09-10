@@ -18,12 +18,15 @@ package node
 
 import (
 	"crypto/ecdsa"
+	"crypto/x509"
 	"errors"
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"xfsgo"
 	"xfsgo/api"
+	"xfsgo/common"
 	"xfsgo/crypto"
 	"xfsgo/miner"
 	"xfsgo/p2p"
@@ -50,31 +53,10 @@ type Config struct {
 	RPCConfig        *xfsgo.RPCConfig
 }
 
-const nodedbKeyName = "/dbkey"
+const datadirPrivateKey = "NODEKEY"
 
 // New creates a new P2P node, ready for protocol registration.
 func New(config *Config) (*Node, error) {
-	var key *ecdsa.PrivateKey
-	nodedbKeyDir := config.NodeDBPath + nodedbKeyName
-	NewNodeDBFile(config.NodeDBPath, nodedbKeyName)
-	EncodeKey, err := GetNodeDB(nodedbKeyDir)
-	if err != nil {
-		return nil, err
-	}
-	if EncodeKey != "" {
-		key, _ = crypto.B64StringDecodePrivateKey(EncodeKey)
-	} else {
-		key, _ = crypto.GenPrvKey()
-		str, err := crypto.PrivateKeyEncodeB64String(key)
-		if err != nil {
-			return nil, err
-		}
-		err = SetNodeDB(nodedbKeyDir, str)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	bootstraps := make([]*discover.Node, 0)
 	for _, nodeUri := range config.P2PBootstraps {
 		node, err := discover.ParseNode(nodeUri)
@@ -94,7 +76,7 @@ func New(config *Config) (*Node, error) {
 	p2pServer := p2p.NewServer(p2p.Config{
 		ListenAddr:      config.P2PListenAddress,
 		ProtocolVersion: config.ProtocolVersion,
-		Key:             key,
+		Key:             nodeKeyByPath(config.NodeDBPath),
 		BootstrapNodes:  bootstraps,
 		StaticNodes:     staticNodes,
 		Discover:        true,
@@ -213,4 +195,40 @@ func (n *Node) RegisterBackend(
 
 func (n *Node) P2PServer() p2p.Server {
 	return n.p2pServer
+}
+
+func nodeKeyByPath(filepath string) *ecdsa.PrivateKey {
+	if filepath == "" {
+		k, err := crypto.GenPrvKey()
+		if err != nil {
+			logrus.Errorf("gen private key err: %s", k)
+		}
+		return k
+	}
+	keyfile := path.Join(filepath, datadirPrivateKey)
+	if file,err := os.OpenFile(keyfile, os.O_RDWR,0666); err == nil {
+		defer common.Safeclose(file.Close)
+		if der, err := ioutil.ReadAll(file); err == nil {
+			if key, err := x509.ParseECPrivateKey(der); err == nil {
+				return key
+			}
+		}
+		return nil
+	}
+	k, err := crypto.GenPrvKey()
+	if err != nil {
+		return nil
+	}
+	if der, err := x509.MarshalECPrivateKey(k); err == nil {
+		if err := os.MkdirAll(filepath, 0700); err != nil {
+			logrus.Errorf("Failed to persist node key: %v", err)
+			return k
+		}
+		if err := ioutil.WriteFile(keyfile, der, 0600); err != nil {
+			logrus.Errorf("Failed to write node key: %v", err)
+			return k
+		}
+		return k
+	}
+	return k
 }

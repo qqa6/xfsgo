@@ -3,7 +3,6 @@ package discover
 import (
 	"bytes"
 	"encoding/binary"
-	"os"
 	"sync"
 	"time"
 	"xfsgo/common/rawencode"
@@ -24,8 +23,6 @@ var (
 	nodeDBNilNodeID      = NodeId{}       // Special node ID to use as a nil element.
 	nodeDBNodeExpiration = 24 * time.Hour // Time after which an unseen node should be dropped.
 	nodeDBCleanupCycle   = time.Hour      // Time period for running the expiration task.
-	//
-	versionKey              = []byte("version")
 	nodeDBItemPrefix        = []byte("n:")
 	nodeDBDiscoverRoot      = ":discover"
 	nodeDBDiscoverPing      = nodeDBDiscoverRoot + ":lastping"
@@ -34,27 +31,14 @@ var (
 )
 
 func newNodeDB(path string, version uint32, self NodeId) (*nodeDB, error) {
+	var err error
 	db := &nodeDB{
-		version: version,
 		self:    self,
 		quit:    make(chan struct{}),
 	}
-	db.storage = badger.New(path)
-	var currentVer [4]byte
-	binary.LittleEndian.PutUint32(currentVer[:], version)
-	gotVersion, _ := db.storage.GetData(versionKey)
-	if gotVersion == nil {
-		if err := db.storage.SetData(versionKey, currentVer[:]); err != nil {
-			db.close()
-			return nil, err
-		}
-	} else if bytes.Compare(gotVersion, currentVer[:]) != 0 {
-		db.close()
-		err := os.RemoveAll(path)
-		if err != nil {
-			return nil, err
-		}
-		return newNodeDB(path, version, self)
+	db.storage,err = badger.NewByVersion(path, version)
+	if err != nil {
+		return nil, err
 	}
 	return db, nil
 }

@@ -17,11 +17,15 @@
 package badger
 
 import (
+	"bytes"
+	"encoding/binary"
 	"github.com/dgraph-io/badger/v3"
+	"os"
 )
 
 type Storage struct {
 	db *badger.DB
+	version uint32
 }
 
 type loggingLevel int
@@ -32,6 +36,8 @@ const (
 	WARNING
 	ERROR
 )
+
+var versionKey = []byte("version")
 
 type defaultLog struct {
 }
@@ -74,9 +80,17 @@ func (b *StorageWriteBatch) Destroy() {
 func (b *StorageWriteBatch) Delete(key []byte) error {
 	return b.batch.Delete(key)
 }
-
 func New(pathname string) *Storage {
-	storage := &Storage{}
+	storage,err := NewByVersion(pathname, 0)
+	if err != nil {
+		panic(err)
+	}
+	return storage
+}
+func NewByVersion(pathname string, version uint32) (*Storage, error) {
+	storage := &Storage{
+		version: version,
+	}
 	opts := badger.DefaultOptions(pathname)
 	opts.Logger = &defaultLog{}
 	var err error = nil
@@ -84,7 +98,27 @@ func New(pathname string) *Storage {
 	if err != nil {
 		panic(err)
 	}
-	return storage
+	var currentVer [4]byte
+	binary.LittleEndian.PutUint32(currentVer[:], version)
+	gotVersion, _ := storage.GetData(versionKey)
+	if gotVersion == nil {
+		if err := storage.SetData(versionKey, currentVer[:]); err != nil {
+			if err := storage.Close(); err != nil {
+				panic(err)
+			}
+			return nil, err
+		}
+	} else if bytes.Compare(gotVersion, currentVer[:]) != 0 {
+		if err := storage.Close(); err != nil {
+			panic(err)
+		}
+		err := os.RemoveAll(pathname)
+		if err != nil {
+			return nil, err
+		}
+		return NewByVersion(pathname, version)
+	}
+	return storage, nil
 }
 
 func (storage *Storage) Set(key string, val []byte) error {
@@ -308,4 +342,8 @@ func (storage *Storage) NewIterator() Iterator {
 		it: mIt,
 		txn: mTxn,
 	}
+}
+
+func (storage *Storage) GetVersion() uint32 {
+	return storage.version
 }

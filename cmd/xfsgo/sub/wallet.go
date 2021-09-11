@@ -103,7 +103,7 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	bs, err := json.MarshalIndent(&result, "", "\t")
+	bs, err := json.MarshalIndent(&result, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return nil

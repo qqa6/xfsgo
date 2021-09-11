@@ -68,7 +68,7 @@ func Marshal(info BlockMap, sortKey []string, isIndent bool) (string, error) {
 		return jsonBuf.String(), nil
 	}
 	var retBuf bytes.Buffer
-	err := json.Indent(&retBuf, []byte(jsonBuf.String()), "", "\t")
+	err := json.Indent(&retBuf, []byte(jsonBuf.String()), "", "    ")
 
 	if err != nil {
 		return "", err

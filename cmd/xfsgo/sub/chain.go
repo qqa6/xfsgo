@@ -171,7 +171,7 @@ func getTransaction(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return err
 	}
-	bs, err := json.MarshalIndent(&tran, "", "\t")
+	bs, err := json.MarshalIndent(&tran, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return err

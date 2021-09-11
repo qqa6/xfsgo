@@ -61,7 +61,7 @@ func runTxPoolList() error {
 		fmt.Println(err)
 		return err
 	}
-	str, err := json.Marshal(tran)
+	str, err := json.MarshalIndent(&tran, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return err

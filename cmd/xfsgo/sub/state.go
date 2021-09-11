@@ -60,7 +60,7 @@ func getStateObj(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return err
 	}
-	bs, err := json.MarshalIndent(&balance, "", "\t")
+	bs, err := json.MarshalIndent(&balance, "", "    ")
 	if err != nil {
 		fmt.Println(err)
 		return err

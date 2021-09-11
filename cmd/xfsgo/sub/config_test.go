@@ -79,12 +79,10 @@ func Test_resetDataDir(t *testing.T) {
 		home, defaultStorageDir), defaultNodesDir))
 	paths := [5]string{"/a/b", "/c/d", "/e/f", "/g/h", "/i/j"}
 	setupDataDir(&sp, paths[0])
-	assert.Equal(t, sp.chainDir, joinPath(paths[0], defaultChainDir));
-	assert.Equal(t, sp.stateDir,
-		joinPath(paths[0], defaultStateDir))
-	assert.Equal(t, sp.keysDir, joinPath(paths[0], defaultKeysDir));
-	assert.Equal(t, sp.extraDir,
-		joinPath(paths[0], defaultExtraDir))
+	assert.Equal(t, sp.chainDir, joinPath(paths[0], defaultChainDir))
+	assert.Equal(t, sp.stateDir, joinPath(paths[0], defaultStateDir))
+	assert.Equal(t, sp.keysDir, joinPath(paths[0], defaultKeysDir))
+	assert.Equal(t, sp.extraDir, joinPath(paths[0], defaultExtraDir))
 	assert.Equal(t, sp.nodesDir, joinPath(paths[0], defaultNodesDir))
 	sp.chainDir = paths[0]; sp.stateDir = paths[1]; sp.keysDir = paths[2]; sp.extraDir = paths[3]
 	sp.nodesDir = paths[4]

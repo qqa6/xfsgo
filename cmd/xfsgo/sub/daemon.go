@@ -17,6 +17,7 @@
 package sub
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
@@ -128,10 +129,15 @@ out:
 
 func init() {
 	mFlags := daemonCmd.PersistentFlags()
-	mFlags.StringVarP(&rpcaddr,"rpcaddr","r","", "Set JSON-RPC Service listen address")
-	mFlags.StringVarP(&p2paddr,"p2paddr","p","", "Set P2P-Node listen address (default \"0.0.0.0:9001\")")
-	mFlags.StringVarP(&datadir,"datadir","d","", "Data directory for the databases and keystore")
-	mFlags.BoolVarP(&testnet,"testnet","t",false, "Enable test network")
-	mFlags.IntVarP(&netid,"netid","n",0,"Explicitly set network id (For testnets: use --testnet) (default \"mainnet\": 0)")
+	mFlags.StringVarP(&rpcaddr,"rpcaddr","r","",
+		fmt.Sprintf("Set JSON-RPC Service listen address"))
+	mFlags.StringVarP(&p2paddr,"p2paddr","p","",
+		fmt.Sprintf("Set P2P-Node listen address"))
+	mFlags.StringVarP(&datadir,"datadir","d","",
+		fmt.Sprintf("Set Data directory"))
+	mFlags.BoolVarP(&testnet,"testnet","t",false,
+		fmt.Sprintf("Enable test network"))
+	mFlags.IntVarP(&netid,"netid","n",0,
+		fmt.Sprintf("Explicitly set network id"))
 	rootCmd.AddCommand(daemonCmd)
 }

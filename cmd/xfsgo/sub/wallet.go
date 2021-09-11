@@ -272,7 +272,7 @@ func runWalletList() error {
 	// Wallet balance
 	// getBalance
 	balance := make(map[string]interface{}, 1)
-	fmt.Print("Address                            Balance            default")
+	fmt.Print("Address                            Balance           Default")
 	fmt.Println()
 	for _, w := range walletAddress {
 
@@ -285,13 +285,12 @@ func runWalletList() error {
 			fmt.Println(err)
 			return err
 		}
-		var t float64
+		var balanceTo float64
 		if balance["balance"] != nil {
-			t = balance["balance"].(float64)
+			balanceTo = balance["balance"].(float64)
 		}
-
 		fmt.Printf("%-35v", w.B58String())
-		fmt.Printf("%-19.4f", t)
+		fmt.Printf("%-18.4f", balanceTo)
 
 		if w == defAddr {
 			fmt.Printf("%-10v", "x")

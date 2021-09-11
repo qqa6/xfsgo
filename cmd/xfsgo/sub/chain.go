@@ -228,9 +228,13 @@ func getHead() error {
 	result["transactions"] = block["transactions"]
 	result["receipts"] = block["receipts"]
 
-	r := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
-	bs, _ := common.Marshal(result, r)
-	fmt.Println(bs)
+	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
+	bs, err := common.Marshal(result, sortKey, true)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fmt.Printf("%v\n", bs)
 	return nil
 }
 

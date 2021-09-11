@@ -150,8 +150,8 @@ func NewDefaultListener(lAddr string, listener net.Listener, skipUPNP bool) (Lis
 	}
 
 	// Actual listener local IP & port
-	listenerIP, listenerPort := splitHostPort(listener.Addr().String())
-	logrus.Info("Local listener", " ip:", listenerIP, " port:", listenerPort)
+	_, listenerPort := splitHostPort(listener.Addr().String())
+	//logrus.Info("listener", " ip:", listenerIP, " port:", listenerPort)
 
 	// Determine external address...
 	var extAddr *NetAddress
@@ -162,7 +162,7 @@ func NewDefaultListener(lAddr string, listener net.Listener, skipUPNP bool) (Lis
 		if err == nil {
 			upnpMap = true
 		}
-		logrus.WithFields(logrus.Fields{"module": logModule, "err": err}).Info("get UPNP external address")
+		//logrus.WithFields(logrus.Fields{"module": logModule, "err": err}).Info("get UPNP external address")
 	}
 
 	// Get the IPv4 available
@@ -175,8 +175,6 @@ func NewDefaultListener(lAddr string, listener net.Listener, skipUPNP bool) (Lis
 			logrus.WithFields(logrus.Fields{"module": logModule, "addr": extAddr}).Info("get ipv4 external address success")
 		}
 	}
-	fmt.Printf("extAddr:%v\n", extAddr.IP)
-
 	dl := &DefaultListener{
 		listener:    listener,
 		intAddr:     intAddr,

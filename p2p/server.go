@@ -210,7 +210,7 @@ func (srv *server) listenAndServe() error {
 	nId := discover.PubKey2NodeId(currentKey.PublicKey)
 	//tcpAddr,_ := net.ResolveTCPAddr("", addr)
 	//n := discover.NewNode(tcpAddr.IP, uint16(tcpAddr.Port), uint16(tcpAddr.Port),nId)
-	srv.logger.Infof("p2p server node id: xfsnode://%s?id=%s", srv.config.ListenAddr, nId)
+	srv.logger.Infof("p2p server node id: %s", nId)
 	go srv.listenLoop(ln)
 	return nil
 }
@@ -226,7 +226,7 @@ func (srv *server) listenLoop(ln net.Listener) {
 	for {
 		rw, err := ln.Accept()
 		if err != nil {
-			srv.logger.Errorf("p2p listenner accept err %v", err)
+			srv.logger.Errorf("p2p listen loop accept err %v", err)
 			return
 		}
 		c := srv.newPeerConn(rw, flagInbound, nil)

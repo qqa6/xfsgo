@@ -18,7 +18,7 @@ func Test_dialtask_newDialState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tab, err := discover.ListenUDP(key, "127.0.0.1:9001", "./d0")
+	tab, err := discover.ListenUDP(key, "127.0.0.1:9001", "./d0",nil)
 	if err != nil {
 		t.Fatal(err)
 	}

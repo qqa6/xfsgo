@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 	"xfsgo/backend"
 	"xfsgo/node"
 	"xfsgo/storage/badger"
@@ -29,9 +30,14 @@ import (
 )
 
 var (
+	rpcaddr string
+	p2paddr string
+	datadir string
+	testnet bool
+	netid int
 	daemonCmd = &cobra.Command{
 		Use:   "daemon [flags]",
-		Short: "background services",
+		Short: "Start a xfsgo daemon process",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDaemon()
 		},
@@ -41,6 +47,25 @@ var (
 func safeclose(fn func() error) {
 	if err := fn(); err != nil {
 		panic(err)
+	}
+}
+
+func resetConfig(config *daemonConfig) {
+	if datadir != "" {
+		config.storageParams.dataDir = datadir
+		resetDataDir(&config.storageParams)
+	}
+	if rpcaddr != "" {
+		config.nodeConfig.RPCConfig.ListenAddr = rpcaddr
+	}
+	if p2paddr != "" {
+		config.nodeConfig.P2PListenAddress = p2paddr
+	}
+	if netid != 0 {
+		config.backendParams.NetworkID = uint32(netid)
+	}
+	if testnet {
+		config.backendParams.NetworkID = defaultTestNetworkId
 	}
 }
 func runDaemon() error {
@@ -53,11 +78,17 @@ func runDaemon() error {
 	if err != nil {
 		return err
 	}
+	resetConfig(&config)
 	loglevel,err := logrus.ParseLevel(config.loggerParams.level)
 	if err != nil {
 		return err
 	}
 	logrus.SetLevel(loglevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		DisableColors: true,
+		TimestampFormat : time.RFC3339,
+		FullTimestamp:true,
+	})
 	if stack, err = node.New(&config.nodeConfig); err != nil {
 		return err
 	}
@@ -97,5 +128,11 @@ out:
 }
 
 func init() {
+	mFlags := daemonCmd.PersistentFlags()
+	mFlags.StringVarP(&rpcaddr,"rpcaddr","r","", "Set JSON-RPC Service listen address")
+	mFlags.StringVarP(&p2paddr,"p2paddr","p","", "Set P2P-Node listen address (default \"0.0.0.0:9001\")")
+	mFlags.StringVarP(&datadir,"datadir","d","", "Data directory for the databases and keystore")
+	mFlags.BoolVarP(&testnet,"testnet","t",false, "Enable test network")
+	mFlags.IntVarP(&netid,"netid","n",0,"Explicitly set network id (For testnets: use --testnet) (default \"mainnet\": 0)")
 	rootCmd.AddCommand(daemonCmd)
 }

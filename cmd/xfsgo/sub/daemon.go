@@ -50,7 +50,24 @@ func safeclose(fn func() error) {
 	}
 }
 
-
+func resetConfig(config *daemonConfig) {
+	if datadir != "" {
+		config.storageParams.dataDir = datadir
+		resetDataDir(&config.storageParams)
+	}
+	if rpcaddr != "" {
+		config.nodeConfig.RPCConfig.ListenAddr = rpcaddr
+	}
+	if p2paddr != "" {
+		config.nodeConfig.P2PListenAddress = p2paddr
+	}
+	if netid != 0 {
+		config.backendParams.NetworkID = uint32(netid)
+	}
+	if testnet {
+		config.backendParams.NetworkID = defaultTestNetworkId
+	}
+}
 func runDaemon() error {
 	var (
 		err   error            = nil
@@ -61,12 +78,7 @@ func runDaemon() error {
 	if err != nil {
 		return err
 	}
-	config.nodeConfig.RPCConfig.ListenAddr = rpcaddr
-	config.nodeConfig.P2PListenAddress = p2paddr
-	config.backendParams.NetworkID = uint32(netid)
-	if testnet {
-		config.backendParams.NetworkID = defaultTestNetworkId
-	}
+	resetConfig(&config)
 	loglevel,err := logrus.ParseLevel(config.loggerParams.level)
 	if err != nil {
 		return err

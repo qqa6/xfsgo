@@ -96,6 +96,34 @@ func parseConfigLoggerParams(v *viper.Viper) loggerParams {
 	return params
 }
 
+func resetDataDir(params *storageParams) {
+	if params.dataDir == "" {
+		home := os.Getenv("HOME")
+		params.dataDir = path.Join(
+			home, defaultStorageDir)
+	}
+	if params.chainDir == "" {
+		params.chainDir = path.Join(
+			params.dataDir, defaultChainDir)
+	}
+	if params.stateDir == "" {
+		params.stateDir = path.Join(
+			params.dataDir, defaultStateDir)
+	}
+	if params.keysDir == "" {
+		params.keysDir = path.Join(
+			params.dataDir, defaultKeysDir)
+	}
+	if params.extraDir == "" {
+		params.extraDir = path.Join(
+			params.dataDir, defaultExtraDir)
+	}
+	if params.nodesDir == "" {
+		params.nodesDir = path.Join(
+			params.dataDir, defaultNodesDir)
+	}
+}
+
 func parseConfigStorageParams(v *viper.Viper) storageParams {
 	storageParams := storageParams{}
 	storageParams.dataDir = v.GetString("storage.datadir")
@@ -104,31 +132,7 @@ func parseConfigStorageParams(v *viper.Viper) storageParams {
 	storageParams.keysDir = v.GetString("storage.keysdir")
 	storageParams.extraDir = v.GetString("storage.extradir")
 	storageParams.nodesDir = v.GetString("storage.nodesdir")
-	if storageParams.dataDir == "" {
-		home := os.Getenv("HOME")
-		storageParams.dataDir = path.Join(
-			home, defaultStorageDir)
-	}
-	if storageParams.chainDir == "" {
-		storageParams.chainDir = path.Join(
-			storageParams.dataDir, defaultChainDir)
-	}
-	if storageParams.stateDir == "" {
-		storageParams.stateDir = path.Join(
-			storageParams.dataDir, defaultStateDir)
-	}
-	if storageParams.keysDir == "" {
-		storageParams.keysDir = path.Join(
-			storageParams.dataDir, defaultKeysDir)
-	}
-	if storageParams.extraDir == "" {
-		storageParams.extraDir = path.Join(
-			storageParams.dataDir, defaultExtraDir)
-	}
-	if storageParams.nodesDir == "" {
-		storageParams.nodesDir = path.Join(
-			storageParams.dataDir, defaultNodesDir)
-	}
+	resetDataDir(&storageParams)
 	return storageParams
 }
 func defaultBootstrapNodes(netid uint32) []string {

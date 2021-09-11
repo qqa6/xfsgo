@@ -103,12 +103,12 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	jsonStr, err := json.Marshal(result)
+	bs, err := json.MarshalIndent(&result, "", "\t")
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Println(jsonStr)
+	fmt.Printf("%v\n", string(bs))
 
 	return nil
 }

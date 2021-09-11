@@ -358,10 +358,10 @@ func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
 
 func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
 	head := bc.currentBlock.Height()
-	result := int(from) + int(count)
-	if uint64(result) > head {
+	if count > head {
 		return nil
 	}
+
 	hashes := make([]*Block, 0)
 	for h := uint64(0); from+h <= count; h++ {
 		block := bc.GetBlockByNumber(from + h)

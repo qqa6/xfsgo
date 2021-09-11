@@ -19,7 +19,7 @@ package sub
 import "encoding/json"
 
 type getBlockHashArgs struct {
-	Address string `json:"address"`
+	Hash string `json:"hash"`
 }
 
 type getTransactionArgs struct {

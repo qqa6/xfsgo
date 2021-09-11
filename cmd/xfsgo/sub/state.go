@@ -17,8 +17,8 @@
 package sub
 
 import (
+	"encoding/json"
 	"fmt"
-	"math"
 	"xfsgo"
 
 	"github.com/spf13/cobra"
@@ -60,22 +60,27 @@ func getStateObj(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return err
 	}
-
-	var t uint64
-	if balance["balance"] != nil {
-		t = uint64(balance["balance"].(float64) * math.Pow10(0))
+	bs, err := json.MarshalIndent(&balance, "", "\t")
+	if err != nil {
+		fmt.Println(err)
+		return err
 	}
+	fmt.Printf("%v\n", string(bs))
+	// var t uint64
+	// if balance["balance"] != nil {
+	// 	t = uint64(balance["balance"].(float64) * math.Pow10(0))
+	// }
 
-	var nonce uint64
-	if balance["nonce"].(float64) != float64(0) {
-		nonce = uint64(balance["nonce"].(float64) * math.Pow10(0))
-	}
+	// var nonce uint64
+	// if balance["nonce"].(float64) != float64(0) {
+	// 	nonce = uint64(balance["nonce"].(float64) * math.Pow10(0))
+	// }
 
-	fmt.Print("address                                 balance          nonce")
-	fmt.Println()
-	fmt.Printf("%-40v", balance["address"])
-	fmt.Printf("%-17v", t)
-	fmt.Printf("%-d\n", nonce)
+	// fmt.Print("address                                 balance          nonce")
+	// fmt.Println()
+	// fmt.Printf("%-40v", balance["address"])
+	// fmt.Printf("%-17v", t)
+	// fmt.Printf("%-d\n", nonce)
 	return nil
 
 }

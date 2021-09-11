@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
-	"time"
 	"xfsgo"
 	"xfsgo/common"
 
@@ -54,7 +52,7 @@ var (
 		RunE:  getBlockNum,
 	}
 	chainGetBlockHashCommond = &cobra.Command{
-		Use:   "--hash <hash>",
+		Use:   "hash <hash>",
 		Short: "get block <hash>",
 		RunE:  getBlockHash,
 	}
@@ -105,7 +103,7 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 	}
 
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	receipt := make([]map[string]interface{}, 1)
+	var receipt []common.BlockMap
 	req := &getBlockNumArgs{
 		From:  json.Number(FormStr),
 		Count: json.Number(CountStr),
@@ -115,13 +113,19 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
+	var jsons []common.BlockMap
+	// common.Marshals
+	for _, item := range receipt {
+		jsons = append(jsons, item.MapMerge())
+	}
+	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
 
-	jsonStr, err := json.Marshal(receipt)
+	bs, err := common.Marshals(jsons, sortKey, true)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Println(string(jsonStr))
+	fmt.Println(string(bs))
 	return nil
 }
 
@@ -167,12 +171,12 @@ func getTransaction(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return err
 	}
-	jsonStr, err := json.Marshal(tran)
+	bs, err := json.MarshalIndent(&tran, "", "\t")
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	fmt.Println(jsonStr)
+	fmt.Println(string(bs))
 	return nil
 }
 
@@ -183,16 +187,25 @@ func getBlockHash(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	block := make(map[string]interface{}, 1)
+	var block common.BlockMap
 	req := &getBlockHashArgs{
-		Address: args[0],
+		Hash: args[0],
 	}
 	err = cli.CallMethod(1, "Chain.GetBlockByHash", &req, &block)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Println(block)
+	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
+	result := block.MapMerge()
+	bs, err := common.Marshal(result, sortKey, true)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+
+	}
+	fmt.Println(bs)
+
 	return nil
 }
 
@@ -203,31 +216,13 @@ func getHead() error {
 		return nil
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	block := make(map[string]interface{}, 1)
+	var block common.BlockMap
 	err = cli.CallMethod(1, "Chain.Head", nil, &block)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	result := make(map[string]interface{}, 1)
-	blockheader := block["header"].(map[string]interface{})
-
-	result["version"] = blockheader["version"]
-	result["height"] = blockheader["height"]
-	result["hash_prev_block"] = blockheader["hash_prev_block"]
-	result["hash"] = blockheader["hash"]
-	result["timestamp"] = time.Unix(int64(blockheader["timestamp"].(float64)), 0).UTC().Format(time.RFC3339)
-	result["state_root"] = blockheader["state_root"]
-	result["transactions_root"] = blockheader["transactions_root"]
-	result["receipts_root"] = blockheader["receipts_root"]
-	bitsStr := strconv.FormatInt(int64(blockheader["bits"].(float64)), 10)
-	bits := common.Hex2Hash(bitsStr)
-	result["bits"] = bits.Hex()
-	result["nonce"] = blockheader["nonce"]
-	result["coinbase"] = blockheader["coinbase"]
-	result["transactions"] = block["transactions"]
-	result["receipts"] = block["receipts"]
-
+	result := block.MapMerge()
 	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
 	bs, err := common.Marshal(result, sortKey, true)
 	if err != nil {
@@ -339,6 +334,6 @@ func init() {
 	chainCommand.AddCommand(chainExportCommand)
 	chainCommand.AddCommand(chainImportCommand)
 	chainCommand.AddCommand(chainprogressCommand)
-	chainGetBlockCommond.AddCommand(chainGetBlockHashCommond)
+	chainCommand.AddCommand(chainGetBlockHashCommond)
 
 }

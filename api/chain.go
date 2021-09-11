@@ -19,7 +19,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"xfsgo"
 	"xfsgo/common"
@@ -174,8 +173,13 @@ func (receiver *ChainAPIHandler) GetBlockSection(args GetBlockSectionArgs, resp 
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
+	if numbersCount == uint64(0) {
+		b := receiver.BlockChain.GetHead()
+		numbersCount = b.Height()
+	}
 	data := receiver.BlockChain.GetBlockSection(numbersForm, numbersCount)
 	GetBlockByNumberBlock := make([]*GetBlockByNumberBlock, 0)
+
 	if len(data) == 0 {
 		*resp = GetBlockByNumberBlock
 		return nil
@@ -232,8 +236,7 @@ func (receiver *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) e
 	blockChain := make([]*xfsgo.Block, 0)
 	err := json.Unmarshal([]byte(decryption), &blockChain)
 	if err != nil {
-		fmt.Println(err)
-		return nil
+		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
 	receiver.number = len(blockChain) - 1
 

@@ -54,7 +54,7 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 	if err = json.Unmarshal(contents, &genesis); err != nil {
 		return nil, err
 	}
-
+	chaindb := newChainDB(chainDB)
 	stateTree := NewStateTree(stateDB, nil)
 	//logrus.Debugf("initialize genesis account count: %d", len(genesis.Accounts))
 	for addr, a := range genesis.Accounts {
@@ -79,8 +79,7 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 		Bits:          genesis.Bits,
 		StateRoot:     rootHash,
 	}, nil, nil)
-	chain := newChainDB(chainDB)
-	if old := chain.GetBlockByHash(block.Hash()); old != nil {
+	if old := chaindb.GetBlockByHash(block.Hash()); old != nil {
 		logrus.Infof("get genesis block hash: %s", old.HashHex())
 		return old, nil
 	}
@@ -88,10 +87,10 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 	if err = stateTree.Commit(); err != nil {
 		return nil, err
 	}
-	if err = chain.WriteBlock(block); err != nil {
+	if err = chaindb.WriteBlock(block); err != nil {
 		return nil, err
 	}
-	if err = chain.WriteHead(block); err != nil {
+	if err = chaindb.WriteHead(block); err != nil {
 		return nil, err
 	}
 	return block, nil

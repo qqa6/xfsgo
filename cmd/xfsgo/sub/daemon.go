@@ -52,8 +52,7 @@ func safeclose(fn func() error) {
 
 func resetConfig(config *daemonConfig) {
 	if datadir != "" {
-		config.storageParams.dataDir = datadir
-		resetDataDir(&config.storageParams)
+		setupDataDir(&config.storageParams, datadir)
 	}
 	if rpcaddr != "" {
 		config.nodeConfig.RPCConfig.ListenAddr = rpcaddr

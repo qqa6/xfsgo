@@ -112,7 +112,7 @@ func (p *peer) Handshake(head common.Hash, height uint64) error {
 					return errors.New("p2p version not match")
 				}
 				if status.Network != p.network {
-					return errors.New("network id not match")
+					return errors.New("network id n ot match")
 				}
 				p.head = status.Head
 				p.height = status.Height

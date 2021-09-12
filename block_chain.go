@@ -296,7 +296,9 @@ func (bc *BlockChain) checkTransactionSanity(tx *Transaction) error {
 	}
 	return nil
 }
+func (bc *BlockChain) buyGas(tx *Transaction) {
 
+}
 func (bc *BlockChain) applyTransaction(stateTree *StateTree, tx *Transaction) (*Receipt, error) {
 	if err := bc.checkTransactionSanity(tx); err != nil {
 		return nil, err

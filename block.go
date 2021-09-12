@@ -43,6 +43,8 @@ type BlockHeader struct {
 	StateRoot        common.Hash `json:"state_root"`
 	TransactionsRoot common.Hash `json:"transactions_root"`
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
+	GasLimit uint64
+	GasUsed uint64
 	// pow consensus.
 	Bits  uint32 `json:"bits"`
 	Nonce uint64 `json:"nonce"`

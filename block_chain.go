@@ -84,6 +84,10 @@ func NewBlockChain(stateDB, chainDB, extraDB *badger.Storage, eventBus *EventBus
 	return bc, nil
 }
 
+func (bc *BlockChain) GetNonce(addr common.Address) uint64 {
+	return bc.stateTree.GetNonce(addr)
+}
+
 func (bc *BlockChain) GetBlockByNumber(num uint64) *Block {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()

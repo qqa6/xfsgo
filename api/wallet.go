@@ -135,9 +135,12 @@ func (handler *WalletHandler) Transfer(args TransferArgs, resp *TransferObj) err
 	if err != nil {
 		return err
 	}
+
 	toAddr := common.B58ToAddress([]byte(args.To))
 	value := common.ParseString2BigInt(args.Value)
 	tx := xfsgo.NewTransaction(toAddr, value)
+	tx.Nonce = handler.BlockChain.GetNonce(handler.Wallet.GetDefault())
+
 	if err = tx.SignWithPrivateKey(formAddr); err != nil {
 		return xfsgo.NewRPCErrorCause(-1006, err)
 	}
@@ -160,8 +163,8 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 	if args.Value == "" {
 		return xfsgo.NewRPCError(-1006, "value not be empty")
 	}
-
-	privateKey, err := handler.Wallet.GetKeyByAddress(common.B58ToAddress([]byte(args.From)))
+	fromAddr := common.B58ToAddress([]byte(args.From))
+	privateKey, err := handler.Wallet.GetKeyByAddress(fromAddr)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-1006, err)
 	}
@@ -169,6 +172,7 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 	toAddr := common.B58ToAddress([]byte(args.To))
 	value := common.ParseString2BigInt(args.Value)
 	tx := xfsgo.NewTransaction(toAddr, value)
+	tx.Nonce = handler.BlockChain.GetNonce(fromAddr)
 	err = tx.SignWithPrivateKey(privateKey)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-1006, err)

@@ -17,35 +17,39 @@
 package common
 
 import (
+	"math"
 	"math/big"
-	"strconv"
 )
 
 const Coin = 10 ^ 6
 
-const Atto = 10e-18
-const AttoCoin = 10e18
-const Nano = 10e-9
-
-var MaxAtto = new(big.Int).SetBytes([]byte{
-	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-})
+var AttoCoin = uint64(math.Pow(10, 18))
+var NanoCoin = uint64(math.Pow(10, 9))
 
 func BaseCoin2Atto(coin float64) *big.Int {
-	attocoin := coin * AttoCoin
-	numberStr := strconv.FormatFloat(attocoin, 'f',-1,64 )
-	result, ok := new(big.Int).SetString(numberStr,10)
-	if !ok {
-		return new(big.Int).SetUint64(0)
-	}
-	if result.Sign() < 0{
-		return new(big.Int).SetUint64(0)
-	}
-	if result.Cmp(MaxAtto) >= 0 {
-		return MaxAtto
-	}
-	return result
+	a := big.NewFloat(coin)
+	attocoin := a.Mul(a, big.NewFloat(float64(AttoCoin)))
+	i, _ := attocoin.Int(nil)
+	return i
+}
+
+func Atto2BaseCoin(atto *big.Int) *big.Int {
+	i := big.NewInt(0)
+	i.Add(i,atto)
+	i.Div(i, big.NewInt(int64(AttoCoin)))
+	return i
+}
+
+func BaseCoin2Nano(coin float64) *big.Int {
+	a := big.NewFloat(coin)
+	nanocoin := a.Mul(a, big.NewFloat(float64(NanoCoin)))
+	i, _ := nanocoin.Int(nil)
+	return i
+}
+
+func NanoCoin2BaseCoin(nano *big.Int) *big.Int {
+	i := big.NewInt(0)
+	i.Add(i, nano)
+	i.Div(i, big.NewInt(int64(NanoCoin)))
+	return i
 }

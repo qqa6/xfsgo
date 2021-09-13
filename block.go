@@ -19,6 +19,7 @@ package xfsgo
 
 import (
 	"encoding/json"
+	"math/big"
 	"xfsgo/avlmerkle"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
@@ -43,8 +44,8 @@ type BlockHeader struct {
 	StateRoot        common.Hash `json:"state_root"`
 	TransactionsRoot common.Hash `json:"transactions_root"`
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
-	GasLimit uint64
-	GasUsed uint64
+	GasLimit *big.Int `json:"gas_limit"`
+	GasUsed *big.Int `json:"gas_used"`
 	// pow consensus.
 	Bits  uint32 `json:"bits"`
 	Nonce uint64 `json:"nonce"`

@@ -16,4 +16,36 @@
 
 package common
 
+import (
+	"math/big"
+	"strconv"
+)
+
 const Coin = 10 ^ 6
+
+const Atto = 10e-18
+const AttoCoin = 10e18
+const Nano = 10e-9
+
+var MaxAtto = new(big.Int).SetBytes([]byte{
+	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+	0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+})
+
+func BaseCoin2Atto(coin float64) *big.Int {
+	attocoin := coin * AttoCoin
+	numberStr := strconv.FormatFloat(attocoin, 'f',-1,64 )
+	result, ok := new(big.Int).SetString(numberStr,10)
+	if !ok {
+		return new(big.Int).SetUint64(0)
+	}
+	if result.Sign() < 0{
+		return new(big.Int).SetUint64(0)
+	}
+	if result.Cmp(MaxAtto) >= 0 {
+		return MaxAtto
+	}
+	return result
+}

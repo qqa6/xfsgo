@@ -44,6 +44,8 @@ type SetDefaultAddrArgs struct {
 type TransferArgs struct {
 	To    string `json:"to"`
 	Value string `json:"value"`
+	Gas string `json:"gas"`
+	GasPrice string `json:"gas_price"`
 }
 
 type TransferFromArgs struct {

@@ -31,6 +31,7 @@ var (
 	noneAddress = common.Bytes2Address([]byte{})
 )
 
+const version0 = uint32(0)
 // BlockHeader represents a block header in the xfs blockchain.
 // It is importance to note that the BlockHeader includes StateRoot,TransactionsRoot
 // and ReceiptsRoot fields which implement the state management of the xfs blockchain.

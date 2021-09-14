@@ -26,7 +26,7 @@ type EmptyArgs = interface{}
 
 type GetBlockByNumberBlockHeader struct {
 	Height        uint64         `json:"height"`
-	Version       int32          `json:"version"`
+	Version       uint32         `json:"version"`
 	HashPrevBlock common.Hash    `json:"hash_prev_block"`
 	Timestamp     uint64         `json:"timestamp"`
 	Coinbase      common.Address `json:"coinbase"`

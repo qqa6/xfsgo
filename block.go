@@ -37,7 +37,7 @@ const version0 = uint32(0)
 // and ReceiptsRoot fields which implement the state management of the xfs blockchain.
 type BlockHeader struct {
 	Height        uint64         `json:"height"`
-	Version       int32          `json:"version"`
+	Version       uint32          `json:"version"`
 	HashPrevBlock common.Hash    `json:"hash_prev_block"`
 	Timestamp     uint64         `json:"timestamp"`
 	Coinbase      common.Address `json:"coinbase"`

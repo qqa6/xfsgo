@@ -16,4 +16,40 @@
 
 package common
 
+import (
+	"math"
+	"math/big"
+)
+
 const Coin = 10 ^ 6
+
+var AttoCoin = uint64(math.Pow(10, 18))
+var NanoCoin = uint64(math.Pow(10, 9))
+
+func BaseCoin2Atto(coin float64) *big.Int {
+	a := big.NewFloat(coin)
+	attocoin := a.Mul(a, big.NewFloat(float64(AttoCoin)))
+	i, _ := attocoin.Int(nil)
+	return i
+}
+
+func Atto2BaseCoin(atto *big.Int) *big.Int {
+	i := big.NewInt(0)
+	i.Add(i,atto)
+	i.Div(i, big.NewInt(int64(AttoCoin)))
+	return i
+}
+
+func BaseCoin2Nano(coin float64) *big.Int {
+	a := big.NewFloat(coin)
+	nanocoin := a.Mul(a, big.NewFloat(float64(NanoCoin)))
+	i, _ := nanocoin.Int(nil)
+	return i
+}
+
+func NanoCoin2BaseCoin(nano *big.Int) *big.Int {
+	i := big.NewInt(0)
+	i.Add(i, nano)
+	i.Div(i, big.NewInt(int64(NanoCoin)))
+	return i
+}

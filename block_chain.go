@@ -200,8 +200,8 @@ func (bc *BlockChain) GetTransaction(Hash common.Hash) *Transaction {
 // calculate rewards for packing the block by miners
 func calcBlockSubsidy(currentHeight uint64) *big.Int {
 	// reduce the reward by half
-	nSubsidy := uint64(50 * common.Coin)
-	return new(big.Int).SetUint64(nSubsidy >> uint(currentHeight/210000))
+	nSubsidy := uint64(50) >> uint(currentHeight/210000)
+	return common.BaseCoin2Atto(float64(nSubsidy))
 }
 
 // AccumulateRewards calculates the rewards and add it to the miner's account.
@@ -300,7 +300,9 @@ func (bc *BlockChain) checkTransactionSanity(tx *Transaction) error {
 	}
 	return nil
 }
+func (bc *BlockChain) buyGas(tx *Transaction) {
 
+}
 func (bc *BlockChain) applyTransaction(stateTree *StateTree, tx *Transaction) (*Receipt, error) {
 	if err := bc.checkTransactionSanity(tx); err != nil {
 		return nil, err

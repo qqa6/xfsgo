@@ -245,7 +245,7 @@ func (srv *server) newPeerConn(rw net.Conn, flag int, dst *discover.NodeId) *pee
 		server:  srv,
 		key:     srv.config.Key,
 		rw:      rw,
-		version: srv.config.ProtocolVersion,
+		version: version1,
 	}
 	if dst != nil {
 		c.id = *dst

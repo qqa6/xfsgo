@@ -126,3 +126,7 @@ func Marshals(info []BlockMap, sortKey []string, isIndent bool) (string, error) 
 	return retBuf.String(), nil
 
 }
+
+func MarshalIndent(val interface{}) ([]byte, error) {
+	return json.MarshalIndent(val, "", "    ")
+}

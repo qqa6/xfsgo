@@ -17,7 +17,6 @@
 package sub
 
 import (
-	"encoding/json"
 	"fmt"
 	"xfsgo"
 	"xfsgo/common"
@@ -102,8 +101,7 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-
-	bs, err := json.MarshalIndent(&result, "", "    ")
+	bs, err := common.MarshalIndent(result)
 	if err != nil {
 		fmt.Println(err)
 		return nil

@@ -44,6 +44,13 @@ type GetBlockByHashArgs struct {
 	Hash string `json:"hash"`
 }
 
+type GetTxbyBlockNumArgs struct {
+	Number json.Number `json:"number"`
+}
+type GetTxbyBlockHashArgs struct {
+	Hash string `json:"hash"`
+}
+
 type GetBalanceOfAddressArgs struct {
 	Address string `json:"address"`
 }
@@ -102,6 +109,9 @@ func (receiver *ChainAPIHandler) Head(_ EmptyArgs, block *GetBlockByNumberBlock)
 }
 
 func (receiver *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNumberArgs, blockHeader *GetBlockByNumberBlockHeader) error {
+	if args.Height.String() == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
 	numbers, err := common.Uint64s(args.Height)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
@@ -113,28 +123,72 @@ func (receiver *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNum
 }
 
 func (receiver *ChainAPIHandler) GetBlockHeaderByHash(args GetBlockHeaderByHashArgs, blockHeader *GetBlockByNumberBlockHeader) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
 	data, Hash := receiver.BlockChain.GetBlockHeaderByHash(common.Hex2Hash(args.Hash))
 	result := NewBlockByNumBlockHeader(data, Hash)
 	*blockHeader = *result
 	return nil
 }
 
-func (receiver *ChainAPIHandler) GetBlockByHash(args GetBlockByHashArgs, block *GetBlockByNumberBlock) error {
+func (receiver *ChainAPIHandler) GetBlockByHash(args GetBlockByHashArgs, resp *GetBlockByNumberBlock) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
 	b := receiver.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
 	header := NewBlockByNumBlockHeader(b.Header, b.Hash())
 	result := NewBlockByNumberBlock(b, header)
-	*block = *result
+	*resp = *result
 	return nil
 
 }
 
-func (receiver *ChainAPIHandler) GetReceiptByHash(args GetReceiptByHashArgs, receipt *xfsgo.Receipt) error {
+func (receiver *ChainAPIHandler) GetTxbyBlockNum(args GetTxbyBlockNumArgs, resp *TransferObjs) error {
+	if args.Number.String() == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	blockHeight, err := args.Number.Int64()
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	b := receiver.BlockChain.GetBlockByNumber(uint64(blockHeight))
+	result := make([]*TransferObj, 1)
+	for _, item := range b.Transactions {
+		TranObj := NewTransferObj(item)
+		result = append(result, TranObj)
+	}
+	*resp = result
+	return nil
+}
+
+func (receiver *ChainAPIHandler) GetTxbyBlockHash(args GetTxbyBlockHashArgs, resp *TransferObjs) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	b := receiver.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
+	result := make([]*TransferObj, 1)
+	for _, item := range b.Transactions {
+		TranObj := NewTransferObj(item)
+		result = append(result, TranObj)
+	}
+	*resp = result
+	return nil
+}
+
+func (receiver *ChainAPIHandler) GetReceiptByHash(args GetReceiptByHashArgs, resp *xfsgo.Receipt) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
 	data := receiver.BlockChain.GetReceiptByHash(common.Hex2Hash(args.Hash))
-	*receipt = *data
+	*resp = *data
 	return nil
 }
 
 func (receiver *ChainAPIHandler) GetTransaction(args GetTransactionArgs, resp *TransferObj) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
 	ID := common.Hex2Hash(args.Hash)
 	data := receiver.BlockChain.GetTransaction(ID)
 	result := NewTransferObj(data)
@@ -143,6 +197,9 @@ func (receiver *ChainAPIHandler) GetTransaction(args GetTransactionArgs, resp *T
 }
 
 func (receiver *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, resp *TransferObj) error {
+	if args.Data == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
 	databytes, err := urlsafeb64.Decode(args.Data)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
@@ -164,6 +221,9 @@ func (receiver *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs,
 }
 
 func (receiver *ChainAPIHandler) GetBlockSection(args GetBlockSectionArgs, resp *GetBlocks) error {
+	if args.From == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
 
 	numbersForm, err := common.Uint64s(args.From)
 	if err != nil {
@@ -202,6 +262,12 @@ func (receiver *ChainAPIHandler) ExportBlock(args GetBlockSectionArgs, resp *str
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
+
+	if numbersCount == uint64(0) {
+		b := receiver.BlockChain.GetHead()
+		numbersCount = b.Height()
+	}
+
 	if numbersForm >= numbersCount { // Export all
 		b := receiver.BlockChain.GetHead()
 		header := NewBlockByNumBlockHeader(b.Header, b.Hash())

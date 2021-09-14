@@ -19,7 +19,6 @@ package sub
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"xfsgo"
 	"xfsgo/common"
@@ -41,47 +40,81 @@ var (
 	}
 	chainGetHeadCommond = &cobra.Command{
 		Use:   "gethead",
-		Short: "get the current height block",
+		Short: "get the latest block information of local chain data",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return getHead()
 		},
 	}
 	chainGetBlockCommond = &cobra.Command{
-		Use:   "getblock <form> <count>",
-		Short: "get block hash or number count",
+		Use:   "getblockbynum <number> [count]",
+		Short: "query block information of specified height",
 		RunE:  getBlockNum,
 	}
 	chainGetBlockHashCommond = &cobra.Command{
-		Use:   "hash <hash>",
-		Short: "get block <hash>",
+		Use:   "getblockbyhash <hash>",
+		Short: "query the block information of the specified hash value",
 		RunE:  getBlockHash,
 	}
+	chainGetTxbyBlockNumCommond = &cobra.Command{
+		Use:   "gettxbyblocknum <number>",
+		Short: "query transaction information of specified block height",
+		RunE:  gettxbyBlocknum,
+	}
+	chaingettxbyblockhashCommond = &cobra.Command{
+		Use:   "gettxbyblockhash <hash>",
+		Short: "query the transaction information of the specified block hash value",
+		RunE:  gettxbyblockhash,
+	}
 	chainGetTransactionCommand = &cobra.Command{
-		Use:   "gettransaction <hash>",
-		Short: "get transaction <hash>",
+		Use:   "gettxbyhash <transaction_hash>",
+		Short: "query the transaction information of the specified transaction hash value",
 		RunE:  getTransaction,
 	}
 	chainGetReceiptCommand = &cobra.Command{
-		Use:   "getreceipt <hash>",
-		Short: "get receipt <hash>",
+		Use:   "getreceiptbytx <transaction_hash>",
+		Short: "query receipt information of specified transaction hash value",
 		RunE:  getReceipt,
 	}
 	chainExportCommand = &cobra.Command{
-		Use:   "export <address> <form> <count>",
-		Short: "import chain state from a given chain export file or <address> <form> <count>",
+		Use:   "export <filename> <number> [count]",
+		Short: "export local chain data snapshot",
 		RunE:  xfsLotusExport,
 	}
-	chainImportCommand = &cobra.Command{
-		Use:   "import <address>",
-		Short: "import chain state from a given chain export file or <address>",
-		RunE:  xfsLotusImport,
-	}
+	// chainImportCommand = &cobra.Command{
+	// 	Use:   "import <filename>",
+	// 	Short: "import local chain data snapshot",
+	// 	RunE:  xfsLotusImport,
+	// }
 	chainprogressCommand = &cobra.Command{
 		Use:   "getprogress",
-		Short: "Block pouring progress bar",
+		Short: "query block import progress",
 		RunE:  ExportProgressBar,
 	}
 )
+
+func getHead() error {
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	var block common.BlockMap
+	err = cli.CallMethod(1, "Chain.Head", nil, &block)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	result := block.MapMerge()
+	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
+	bs, err := common.Marshal(result, sortKey, true)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fmt.Printf("%v\n", bs)
+	return nil
+}
 
 func getBlockNum(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
@@ -114,7 +147,6 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	var jsons []common.BlockMap
-	// common.Marshals
 	for _, item := range receipt {
 		jsons = append(jsons, item.MapMerge())
 	}
@@ -124,57 +156,6 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		fmt.Println(err)
 		return nil
-	}
-	fmt.Println(string(bs))
-	return nil
-}
-
-func getReceipt(cmd *cobra.Command, args []string) error {
-	config, err := parseClientConfig(cfgFile)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	receipt := make(map[string]interface{}, 1)
-	req := &getReceiptArgs{
-		Hash: args[0],
-	}
-	err = cli.CallMethod(1, "Chain.GetReceiptByHash", &req, &receipt)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	jsonStr, err := json.Marshal(receipt)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	fmt.Println(jsonStr)
-	return nil
-}
-
-func getTransaction(cmd *cobra.Command, args []string) error {
-	config, err := parseClientConfig(cfgFile)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	tran := make(map[string]interface{}, 1)
-	req := &getTransactionArgs{
-		Hash: args[0],
-	}
-
-	err = cli.CallMethod(1, "Chain.GetTransaction", &req, &tran)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	bs, err := json.MarshalIndent(&tran, "", "    ")
-	if err != nil {
-		fmt.Println(err)
-		return err
 	}
 	fmt.Println(string(bs))
 	return nil
@@ -209,60 +190,134 @@ func getBlockHash(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getHead() error {
+func gettxbyBlocknum(cmd *cobra.Command, args []string) error {
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	var block common.BlockMap
-	err = cli.CallMethod(1, "Chain.Head", nil, &block)
+	result := make([]map[string]interface{}, 1)
+	req := &gettxbyBlocknumArgs{
+		Number: json.Number(args[0]),
+	}
+	cli.CallMethod(1, "Chain.GetTxbyBlockNum", &req, &result)
+	bs, err := common.MarshalIndent(result)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	result := block.MapMerge()
-	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "transactions", "receipts"}
-	bs, err := common.Marshal(result, sortKey, true)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	fmt.Printf("%v\n", bs)
+	fmt.Println(string(bs))
 	return nil
 }
 
-func xfsLotusImport(cmd *cobra.Command, args []string) error {
-	if len(args) < int(1) {
+func gettxbyblockhash(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
 		cmd.Help()
-		return nil
-	}
-	address := args[0]
-	data, err := ioutil.ReadFile(address)
-	if err != nil {
-		fmt.Println(err.Error())
-		return nil
 	}
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	req := &GetBlocksArgs{
-		Blocks: string(data),
-	}
+	result := make([]map[string]interface{}, 1)
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	var isInsertBlock string
-	err = cli.CallMethod(1, "Chain.ImportBlock", req, &isInsertBlock)
+	req := gettxbyBlockHashArgs{
+		Hash: args[0],
+	}
+	cli.CallMethod(1, "Chain.GetTxbyBlockHash", &req, &result)
+	bs, err := common.MarshalIndent(result)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println(err)
 		return nil
 	}
-
-	fmt.Println(isInsertBlock)
+	fmt.Println(string(bs))
 	return nil
 }
+
+func getReceipt(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		return cmd.Help()
+	}
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	result := make(map[string]interface{}, 1)
+	req := &getReceiptArgs{
+		Hash: args[0],
+	}
+	err = cli.CallMethod(1, "Chain.GetReceiptByHash", &req, &result)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	bs, err := common.MarshalIndent(result)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	fmt.Println(string(bs))
+	return nil
+}
+
+func getTransaction(cmd *cobra.Command, args []string) error {
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	result := make(map[string]interface{}, 1)
+	req := &getTransactionArgs{
+		Hash: args[0],
+	}
+
+	err = cli.CallMethod(1, "Chain.GetTransaction", &req, &result)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	bs, err := common.MarshalIndent(result)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	fmt.Println(string(bs))
+	return nil
+}
+
+// func xfsLotusImport(cmd *cobra.Command, args []string) error {
+// 	if len(args) < int(1) {
+// 		cmd.Help()
+// 		return nil
+// 	}
+// 	address := args[0]
+// 	data, err := ioutil.ReadFile(address)
+// 	if err != nil {
+// 		fmt.Println(err.Error())
+// 		return nil
+// 	}
+// 	config, err := parseClientConfig(cfgFile)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return nil
+// 	}
+// 	req := &GetBlocksArgs{
+// 		Blocks: string(data),
+// 	}
+// 	cli := xfsgo.NewClient(config.rpcClientApiHost)
+// 	var result string
+// 	err = cli.CallMethod(1, "Chain.ImportBlock", req, &result)
+// 	if err != nil {
+// 		fmt.Println(err.Error())
+// 		return nil
+// 	}
+// 	fmt.Println(result)
+// 	return nil
+// }
 
 func xfsLotusExport(cmd *cobra.Command, args []string) error {
 	if len(args) < int(1) {
@@ -291,8 +346,8 @@ func xfsLotusExport(cmd *cobra.Command, args []string) error {
 		Count: json.Number(CountStr),
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	var blockEncodeData string
-	err = cli.CallMethod(1, "Chain.ExportBlock", req, &blockEncodeData)
+	var result string
+	err = cli.CallMethod(1, "Chain.ExportBlock", req, &result)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -302,7 +357,7 @@ func xfsLotusExport(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	fp.Write([]byte(blockEncodeData))
+	fp.Write([]byte(result))
 	defer fp.Close()
 	return nil
 }
@@ -314,13 +369,13 @@ func ExportProgressBar(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	var resp string
-	err = cli.CallMethod(1, "Chain.ProgressBar", nil, &resp)
+	var result string
+	err = cli.CallMethod(1, "Chain.ProgressBar", nil, &result)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Println(resp)
+	fmt.Println(result)
 	return nil
 }
 
@@ -332,8 +387,10 @@ func init() {
 	chainCommand.AddCommand(chainGetTransactionCommand)
 	chainCommand.AddCommand(chainGetReceiptCommand)
 	chainCommand.AddCommand(chainExportCommand)
-	chainCommand.AddCommand(chainImportCommand)
+	// chainCommand.AddCommand(chainImportCommand)
 	chainCommand.AddCommand(chainprogressCommand)
 	chainCommand.AddCommand(chainGetBlockHashCommond)
+	chainCommand.AddCommand(chaingettxbyblockhashCommond)
+	chainCommand.AddCommand(chainGetTxbyBlockNumCommond)
 
 }

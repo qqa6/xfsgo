@@ -62,6 +62,9 @@ func (handler *WalletHandler) Create(_ EmptyArgs, resp *string) error {
 }
 
 func (handler *WalletHandler) Del(args GetWalletByAddressArgs, resp *interface{}) error {
+	if args.Address == "" {
+		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
+	}
 	addr := common.StrB58ToAddress(args.Address)
 	err := handler.Wallet.Remove(addr)
 	if err != nil {
@@ -92,6 +95,10 @@ func (handler *WalletHandler) GetDefaultAddress(_ EmptyArgs, resp *string) error
 }
 
 func (handler *WalletHandler) SetDefaultAddress(args SetDefaultAddrArgs, resp *string) error {
+
+	if args.Address == "" {
+		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
+	}
 	addr := common.StrB58ToAddress(args.Address)
 	if err := handler.Wallet.SetDefault(addr); err != nil {
 		return xfsgo.NewRPCErrorCause(-6001, err)
@@ -101,6 +108,9 @@ func (handler *WalletHandler) SetDefaultAddress(args SetDefaultAddrArgs, resp *s
 }
 
 func (handler *WalletHandler) ExportByAddress(args GetWalletByAddressArgs, resp *string) error {
+	if args.Address == "" {
+		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
+	}
 	addr := common.StrB58ToAddress(args.Address)
 	pk, err := handler.Wallet.Export(addr)
 	if err != nil {
@@ -111,6 +121,9 @@ func (handler *WalletHandler) ExportByAddress(args GetWalletByAddressArgs, resp 
 }
 
 func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *string) error {
+	if args.Key == "" {
+		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
+	}
 	keyEnc := args.Key
 	keyDer, err := urlsafeb64.Decode(keyEnc)
 	if err != nil {

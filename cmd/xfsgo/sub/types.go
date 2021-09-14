@@ -30,6 +30,14 @@ type getReceiptArgs struct {
 	Hash string `json:"hash"`
 }
 
+type gettxbyBlocknumArgs struct {
+	Number json.Number `json:"number"`
+}
+
+type gettxbyBlockHashArgs struct {
+	Hash string `json:"hash"`
+}
+
 type getStateObjArgs struct {
 	RootHash string `json:"root_hash"`
 	Address  string `json:"address"`

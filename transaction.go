@@ -27,22 +27,23 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
 // Transaction type.
 type Transaction struct {
-	Version uint32 `json:"version"`
+	Version   uint32         `json:"version"`
 	To        common.Address `json:"to"`
-	GasPrice *big.Int `json:"gas"`
-	GasLimit uint64 `json:"gas_limit"`
-	Nonce     uint64 `json:"nonce"`
-	Value     *big.Int `json:"value"`
-	Signature []byte `json:"signature"`
+	GasPrice  *big.Int       `json:"gas_price"`
+	GasLimit  uint64         `json:"gas_limit"`
+	Nonce     uint64         `json:"nonce"`
+	Value     *big.Int       `json:"value"`
+	Signature []byte         `json:"signature"`
 }
 
 func NewTransaction(to common.Address, value *big.Int) *Transaction {
 	return &Transaction{
 		Version: version0,
-		To:    to,
-		Value: value,
+		To:      to,
+		Value:   value,
 	}
 }
 

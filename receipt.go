@@ -18,6 +18,7 @@ package xfsgo
 
 import (
 	"encoding/json"
+	"math/big"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
 	"xfsgo/common/rawencode"
@@ -27,7 +28,7 @@ type Receipt struct {
 	Version uint32 `json:"version"`
 	Status uint32 `json:"status"`
 	TxHash common.Hash `json:"tx_hash"`
-	GasUsed uint64 `json:"gas_used"`
+	GasUsed *big.Int `json:"gas_used"`
 }
 
 func NewReceipt(txHash common.Hash) *Receipt {

@@ -31,7 +31,7 @@ import (
 type Transaction struct {
 	Version uint32 `json:"version"`
 	To        common.Address `json:"to"`
-	Gas *big.Int `json:"gas"`
+	GasPrice *big.Int `json:"gas"`
 	GasLimit uint64 `json:"gas_limit"`
 	Nonce     uint64 `json:"nonce"`
 	Value     *big.Int `json:"value"`

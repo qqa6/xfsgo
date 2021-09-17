@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
 	"runtime"
 	"sync"
 	"time"
@@ -76,6 +77,17 @@ func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, 
 	return m
 }
 
+func (m *Miner) SetGasPrice(price *big.Int) {
+	// FIXME block tests set a nil gas price. Quick dirty fix
+	if price == nil {
+		return
+	}
+	GasPriceChanged := &xfsgo.GasPriceChanged{
+		Price: price,
+	}
+	m.eventBus.Publish(GasPriceChanged)
+}
+
 // Start starts up xfs mining
 func (m *Miner) Start() {
 	m.mu.Lock()
@@ -118,6 +130,28 @@ out:
 		}
 	}
 }
+
+func CalcGasLimit(parent *xfsgo.Block) *big.Int {
+	// 	// contrib = (parentGasUsed * 3 / 2) / 1024
+	contrib := new(big.Int).Mul(parent.Header.GasUsed, big.NewInt(3))
+	contrib = contrib.Div(contrib, big.NewInt(2))
+	contrib = contrib.Div(contrib, common.GasLimitBoundDivisor)
+
+	// decay = parentGasLimit / 1024 -1
+	decay := new(big.Int).Div(parent.Header.GasLimit, common.GasLimitBoundDivisor)
+	decay.Sub(decay, big.NewInt(1))
+
+	gl := new(big.Int).Sub(parent.Header.GasLimit, decay)
+	gl = gl.Add(gl, contrib)
+	gl.Set(common.BigMax(gl, common.MinGasLimit))
+
+	if gl.Cmp(common.GenesisGasLimit) < 0 {
+		gl.Add(parent.Header.GasLimit, decay)
+		gl.Set(common.BigMin(gl, common.GenesisGasLimit))
+	}
+	return gl
+}
+
 func (m *Miner) mimeBlockWithParent(
 	stateTree *xfsgo.StateTree,
 	parentBlock *xfsgo.Block,
@@ -136,6 +170,9 @@ func (m *Miner) mimeBlockWithParent(
 		Timestamp:     uint64(lastGenerated),
 		Coinbase:      coinbase,
 	}
+	header.GasUsed = new(big.Int)
+	// parentBlock last block
+	header.GasLimit = CalcGasLimit(parentBlock)
 	//calculate the next difficuty for hash value of next block.
 	var err error
 	header.Bits, err = m.chain.CalcNextRequiredDifficulty()
@@ -144,7 +181,7 @@ func (m *Miner) mimeBlockWithParent(
 	}
 	logrus.Debugf("block height: %d, difficuty: %d, timestamp: %d", header.Height, header.Bits, header.Timestamp)
 	//process the transations
-	res, err := m.chain.ApplyTransactions(stateTree, txs)
+	res, err := m.chain.ApplyTransactions(stateTree, header, txs)
 	if err != nil {
 		return nil, fmt.Errorf("apply trasactions err")
 	}
@@ -154,6 +191,7 @@ func (m *Miner) mimeBlockWithParent(
 	stateRootBytes := stateTree.Root()
 	stateRootHash := common.Bytes2Hash(stateRootBytes)
 	header.StateRoot = stateRootHash
+
 	//create a new block and execite the consensus algorithms
 	perBlock := xfsgo.NewBlock(header, txs, res)
 	return m.execPow(perBlock, quit, ticker)

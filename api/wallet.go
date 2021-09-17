@@ -42,16 +42,18 @@ type SetDefaultAddrArgs struct {
 }
 
 type TransferArgs struct {
-	To    string `json:"to"`
-	Value string `json:"value"`
-	Gas string `json:"gas"`
+	To       string `json:"to"`
+	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`
+	Value    string `json:"value"`
 }
 
 type TransferFromArgs struct {
-	From  string `json:"form"`
-	To    string `json:"to"`
-	Value string `json:"value"`
+	From     string `json:"form"`
+	To       string `json:"to"`
+	GasLimit string `json:"gas_limit"`
+	GasPrice string `json:"gas_price"`
+	Value    string `json:"value"`
 }
 
 func (handler *WalletHandler) Create(_ EmptyArgs, resp *string) error {
@@ -64,9 +66,6 @@ func (handler *WalletHandler) Create(_ EmptyArgs, resp *string) error {
 }
 
 func (handler *WalletHandler) Del(args GetWalletByAddressArgs, resp *interface{}) error {
-	if args.Address == "" {
-		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
-	}
 	addr := common.StrB58ToAddress(args.Address)
 	err := handler.Wallet.Remove(addr)
 	if err != nil {
@@ -150,10 +149,19 @@ func (handler *WalletHandler) Transfer(args TransferArgs, resp *TransferObj) err
 	if err != nil {
 		return err
 	}
+	var GasLimit, GasPrice string
+
+	if args.GasLimit != "" {
+		GasLimit = args.GasLimit
+	}
+
+	if args.GasPrice != "" {
+		GasPrice = args.GasPrice
+	}
 
 	toAddr := common.B58ToAddress([]byte(args.To))
 	value := common.ParseString2BigInt(args.Value)
-	tx := xfsgo.NewTransaction(toAddr, value)
+	tx := xfsgo.NewTransaction(toAddr, GasLimit, GasPrice, value)
 	tx.Nonce = handler.BlockChain.GetNonce(handler.Wallet.GetDefault())
 
 	if err = tx.SignWithPrivateKey(formAddr); err != nil {
@@ -186,7 +194,18 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 
 	toAddr := common.B58ToAddress([]byte(args.To))
 	value := common.ParseString2BigInt(args.Value)
-	tx := xfsgo.NewTransaction(toAddr, value)
+
+	var GasLimit, GasPrice string
+
+	if args.GasLimit != "" {
+		GasLimit = args.GasLimit
+	}
+
+	if args.GasPrice != "" {
+		GasPrice = args.GasPrice
+	}
+
+	tx := xfsgo.NewTransaction(toAddr, GasLimit, GasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
 	tx.Nonce = handler.BlockChain.GetNonce(fromAddr)
 	err = tx.SignWithPrivateKey(privateKey)
 	if err != nil {

@@ -69,3 +69,11 @@ type getBlockNumArgs struct {
 type GetBlocksArgs struct {
 	Blocks string `json:"blocks"`
 }
+
+type SetGasLimitArgs struct {
+	Gas json.Number `json:"gas"`
+}
+
+type SetGasPriceArgs struct {
+	GasPrice json.Number `json:"gas_price"`
+}

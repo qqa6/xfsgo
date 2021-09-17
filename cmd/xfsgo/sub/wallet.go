@@ -17,7 +17,9 @@
 package sub
 
 import (
+	"encoding/hex"
 	"fmt"
+	"math/big"
 	"xfsgo"
 	"xfsgo/common"
 
@@ -270,7 +272,7 @@ func runWalletList() error {
 	// Wallet balance
 	// getBalance
 	balance := make(map[string]interface{}, 1)
-	fmt.Print("Address                            Balance           Default")
+	fmt.Print("Address                            Balance                       Default")
 	fmt.Println()
 	for _, w := range walletAddress {
 
@@ -283,12 +285,23 @@ func runWalletList() error {
 			fmt.Println(err)
 			return err
 		}
-		var balanceTo float64
-		if balance["balance"] != nil {
-			balanceTo = balance["balance"].(float64)
+
+		var bal *big.Int = nil
+		balanceStr := balance["balance"].(string)
+		if balanceStr == "" {
+			bal = new(big.Int).SetUint64(0)
 		}
+
+		bs, err := hex.DecodeString(balanceStr)
+		if err != nil {
+			return err
+		}
+
+		bal = new(big.Int).SetBytes(bs)
+		fto := common.Atto2BaseCoin(bal)
+		toFloat := new(big.Float).SetUint64(fto.Uint64())
 		fmt.Printf("%-35v", w.B58String())
-		fmt.Printf("%-18.4f", balanceTo)
+		fmt.Printf("%-30.9f", toFloat)
 
 		if w == defAddr {
 			fmt.Printf("%-10v", "x")

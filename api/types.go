@@ -40,6 +40,12 @@ type GetBlockByNumberBlockHeader struct {
 	Hash  common.Hash `json:"hash"`
 }
 
+type StateObj struct {
+	Address string `json:"address"`
+	Balance string `json:"balance"`
+	Nonce   uint64 `json:"nonce"`
+}
+
 type GetBlockByNumberBlock struct {
 	Header       *GetBlockByNumberBlockHeader `json:"header"`
 	Transactions []*xfsgo.Transaction         `json:"transactions"`

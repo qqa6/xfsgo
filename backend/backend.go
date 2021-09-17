@@ -92,7 +92,7 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 	}
 
 	back.wallet = xfsgo.NewWallet(back.config.KeysDB)
-	back.txPool = xfsgo.NewTxPool(back.blockchain.CurrentStateTree, back.eventBus)
+	back.txPool = xfsgo.NewTxPool(back.blockchain.CurrentStateTree, back.blockchain.CurrentBlock().Header.GasLimit, back.eventBus)
 
 	coinbase := config.Coinbase
 	addrdef := back.wallet.GetDefault()
@@ -110,6 +110,10 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 	back.miner = miner.NewMiner(&miner.Config{
 		Coinbase: back.wallet.GetDefault(),
 	}, back.config.StateDB, back.blockchain, back.eventBus, back.txPool)
+
+	//Sets the minimal gasprice when mining transactions
+	back.miner.SetGasPrice(common.DefaultGasPrice)
+
 	//Node resgisters apis of baclend on the node  for RPC service.
 	if err = stack.RegisterBackend(
 		back.config.StateDB, back.blockchain, back.miner, back.wallet, back.txPool); err != nil {

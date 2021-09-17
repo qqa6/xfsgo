@@ -201,6 +201,7 @@ func (bc *BlockChain) GetTransaction(Hash common.Hash) *Transaction {
 func calcBlockSubsidy(currentHeight uint64) *big.Int {
 	// reduce the reward by half
 	nSubsidy := uint64(50) >> uint(currentHeight/210000)
+	logrus.Debugf("nSubsidy: %d", nSubsidy)
 	return common.BaseCoin2Atto(float64(nSubsidy))
 }
 
@@ -217,6 +218,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	defer bc.chainmu.Unlock()
 	blockHash := block.Hash()
 	txs := block.Transactions
+	header := block.GetHeader()
 	txsRoot := block.TransactionRoot()
 	rsRoot := block.ReceiptsRoot()
 	logrus.Infof("Processing block %v", blockHash)
@@ -226,7 +228,6 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	if _, has := bc.orphansCache.Get(blockHash); has {
 		return fmt.Errorf("already have block (orphan) %v", blockHash)
 	}
-	header := block.GetHeader()
 	if err := bc.checkBlockHeaderSanity(header, blockHash); err != nil {
 		return err
 	}
@@ -242,7 +243,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	}
 	parentStateRoot := parent.StateRoot()
 	stateTree := NewStateTree(bc.stateDB, parentStateRoot.Bytes())
-	rs, err := bc.ApplyTransactions(stateTree, txs)
+	rs, err := bc.ApplyTransactions(stateTree, header, txs)
 	if err != nil {
 		return err
 	}
@@ -262,10 +263,12 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	return nil
 }
 
-func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, txs []*Transaction) ([]*Receipt, error) {
+func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) ([]*Receipt, error) {
 	receipts := make([]*Receipt, 0)
+	totalUsedGas := big.NewInt(0)
+
 	for _, tx := range txs {
-		r, err := bc.applyTransaction(stateTree, tx)
+		r, err := bc.applyTransaction(stateTree, totalUsedGas, header, tx)
 		if err != nil {
 			logrus.Errorf("something wrong to execute the transactions: %s", tx.Hash())
 			return nil, err
@@ -300,24 +303,75 @@ func (bc *BlockChain) checkTransactionSanity(tx *Transaction) error {
 	}
 	return nil
 }
-func (bc *BlockChain) buyGas(tx *Transaction) {
 
+// IntrinsicGas computes the 'intrisic gas' for a message
+// with the given data.
+func (bc *BlockChain) IntrinsicGas(_ []byte) *big.Int {
+	igas := new(big.Int).Set(common.TxGas)
+	return igas
 }
-func (bc *BlockChain) applyTransaction(stateTree *StateTree, tx *Transaction) (*Receipt, error) {
+
+func (bc *BlockChain) UseGas(gas, amount *big.Int) (*big.Int, error) {
+	if gas.Cmp(amount) < 0 {
+		return nil, errors.New("out of gas")
+	}
+
+	return gas.Sub(gas, amount), nil
+}
+
+func (bc *BlockChain) applyTransaction(stateTree *StateTree, usedGas *big.Int, header *BlockHeader, tx *Transaction) (*Receipt, error) {
 	if err := bc.checkTransactionSanity(tx); err != nil {
 		return nil, err
 	}
+	cb := stateTree.GetStateObj(header.Coinbase)
+
+	// Pre-pay gas / Buy gas of the coinbase account
+	cb.SetGasLimit(header.GasLimit)
+	mgas := tx.GasLimit
+	mgval := new(big.Int).Mul(mgas, tx.GasPrice)
+
 	sender, err := tx.FromAddr()
 	if err != nil {
 		return nil, err
 	}
+	senderObj := stateTree.GetOrNewStateObj(sender) // get from Transaction state object
+	if senderObj.GetBalance().Cmp(mgval) < 0 {
+		return nil, fmt.Errorf("insufficient for gas (%x). Req %v, has %v", sender.Bytes()[:4], mgval, senderObj.GetBalance())
+	}
+	if err = cb.SubGas(mgas, tx.GasPrice); err != nil {
+		return nil, err
+	}
+	gas := new(big.Int)
+	gas.Add(gas, mgas) // user max gas
+	initialGas := new(big.Int)
+	initialGas.Set(mgas)
+	senderObj.SubBalance(mgval)
+
+	// IntrinsicGas
+	amount := bc.IntrinsicGas([]byte{})
+
+	if mgas.Cmp(amount) < 0 {
+		return nil, errors.New("out of gas")
+	}
+
+	surplus, err := bc.UseGas(gas, amount)
+	if err != nil {
+		return nil, err
+	}
+	senderObj.AddBalance(surplus)
+	cb.AddBalance(amount)
+
 	stateTree.AddNonce(sender, 1)
+
 	if err = bc.callTransfer(stateTree, sender, tx.To, tx.Value); err != nil {
 		return nil, err
 	}
 	stateTree.UpdateAll()
 	receipt := &Receipt{
-		TxHash: tx.Hash(),
+		TxHash:  tx.Hash(),
+		Version: tx.Version,
+		Status:  uint32(1),
+		GasUsed: amount.Uint64(),
 	}
 	return receipt, nil
 }
@@ -329,9 +383,11 @@ func (bc *BlockChain) callTransfer(st *StateTree, from, to common.Address, amoun
 func (bc *BlockChain) transfer(st *StateTree, from, to common.Address, amount *big.Int) error {
 	fromObj := st.GetOrNewStateObj(from)
 	toObj := st.GetOrNewStateObj(to)
+
 	if fromObj.balance.Cmp(amount) < 0 {
 		return errors.New("from balance is not enough")
 	}
+
 	fromObj.SubBalance(amount)
 	toObj.AddBalance(amount)
 	return nil

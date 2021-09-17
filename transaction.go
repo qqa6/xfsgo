@@ -19,6 +19,7 @@ package xfsgo
 import (
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
@@ -28,23 +29,42 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var defaultGasPrice = new(big.Int).SetUint64(1)    //150000000000
+var defaultGas = common.BaseCoin2Atto(float64(10)) //500000
 // Transaction type.
 type Transaction struct {
 	Version   uint32         `json:"version"`
 	To        common.Address `json:"to"`
 	GasPrice  *big.Int       `json:"gas_price"`
-	GasLimit  uint64         `json:"gas_limit"`
+	GasLimit  *big.Int       `json:"gas_limit"`
 	Nonce     uint64         `json:"nonce"`
 	Value     *big.Int       `json:"value"`
 	Signature []byte         `json:"signature"`
 }
 
-func NewTransaction(to common.Address, value *big.Int) *Transaction {
-	return &Transaction{
-		Version: version0,
-		To:      to,
-		Value:   value,
+func NewTransaction(to common.Address, gasLimit string, gasPrice string, value *big.Int) *Transaction {
+
+	result := &Transaction{
+		Version:  version0,
+		To:       to,
+		GasLimit: new(big.Int),
+		GasPrice: new(big.Int),
+		Value:    value,
 	}
+
+	if gasLimit != "" {
+		result.GasLimit.Set(common.ParseString2BigInt(gasLimit))
+	} else {
+		result.GasLimit.Set(defaultGas)
+	}
+
+	if gasPrice != "" {
+		result.GasPrice.Set(common.ParseString2BigInt(gasPrice))
+	} else {
+		result.GasPrice.Set(defaultGasPrice)
+	}
+
+	return result
 }
 
 func (t *Transaction) Encode() ([]byte, error) {
@@ -85,7 +105,11 @@ func (t *Transaction) SignHash() common.Hash {
 }
 
 func (t *Transaction) Cost() *big.Int {
-	return t.Value
+	// fmt.Printf("total:%v\n", total)
+	total := new(big.Int).Mul(t.GasPrice, t.GasLimit)
+	total.Add(total, t.Value)
+	fmt.Printf("total:%v\n", total)
+	return total
 }
 
 func (t *Transaction) SignWithPrivateKey(key *ecdsa.PrivateKey) error {

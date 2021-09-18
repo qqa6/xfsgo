@@ -10,7 +10,7 @@ import (
 	"net"
 	"time"
 	"xfsgo/common/rawencode"
-	"xfsgo/p2p/nat"
+	"xfsgo/p2p/nat/upnp"
 )
 
 const Version = 4
@@ -127,7 +127,7 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm nat.Listener) (*Table, net.Addr, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm upnp.NAT) (*Table, net.Addr, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
 		return nil, nil, err
@@ -140,7 +140,48 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm nat
 	return tab, conn.LocalAddr(), nil
 }
 
-func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, natm nat.Listener) (*Table, *udp) {
+func ExternalIPv4() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+
+	for _, iface := range ifaces {
+		// interface down
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		// loopback interface
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return "", err
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			ip = ip.To4()
+			if ip == nil {
+				continue // not an ipv4 address
+			}
+			return ip.String(), nil
+		}
+	}
+	return "127.0.0.1", nil
+}
+
+func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, natm upnp.NAT) (*Table, *udp) {
 	udp := &udp{
 		conn:       c,
 		priv:       priv,
@@ -149,6 +190,15 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, natm nat.Listener
 		addpending: make(chan *pending),
 	}
 	realaddr := c.LocalAddr().(*net.UDPAddr)
+	if natm != nil {
+		if !realaddr.IP.IsLoopback() {
+			go natm.AddPortMapping("udp", realaddr.Port, realaddr.Port, "xfsgo udp", 0)
+		}
+		if ext, err := ExternalIPv4(); err == nil {
+			ip := net.ParseIP(ext)
+			realaddr = &net.UDPAddr{IP: ip, Port: realaddr.Port}
+		}
+	}
 	// TODO: separate TCP port
 	udp.ourEndpoint = makeEndpoint(realaddr, uint16(realaddr.Port))
 	udp.Table = newTable(udp, PubKey2NodeId(priv.PublicKey), realaddr, nodeDBPath)

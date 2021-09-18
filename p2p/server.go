@@ -4,11 +4,12 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 	"xfsgo/p2p/discover"
 	"xfsgo/p2p/log"
-	"xfsgo/p2p/nat"
+	"xfsgo/p2p/nat/upnp"
 )
 
 const (
@@ -42,7 +43,7 @@ type server struct {
 	table      *discover.Table
 	logger     log.Logger
 	lastLookup time.Time
-	natm       nat.Listener
+	natm       upnp.NAT
 	quit       chan struct{}
 }
 
@@ -101,8 +102,14 @@ func (srv *server) Start() error {
 	srv.addpeer = make(chan *peerConn)
 	srv.delpeer = make(chan Peer)
 	srv.quit = make(chan struct{})
-	srv.natm = &nat.DefaultListener{}
+
 	var err error
+
+	nat, err := upnp.Discover()
+	if err != nil {
+		return errors.New("could not perform UPNP discover")
+	}
+	srv.natm = nat
 	// launch node discovery and UDP listener
 	if srv.config.Discover {
 		table, netAddr, err := discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath, srv.natm)
@@ -199,12 +206,19 @@ func (srv *server) runPeer(peer Peer) {
 func (srv *server) listenAndServe() error {
 	addr := srv.config.ListenAddr
 	ln, err := net.Listen("tcp", addr)
-	srv.natm, _ = nat.GetListener(addr, ln)
-	// fmt.Printf("natmIP:%v Port:%v\n", srv.natm.ExternalAddress().IP, srv.natm.ExternalAddress().Port)
 	if err != nil {
 		srv.logger.Errorf("p2p server listen and serve on %s err: %v", addr, err)
 		return err
 	}
+	_, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		return err
+	}
+	lnPort, err := strconv.Atoi(port)
+	if err != nil {
+		return err
+	}
+	go srv.natm.AddPortMapping("tcp", lnPort, lnPort, "xfsgo tcp", 0)
 	srv.logger.Infof("p2p server listen and serve on %s", addr)
 	currentKey := srv.config.Key
 	nId := discover.PubKey2NodeId(currentKey.PublicKey)

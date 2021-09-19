@@ -33,7 +33,7 @@ var (
 	maxTarget = new(big.Int).Lsh(big0xff, ((32-4)*8)+6)
 )
 
-// WriteGenesisBlock constructs the genesis blcok for the blockchain and stores it in the hd.
+// WriteGenesisBlock constructs the genesis block for the blockchain and stores it in the hd.
 func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Block, error) {
 	contents, err := ioutil.ReadAll(reader)
 	if err != nil {
@@ -76,6 +76,8 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 		HashPrevBlock: HashPrevBlock,
 		Timestamp:     timestamp.Uint64(),
 		Coinbase:      coinbase,
+		GasUsed:       new(big.Int),
+		GasLimit:      common.GenesisGasLimit,
 		Bits:          genesis.Bits,
 		StateRoot:     rootHash,
 	}, nil, nil)

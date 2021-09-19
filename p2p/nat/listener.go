@@ -1,3 +1,4 @@
+//TODO
 package nat
 
 import (
@@ -65,11 +66,11 @@ func getUPNPExternalAddress(externalPort, internalPort int) (*NetAddress, error)
 	if externalPort == 0 {
 		externalPort = defaultExternalPort
 	}
-	externalPort, err = nat.AddPortMapping("tcp", externalPort, internalPort, "bytomd tcp", 0)
+	externalPort, err = nat.AddPortMapping("tcp", externalPort, internalPort, "xfsgo tcp", 0)
 	if err != nil {
 		return nil, errors.New("could not add tcp UPNP port mapping")
 	}
-	externalPort, err = nat.AddPortMapping("udp", externalPort, internalPort, "bytomd udp", 0)
+	externalPort, err = nat.AddPortMapping("udp", externalPort, internalPort, "xfsgo udp", 0)
 	if err != nil {
 		return nil, errors.New("could not add udp UPNP port mapping")
 	}

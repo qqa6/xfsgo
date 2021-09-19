@@ -17,26 +17,29 @@
 package sub
 
 import (
-	"fmt"
-	"github.com/sirupsen/logrus"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+	"xfsgo"
 	"xfsgo/backend"
 	"xfsgo/node"
 	"xfsgo/storage/badger"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	rpcaddr string
-	p2paddr string
-	datadir string
-	testnet bool
-	netid int
-	daemonCmd = &cobra.Command{
+	rpcaddr        string
+	p2paddr        string
+	datadir        string
+	importsnapshot string
+	testnet        bool
+	netid          int
+	daemonCmd      = &cobra.Command{
 		Use:   "daemon [flags]",
 		Short: "Start a xfsgo daemon process",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,20 +77,20 @@ func runDaemon() error {
 		stack *node.Node       = nil
 		back  *backend.Backend = nil
 	)
-	config, err := parseDaemonConfig(cfgFile)
+	config, err := parseDaemonConfig(cfgFile) // default config
 	if err != nil {
 		return err
 	}
-	resetConfig(&config)
-	loglevel,err := logrus.ParseLevel(config.loggerParams.level)
+	resetConfig(&config) // input config
+	loglevel, err := logrus.ParseLevel(config.loggerParams.level)
 	if err != nil {
 		return err
 	}
 	logrus.SetLevel(loglevel)
 	logrus.SetFormatter(&logrus.TextFormatter{
-		DisableColors: true,
-		TimestampFormat : time.RFC3339,
-		FullTimestamp:true,
+		DisableColors:   true,
+		TimestampFormat: time.RFC3339,
+		FullTimestamp:   true,
 	})
 	if stack, err = node.New(&config.nodeConfig); err != nil {
 		return err
@@ -114,6 +117,27 @@ func runDaemon() error {
 	if err = backend.StartNodeAndBackend(stack, back); err != nil {
 		return err
 	}
+
+	if importsnapshot != "" {
+		data, err := ioutil.ReadFile(importsnapshot)
+		if err != nil {
+			return err
+		}
+		config, err := parseClientConfig(cfgFile)
+		if err != nil {
+			return err
+		}
+		req := &GetBlocksArgs{
+			Blocks: string(data),
+		}
+		cli := xfsgo.NewClient(config.rpcClientApiHost)
+		var result string
+		err = cli.CallMethod(1, "Chain.ImportBlock", req, &result)
+		if err != nil {
+			return err
+		}
+	}
+
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 out:
@@ -129,15 +153,11 @@ out:
 
 func init() {
 	mFlags := daemonCmd.PersistentFlags()
-	mFlags.StringVarP(&rpcaddr,"rpcaddr","r","",
-		fmt.Sprintf("Set JSON-RPC Service listen address"))
-	mFlags.StringVarP(&p2paddr,"p2paddr","p","",
-		fmt.Sprintf("Set P2P-Node listen address"))
-	mFlags.StringVarP(&datadir,"datadir","d","",
-		fmt.Sprintf("Set Data directory"))
-	mFlags.BoolVarP(&testnet,"testnet","t",false,
-		fmt.Sprintf("Enable test network"))
-	mFlags.IntVarP(&netid,"netid","n",0,
-		fmt.Sprintf("Explicitly set network id"))
+	mFlags.StringVarP(&rpcaddr, "rpcaddr", "r", "", "Set JSON-RPC Service listen address")
+	mFlags.StringVarP(&p2paddr, "p2paddr", "p", "", "Set P2P-Node listen address")
+	mFlags.StringVarP(&datadir, "datadir", "d", "", "Set Data directory")
+	mFlags.StringVarP(&importsnapshot, "importsnapshot", "i", "", "Imports data from the specified snapshot file")
+	mFlags.BoolVarP(&testnet, "testnet", "t", false, "Enable test network")
+	mFlags.IntVarP(&netid, "netid", "n", 0, "Explicitly set network id")
 	rootCmd.AddCommand(daemonCmd)
 }

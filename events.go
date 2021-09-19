@@ -16,6 +16,8 @@
 
 package xfsgo
 
+import "math/big"
+
 type SyncStartEvent struct{}
 type SyncDoneEvent struct{}
 
@@ -29,6 +31,10 @@ type TxPostEvent struct {
 
 type ChainHeadEvent struct {
 	Block *Block
+}
+
+type GasPriceChanged struct {
+	Price *big.Int
 }
 
 type NewMinedBlockEvent struct {

@@ -54,6 +54,13 @@ type Config struct {
 	StateDB *badger.Storage
 	ExtraDB *badger.Storage
 }
+type chainSyncProtocol struct {
+	protocolHandler *handler
+}
+
+func (c *chainSyncProtocol) Run(p p2p.Peer) error {
+	return c.protocolHandler.handleNewPeer(p)
+}
 
 // NewBackend constructs and returns a Backend instance by a note in network and config.
 // This method is for daemon whick should be started firstly when xfs blockchain runs.
@@ -124,10 +131,8 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 		back.config.ProtocolVersion, back.config.NetworkID, back.eventBus, back.txPool); err != nil {
 		return nil, err
 	}
-	back.p2pServer.Bind(&p2p.SimpleProtocol{
-		Func: func(p p2p.Peer) error {
-			return back.handler.handleNewPeer(p)
-		},
+	back.p2pServer.Bind(&chainSyncProtocol{
+		protocolHandler: back.handler,
 	})
 	return back, nil
 }

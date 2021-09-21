@@ -89,3 +89,4 @@ func ByteHash256(raw []byte) common.Hash {
 	h := ahash.SHA256(raw)
 	return common.Bytes2Hash(h)
 }
+

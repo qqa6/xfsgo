@@ -371,7 +371,7 @@ func (bc *BlockChain) applyTransaction(stateTree *StateTree, usedGas *big.Int, h
 		TxHash:  tx.Hash(),
 		Version: tx.Version,
 		Status:  uint32(1),
-		GasUsed: amount.Uint64(),
+		GasUsed: amount,
 	}
 	return receipt, nil
 }

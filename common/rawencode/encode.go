@@ -46,3 +46,8 @@ func Decode(bs []byte, en interface{}) error {
 	}
 	return obj.Decode(bs)
 }
+type StdEncoder struct {
+}
+func (receiver *StdEncoder) Encode(obj interface{}) ([]byte, error) {
+	return Encode(obj)
+}

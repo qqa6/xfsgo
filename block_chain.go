@@ -201,14 +201,14 @@ func (bc *BlockChain) GetTransaction(Hash common.Hash) *Transaction {
 func calcBlockSubsidy(currentHeight uint64) *big.Int {
 	// reduce the reward by half
 	nSubsidy := uint64(50) >> uint(currentHeight/210000)
-	logrus.Debugf("nSubsidy: %d", nSubsidy)
+	//logrus.Debugf("nSubsidy: %d", nSubsidy)
 	return common.BaseCoin2Atto(float64(nSubsidy))
 }
 
 // AccumulateRewards calculates the rewards and add it to the miner's account.
 func AccumulateRewards(stateTree *StateTree, header *BlockHeader) {
 	subsidy := calcBlockSubsidy(header.Height)
-	logrus.Debugf("current height of the blockchain %d, reward: %d", header.Height, subsidy)
+	//logrus.Debugf("current height of the blockchain %d, reward: %d", header.Height, subsidy)
 	stateTree.AddBalance(header.Coinbase, subsidy)
 }
 
@@ -221,7 +221,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	header := block.GetHeader()
 	txsRoot := block.TransactionRoot()
 	rsRoot := block.ReceiptsRoot()
-	logrus.Infof("Processing block %v", blockHash)
+	//logrus.Infof("Processing block %v", blockHash)
 	if old := bc.GetBlockByHash(blockHash); old != nil {
 		return fmt.Errorf("already have block %v", blockHash)
 	}
@@ -395,22 +395,10 @@ func (bc *BlockChain) transfer(st *StateTree, from, to common.Address, amount *b
 
 func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
 	head := bc.currentBlock.Height()
-
-	logrus.Infof("headTTT%v\n", head)
-	logrus.Infof("FormTTT%v\n", from)
-	// var number uint64 = 0
-	// if head > from {
-	// 	number = head
-	// } else {
-	// 	number = from
-	// }
 	if from+count > head {
 		count = head
-		// return nil
 	}
-	// logrus.Infof("NumberTTTT%v\n", number)
 	hashes := make([]common.Hash, 0)
-	// logrus.Infof("fromh%v\n", from+uint64(0))
 	for h := uint64(0); from+h <= count; h++ {
 		block := bc.GetBlockByNumber(from + h)
 		hashes = append(hashes, block.Hash())

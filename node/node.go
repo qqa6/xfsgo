@@ -26,6 +26,7 @@ import (
 	"xfsgo"
 	"xfsgo/api"
 	"xfsgo/common"
+	"xfsgo/common/rawencode"
 	"xfsgo/crypto"
 	"xfsgo/miner"
 	"xfsgo/p2p"
@@ -73,7 +74,9 @@ func New(config *Config) (*Node, error) {
 		}
 		staticNodes = append(staticNodes, node)
 	}
+	enc := new(rawencode.StdEncoder)
 	p2pServer := p2p.NewServer(p2p.Config{
+		Encoder: enc,
 		Nat: nat.Any(),
 		ListenAddr:      config.P2PListenAddress,
 		Key:             nodeKeyByPath(config.NodeDBPath),

@@ -86,6 +86,7 @@ func runDaemon() error {
 	if err != nil {
 		return err
 	}
+	logrus.Infof("lavel: %s", loglevel)
 	logrus.SetLevel(loglevel)
 	logrus.SetFormatter(&logrus.TextFormatter{
 		DisableColors:   true,

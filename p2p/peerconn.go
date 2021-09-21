@@ -59,7 +59,7 @@ func (c *peerConn) clientHandshake() error {
 		id:        c.self,
 		receiveId: c.id,
 	}
-	c.logger.Debugf("send hello request version: %d, id: %s, to receiveId: %s", c.version,c.self, c.id)
+	//c.logger.Debugf("send hello request version: %d, id: %s, to receiveId: %s", c.version,c.self, c.id)
 	_, err := c.rw.Write(request.marshal())
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (c *peerConn) clientHandshake() error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("receive hello request reply from node: %s, by version: %d", hello.id, c.version)
+	//c.logger.Debugf("receive hello request reply from node: %s, by version: %d", hello.id, c.version)
 	if hello.version != c.version {
 		return fmt.Errorf("handshake check err, got version: %d, want version: %d",
 			hello.version, c.version)
@@ -96,7 +96,7 @@ func (c *peerConn) serverHandshake() error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("receive handshake request by nodeId %s, version: %d",hello.id, hello.version)
+	//c.logger.Debugf("receive handshake request by nodeId %s, version: %d",hello.id, hello.version)
 	if hello.version != c.version {
 		return fmt.Errorf("handshake check err, got version: %d, want version: %d",
 			hello.version, c.version)
@@ -114,7 +114,7 @@ func (c *peerConn) serverHandshake() error {
 		receiveId: hello.id,
 		version:   c.version,
 	}
-	c.logger.Debugf("send handshake reply to nodeId %s", reply.receiveId)
+	//c.logger.Debugf("send handshake reply to nodeId %s", reply.receiveId)
 	if _, err = c.rw.Write(reply.marshal()); err != nil {
 		return err
 	}

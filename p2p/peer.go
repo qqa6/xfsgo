@@ -39,7 +39,7 @@ type peer struct {
 }
 
 // create peer [Peer to peer connection session,Network protocol]
-func newPeer(conn *peerConn, ps []Protocol) Peer {
+func newPeer(conn *peerConn, ps []Protocol, en encoder) Peer {
 	p := &peer{
 		conn:  conn,
 		id:    conn.id,
@@ -49,6 +49,7 @@ func newPeer(conn *peerConn, ps []Protocol) Peer {
 		close: make(chan struct{}),
 		quit:  make(chan struct{}),
 		psCh:  make(chan MessageReader),
+		encoder: en,
 	}
 	now := time.Now()
 	p.lastTime = now.Unix()
@@ -86,13 +87,12 @@ func (p *peer) handle(msg MessageReader) {
 	if err != nil {
 		return
 	}
-	//p.logger.Infof("peer handle message type %d, data: %s", msg.Type(), string(data))
 	switch msg.Type() {
 	case typePingMsg:
-		p.logger.Debugln("receive heartbeat request")
+		//p.logger.Debugln("receive heartbeat request")
 		_ = p.conn.writeMessage(typePongMsg, []byte("hello"))
 	case typePongMsg:
-		p.logger.Debugln("receive response of haertbeat and update alive time")
+		//p.logger.Debugln("receive response of haertbeat and update alive time")
 		now := time.Now()
 		p.lastTime = now.Unix()
 	default:
@@ -124,7 +124,7 @@ func (p *peer) WriteMessageObj(mType uint8, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	p.logger.Debugln("peer write message type: %d, data: %x, obj: %v", mType, bs, obj)
+	//p.logger.Debugln("peer write message type: %d, data: %x, obj: %v", mType, bs, obj)
 	return p.WriteMessage(mType, bs)
 }
 

@@ -14,7 +14,7 @@ import (
 	"xfsgo/p2p/nat"
 )
 
-const Version = 4
+const Version = 1
 
 // Errors
 var (

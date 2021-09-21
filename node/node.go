@@ -19,7 +19,6 @@ package node
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"errors"
 	"io/ioutil"
 	"log"
 	"os"
@@ -31,6 +30,7 @@ import (
 	"xfsgo/miner"
 	"xfsgo/p2p"
 	"xfsgo/p2p/discover"
+	"xfsgo/p2p/nat"
 	"xfsgo/storage/badger"
 
 	"github.com/sirupsen/logrus"
@@ -74,8 +74,8 @@ func New(config *Config) (*Node, error) {
 		staticNodes = append(staticNodes, node)
 	}
 	p2pServer := p2p.NewServer(p2p.Config{
+		Nat: nat.Any(),
 		ListenAddr:      config.P2PListenAddress,
-		ProtocolVersion: config.ProtocolVersion,
 		Key:             nodeKeyByPath(config.NodeDBPath),
 		BootstrapNodes:  bootstraps,
 		StaticNodes:     staticNodes,
@@ -89,43 +89,6 @@ func New(config *Config) (*Node, error) {
 	}
 	n.rpcServer = xfsgo.NewRPCServer(config.RPCConfig)
 	return n, nil
-}
-
-func NewNodeDBFile(filemkdir string, filename string) error {
-	nodedb := filemkdir + filename
-	if FileExist(nodedb) {
-		return errors.New("file already exists")
-	}
-	os.MkdirAll(filemkdir, os.ModePerm)
-	// if err != nil {
-	_, err := os.Create(nodedb)
-	return err
-	// }
-}
-
-func GetNodeDB(filename string) (string, error) {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0600)
-	if err != nil {
-		return "", err
-	} else {
-		contentByte, err := ioutil.ReadAll(f)
-		return string(contentByte), err
-	}
-}
-
-func SetNodeDB(filename string, key string) error {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	} else {
-		_, err = f.Write([]byte(key))
-		return err
-	}
-}
-
-func FileExist(path string) bool {
-	_, err := os.Lstat(path)
-	return !os.IsNotExist(err)
 }
 
 // Start starts p2p networking and RPC services runs in a goroutine.

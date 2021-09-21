@@ -4,20 +4,20 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"net"
-	"strconv"
 	"sync"
 	"time"
+	"xfsgo/log"
 	"xfsgo/p2p/discover"
-	"xfsgo/p2p/log"
-	"xfsgo/p2p/nat/upnp"
+	"xfsgo/p2p/nat"
 )
 
 const (
-	flagInbound  = 1
+	flagInbound = 1
 	flagOutbound = 1 << 1
-	flagStatic   = 1 << 2
-	flagDynamic  = 1 << 3
+	flagStatic = 1 << 2
+	flagDynamic = 1 << 3
 )
+
 
 type Server interface {
 	Bind(p Protocol)
@@ -31,39 +31,37 @@ type Server interface {
 // You should set them before starting the Server. Fields may not be
 // modified while the server is running.
 type server struct {
-	config  Config
-	mu      sync.Mutex
+	config Config
+	mu     sync.Mutex
 	running bool
 	//protocols contains the protocols supported by the server.
 	//Matching protocols are launched for each peer.
 	protocols []Protocol
-
-	addpeer    chan *peerConn
-	delpeer    chan Peer
-	table      *discover.Table
-	logger     log.Logger
+	close chan struct{}
+	addpeer chan *peerConn
+	delpeer chan Peer
+	table *discover.Table
+	logger log.Logger
 	lastLookup time.Time
-	natm       upnp.NAT
-	quit       chan struct{}
 }
 
 // Config Background network service configuration
 type Config struct {
-	ProtocolVersion uint8
+	Nat nat.Mapper
 	ListenAddr      string
 	Key             *ecdsa.PrivateKey
-	Discover        bool
-	NodeDBPath      string
+	Discover bool
+	NodeDBPath string
 	StaticNodes     []*discover.Node
-	BootstrapNodes  []*discover.Node
-	MaxPeers        int
-	Logger          log.Logger
+	BootstrapNodes []*discover.Node
+	MaxPeers int
+	Logger log.Logger
 }
 
 // NewServer Creates background service object
 func NewServer(config Config) Server {
 	srv := &server{
-		config: config,
+		config:  config,
 		logger: config.Logger,
 	}
 	if config.Logger == nil {
@@ -83,10 +81,25 @@ func (srv *server) Bind(p Protocol) {
 
 // Stop background network function
 func (srv *server) Stop() {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	srv.running = false
-	close(srv.quit)
+	close(srv.close)
+	srv.table.Close()
+}
+
+type udpcnn interface {
+	LocalAddr() net.Addr
+}
+
+func (srv *server) listenUDP() (*discover.Table, udpcnn, error ) {
+	addr, err := net.ResolveUDPAddr("udp", srv.config.ListenAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		return nil, nil, err
+	}
+	table, _ := discover.NewUDP(srv.config.Key, conn, srv.config.NodeDBPath, srv.config.Nat)
+	return table, conn, nil
 }
 
 // Start start running the server.
@@ -101,25 +114,16 @@ func (srv *server) Start() error {
 	// Peer to peer session entity
 	srv.addpeer = make(chan *peerConn)
 	srv.delpeer = make(chan Peer)
-	srv.quit = make(chan struct{})
-
+	srv.close = make(chan struct{})
 	var err error
-
-	nat, err := upnp.Discover()
-	if err != nil {
-		return errors.New("could not perform UPNP discover")
-	}
-	srv.natm = nat
+	var uconn udpcnn = nil
 	// launch node discovery and UDP listener
 	if srv.config.Discover {
-		table, netAddr, err := discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath, srv.natm)
-		srv.table = table
+		srv.table, uconn, err = srv.listenUDP()
 		if err != nil {
 			return err
 		}
-		if netAddr != nil {
-			srv.config.ListenAddr = netAddr.String()
-		}
+
 	}
 	dynPeers := srv.config.MaxPeers / 2
 	if !srv.config.Discover {
@@ -127,7 +131,8 @@ func (srv *server) Start() error {
 	}
 	dialer := newDialState(srv.config.StaticNodes, srv.table, dynPeers)
 	// launch TCP listener to accept connection
-	if err = srv.listenAndServe(); err != nil {
+	realaddr := uconn.LocalAddr().(*net.UDPAddr)
+	if err = srv.listenAndServe(realaddr.Port); err != nil {
 		return err
 	}
 
@@ -170,17 +175,12 @@ func (srv *server) run(dialer *dialstate) {
 			pendingTasks = pt[:len(pt)-start]
 		}
 	}
-
-running:
 	for {
 		now := time.Now()
 		nt := dialer.newTasks(len(pendingTasks)+len(tasks), peers, now)
 		// schedule tasks
 		scheduleTasks(nt)
 		select {
-		case <-srv.quit:
-			srv.logger.Infof("quit: spinning down")
-			break running
 		// add peer
 		case c := <-srv.addpeer:
 			p := newPeer(c, srv.protocols)
@@ -203,29 +203,30 @@ func (srv *server) runPeer(peer Peer) {
 	srv.delpeer <- peer
 }
 
-func (srv *server) listenAndServe() error {
-	addr := srv.config.ListenAddr
-	ln, err := net.Listen("tcp", addr)
+func (srv *server) listenAndServe(realPort int) error {
+	addr, err := net.ResolveTCPAddr("tcp", srv.config.ListenAddr)
+	addr.Port = realPort
+	ln, err := net.ListenTCP("tcp", addr)
+	laddr := ln.Addr().(*net.TCPAddr)
 	if err != nil {
-		srv.logger.Errorf("p2p server listen and serve on %s err: %v", addr, err)
+		srv.logger.Errorf("p2p listen and serve on %s err: %v", laddr, err)
 		return err
 	}
-	_, port, err := net.SplitHostPort(ln.Addr().String())
-	if err != nil {
-		return err
-	}
-	lnPort, err := strconv.Atoi(port)
-	if err != nil {
-		return err
-	}
-	go srv.natm.AddPortMapping("tcp", lnPort, lnPort, "xfsgo tcp", 0)
-	srv.logger.Infof("p2p server listen and serve on %s", addr)
+	srv.logger.Infof("p2p listen and serve on %s", laddr)
 	currentKey := srv.config.Key
 	nId := discover.PubKey2NodeId(currentKey.PublicKey)
 	//tcpAddr,_ := net.ResolveTCPAddr("", addr)
 	//n := discover.NewNode(tcpAddr.IP, uint16(tcpAddr.Port), uint16(tcpAddr.Port),nId)
 	srv.logger.Infof("p2p server node id: %s", nId)
 	go srv.listenLoop(ln)
+	if !laddr.IP.IsLoopback() && srv.config.Nat != nil {
+		//srv.loopWG.Add(1)
+		go func() {
+			srv.logger.Infof("nat mapping \"xlibp2p server\" port: %d", laddr.Port)
+			nat.Map(srv.config.Nat, srv.close, "tcp", laddr.Port, laddr.Port, "xlibp2p server")
+			//srv.loopWG.Done()
+		}()
+	}
 	return nil
 }
 
@@ -240,7 +241,7 @@ func (srv *server) listenLoop(ln net.Listener) {
 	for {
 		rw, err := ln.Accept()
 		if err != nil {
-			srv.logger.Errorf("p2p listen loop accept err %v", err)
+			srv.logger.Errorf("p2p listenner accept err %v", err)
 			return
 		}
 		c := srv.newPeerConn(rw, flagInbound, nil)
@@ -251,11 +252,10 @@ func (srv *server) listenLoop(ln net.Listener) {
 func (srv *server) newPeerConn(rw net.Conn, flag int, dst *discover.NodeId) *peerConn {
 	pubKey := srv.config.Key.PublicKey
 	mId := discover.PubKey2NodeId(pubKey)
-	// fmt.Printf("ProtocolVersion:%v\n", srv.config.ProtocolVersion)
 	c := &peerConn{
-		logger:  srv.logger,
+		logger: srv.logger,
 		self:    mId,
-		flag:    flag,
+		flag: flag,
 		server:  srv,
 		key:     srv.config.Key,
 		rw:      rw,

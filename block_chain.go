@@ -238,7 +238,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 		return nil
 	}
 	targetTxsRoot := CalcTxsRootHash(block.Transactions)
-	if bytes.Compare(targetTxsRoot.Bytes(), txsRoot.Bytes()) != common.Zero {
+	if !bytes.Equal(targetTxsRoot.Bytes(), txsRoot.Bytes()) {
 		return fmt.Errorf("check transaction root err")
 	}
 	parentStateRoot := parent.StateRoot()
@@ -250,7 +250,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
 	targetRsRoot := CalcReceiptRootHash(rs)
-	if bytes.Compare(rsRoot.Bytes(), targetRsRoot.Bytes()) != common.Zero {
+	if !bytes.Equal(rsRoot.Bytes(), targetRsRoot.Bytes()) {
 		return fmt.Errorf("check receipt root err")
 	}
 	if err = stateTree.Commit(); err != nil {

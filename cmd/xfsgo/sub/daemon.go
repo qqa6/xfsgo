@@ -86,14 +86,16 @@ func runDaemon() error {
 	if err != nil {
 		return err
 	}
-	logrus.Infof("lavel: %s", loglevel)
-	logrus.SetLevel(loglevel)
+	//logrus.Infof("lavel: %s", loglevel)
 	logrus.SetFormatter(&logrus.TextFormatter{
 		DisableColors:   true,
 		TimestampFormat: time.RFC3339,
 		FullTimestamp:   true,
 	})
-	if stack, err = node.New(&config.nodeConfig); err != nil {
+	logrus.SetLevel(loglevel)
+	nodeConf := &config.nodeConfig
+	nodeConf.RPCConfig.Logger = logrus.StandardLogger()
+	if stack, err = node.New(nodeConf); err != nil {
 		return err
 	}
 	chainDb := badger.New(config.storageParams.chainDir)

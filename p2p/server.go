@@ -65,7 +65,7 @@ func NewServer(config Config) Server {
 		config:  config,
 		logger: config.Logger,
 	}
-	if config.Logger == nil {
+	if srv.logger == nil {
 		srv.logger = log.DefaultLogger()
 	}
 	return srv
@@ -223,7 +223,7 @@ func (srv *server) listenAndServe(realPort int) error {
 	if !laddr.IP.IsLoopback() && srv.config.Nat != nil {
 		//srv.loopWG.Add(1)
 		go func() {
-			srv.logger.Infof("nat mapping \"xlibp2p server\" port: %d", laddr.Port)
+			srv.logger.Debugf("nat mapping \"xlibp2p server\" port: %d", laddr.Port)
 			nat.Map(srv.config.Nat, srv.close, "tcp", laddr.Port, laddr.Port, "xlibp2p server")
 			//srv.loopWG.Done()
 		}()

@@ -38,7 +38,7 @@ const (
 )
 
 var (
-	parseError          = NewRPCError(-32700, "parse error")
+	//parseError          = NewRPCError(-32700, "parse error")
 	invalidRequestError = NewRPCError(-32600, "invalid request")
 	methodNotFoundError = NewRPCError(-32601, "method not found")
 	//invalidParamsError = NewRPCError(-32602, "invalid params")
@@ -71,6 +71,7 @@ type jsonRPCRespErr struct {
 
 type RPCConfig struct {
 	ListenAddr string
+	Logger log.Logger
 }
 
 // RPCServer is an RPC server.
@@ -93,7 +94,7 @@ func ginlogger(log log.Logger) gin.HandlerFunc {
 //// NewRPCServer creates a new server instance with given configuration options.
 func NewRPCServer(config *RPCConfig) *RPCServer {
 	server := &RPCServer{
-		logger:     log.DefaultLogger(),
+		logger:     config.Logger,
 		config:     config,
 		serviceMap: make(map[string]*service),
 		upgrader: websocket.Upgrader{
@@ -101,12 +102,13 @@ func NewRPCServer(config *RPCConfig) *RPCServer {
 			WriteBufferSize: 1024,
 		},
 	}
-
-	logger := log.DefaultLogger()
-	gin.DefaultWriter = logger.Writer()
+	if server.logger == nil {
+		server.logger = log.DefaultLogger()
+	}
+	gin.DefaultWriter = server.logger.Writer()
 	gin.SetMode("release")
 	server.ginEngine = gin.New()
-	server.ginEngine.Use(ginlogger(logger))
+	server.ginEngine.Use(ginlogger(server.logger))
 	server.ginEngine.Use(gin.Recovery())
 	return server
 }

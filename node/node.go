@@ -75,6 +75,7 @@ func New(config *Config) (*Node, error) {
 		staticNodes = append(staticNodes, node)
 	}
 	enc := new(rawencode.StdEncoder)
+	logrus.Infof("logger level: %s", logrus.GetLevel())
 	p2pServer := p2p.NewServer(p2p.Config{
 		Encoder: enc,
 		Nat: nat.Any(),
@@ -85,6 +86,7 @@ func New(config *Config) (*Node, error) {
 		Discover:        true,
 		MaxPeers:        10,
 		NodeDBPath:      config.NodeDBPath,
+		Logger: logrus.StandardLogger(),
 	})
 	n := &Node{
 		config:    config,

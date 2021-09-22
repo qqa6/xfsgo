@@ -250,26 +250,32 @@ out:
 		logrus.Debugf("woker-%d has obtained transaction counts: %d", num, len(txs))
 		lastBlock := m.chain.CurrentBlock()
 		lastStateRoot := lastBlock.StateRoot()
-		logrus.Debugf("woker-%d the newest block: %s, height: %d", num, lastBlock.HashHex(), lastBlock.Height())
+		lastBlockHash := lastBlock.Hash()
+		logrus.Infof("Worker#%d: Generating block by parent height: %d, hash: 0x%x...%x",num, lastBlock.Height(), lastBlockHash[:4],lastBlockHash[len(lastBlockHash)-4:])
 		stateTree := xfsgo.NewStateTree(m.stateDb, lastStateRoot.Bytes())
+		startTime := time.Now()
 		block, err := m.mimeBlockWithParent(stateTree, lastBlock, m.Coinbase, txs, quit, ticker)
 		if err != nil {
 			continue out
 		}
+		timeused := time.Now().Sub(startTime)
+		hash := block.Hash()
+		timeused.Seconds()
+		logrus.Infof("Worker#%d: Sussessfully sealed new block, height: %d, hash: 0x%x...%x, used: %fs", num, block.Height(), hash[:4],hash[len(hash)-4:], timeused.Seconds())
 		if err = stateTree.Commit(); err != nil {
 			continue out
 		}
 		if err = m.chain.WriteBlock(block); err != nil {
 			continue out
 		}
-		hash := block.Hash()
-		sr := block.StateRoot()
-		logrus.Infof("woker-%d, the block has packed successfully, height: %d, hash: %s, stateRoot: %s", num, block.Height(), hash.Hex(), sr.Hex())
-		st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
-		balance := st.GetBalance(m.Coinbase)
-		logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
+		//sr := block.StateRoot()
+		logrus.Infof("Worker#%d: Write new block successfully, height: %d, hash: 0x%x...%x", num, block.Height(), hash[:4],hash[len(hash)-4:])
+		//st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
+		//balance := st.GetBalance(m.Coinbase)
+		//logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
 		m.eventBus.Publish(xfsgo.NewMinedBlockEvent{Block: block})
 	}
+	logrus.Infof("Worker#%d Ended work", num)
 }
 func closeWorkers(cs []chan struct{}) {
 	for _, c := range cs {
@@ -282,7 +288,7 @@ func (m *Miner) miningWorkerController() {
 		for i := uint32(0); i < numWorkers; i++ {
 			quit := make(chan struct{})
 			runningWorkers = append(runningWorkers, quit)
-			logrus.Infof("woker-%d started", i)
+			logrus.Infof("Woker#%d start-up", i)
 			go m.generateBlocks(i, quit)
 		}
 	}
@@ -295,7 +301,6 @@ out:
 	for {
 		select {
 		case <-m.quit:
-			logrus.Info("miner quit")
 			closeWorkers(runningWorkers)
 			m.reset()
 			break out
@@ -312,6 +317,7 @@ out:
 		default:
 		}
 	}
+	logrus.Info("Miner quit")
 }
 
 func (m *Miner) Stop() {

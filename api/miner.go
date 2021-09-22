@@ -17,11 +17,21 @@
 package api
 
 import (
+	"encoding/json"
+	"runtime"
 	"xfsgo/miner"
 )
 
 type MinerAPIHandler struct {
 	Miner *miner.Miner
+}
+
+type SetGasLimitArgs struct {
+	Gas json.Number `json:"gas"`
+}
+
+type SetGasPriceArgs struct {
+	GasPrice json.Number `json:"gas_price"`
 }
 
 func (handler *MinerAPIHandler) Start(_ EmptyArgs, resp *string) error {
@@ -38,12 +48,43 @@ func (handler *MinerAPIHandler) Stop(_ EmptyArgs, resp *string) error {
 
 func (handler *MinerAPIHandler) WorkersAdd(_ EmptyArgs, resp *string) error {
 	NumWorkers := int(handler.Miner.GetNumWorkers()) + 1
-	handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	maxWorkers := runtime.NumCPU() * 2
+	if maxWorkers > NumWorkers {
+		handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	}
+	*resp = ""
 	return nil
 }
 
 func (handler *MinerAPIHandler) WorkersDown(_ EmptyArgs, resp *string) error {
 	NumWorkers := int(handler.Miner.GetNumWorkers()) - 1
+	if NumWorkers < 1 {
+		NumWorkers = 1
+	}
 	handler.Miner.SetNumWorkers(uint32(NumWorkers))
+	*resp = ""
+	return nil
+}
+
+func (handler *MinerAPIHandler) SetGasLimit(args SetGasLimitArgs, resp *string) error {
+
+	return nil
+}
+
+func (handler *MinerAPIHandler) SetGasPrices(args SetGasPriceArgs, resp *string) error {
+	// if args.GasPrice == "" {
+	// 	return xfsgo.NewRPCError(-1006, "value not be empty")
+	// }
+	// gasPrice, err := args.GasPrice.Int64()
+	// if err != nil {
+	// 	return xfsgo.NewRPCErrorCause(-32001, err)
+	// }
+	// priceNewBigInt := new(big.Int).SetInt64(gasPrice)
+	// err = handler.Miner.SetGasPrice(priceNewBigInt)
+	// if err != nil {
+
+	// }
+	// 	var defaultGasPrice = new(big.Int).SetUint64(1)    //150000000000
+	// var defaultGas = common.BaseCoin2Atto(float64(10)) //500000
 	return nil
 }

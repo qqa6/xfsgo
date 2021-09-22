@@ -13,7 +13,7 @@ import (
 	"xfsgo/p2p/nat"
 )
 
-const Version = 4
+const Version = 1
 
 // Errors
 var (
@@ -56,7 +56,7 @@ func nodeFromRPC(rn rpcNode) (n *Node, valid bool) {
 	if rn.IP.IsMulticast() || rn.IP.IsUnspecified() || rn.UDP == 0 {
 		return nil, false
 	}
-	return newNode(rn.IP, rn.TCP, rn.UDP, rn.ID), true
+	return newNode(rn.IP,rn.TCP, rn.UDP, rn.ID ), true
 }
 
 func nodeToRPC(n *Node) rpcNode {
@@ -127,7 +127,7 @@ type reply struct {
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm nat.Listener) (*Table, error) {
+func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, mapper nat.Mapper) (*Table, error) {
 	addr, err := net.ResolveUDPAddr("udp", laddr)
 	if err != nil {
 		return nil, err
@@ -136,12 +136,15 @@ func ListenUDP(priv *ecdsa.PrivateKey, laddr string, nodeDBPath string, natm nat
 	if err != nil {
 		return nil, err
 	}
-	tab, _ := newUDP(priv, conn, nodeDBPath, natm)
+	tab, _ := newUDP(priv, conn, nodeDBPath, mapper)
 	return tab, nil
 }
-
-func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, natm nat.Listener) (*Table, *udp) {
+func NewUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, mapper nat.Mapper) (*Table, *udp) {
+	return newUDP(priv, c, nodeDBPath, mapper)
+}
+func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, mapper nat.Mapper) (*Table, *udp) {
 	udp := &udp{
+		//logger: log.DefaultLogger(),
 		conn:       c,
 		priv:       priv,
 		closing:    make(chan struct{}),
@@ -149,7 +152,13 @@ func newUDP(priv *ecdsa.PrivateKey, c conn, nodeDBPath string, natm nat.Listener
 		addpending: make(chan *pending),
 	}
 	realaddr := c.LocalAddr().(*net.UDPAddr)
-	// TODO: separate TCP port
+	if mapper != nil && !realaddr.IP.IsLoopback() {
+		go nat.Map(mapper, udp.closing, "udp", realaddr.Port, realaddr.Port, "xlibp2p discovery")
+	}else if mapper != nil {
+		if ext, err := mapper.ExternalIP(); err == nil {
+			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}
+		}
+	}
 	udp.ourEndpoint = makeEndpoint(realaddr, uint16(realaddr.Port))
 	udp.Table = newTable(udp, PubKey2NodeId(priv.PublicKey), realaddr, nodeDBPath)
 	go udp.loop()
@@ -196,7 +205,7 @@ func (t *udp) findnode(toid NodeId, toaddr *net.UDPAddr, target NodeId) ([]*Node
 		return nreceived >= bucketSize
 	})
 	_ = t.send(toaddr, findnodePacket, findnode{
-		Target:     target,
+		Target: target,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 	})
 	err := <-errc
@@ -324,7 +333,7 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req interface{}) error {
 	}
 	//t.logger.Infof(">>> %v %T\n", toaddr, req)
 	if _, err = t.conn.WriteToUDP(packet, toaddr); err != nil {
-
+		//t.logger.Errorln("UDP send failed:", err)
 	}
 	return err
 }
@@ -334,13 +343,13 @@ func encodePacket(privateKey *ecdsa.PrivateKey, ptype byte, req interface{}) ([]
 	b.WriteByte(ptype)
 	nId := PubKey2NodeId(privateKey.PublicKey)
 	b.Write(nId[:])
-	bs, err := rawencode.Encode(req)
+	bs,err := rawencode.Encode(req)
 	if err != nil {
-		return nil, err
+		return nil,err
 	}
 	bsLen := uint32(len(bs))
-	if (bsLen >> 8) > 0 {
-		return nil, fmt.Errorf("out")
+	if (bsLen >> 8 ) > 0 {
+		return nil,fmt.Errorf("out")
 	}
 	b.WriteByte(byte(uint32(len(bs))))
 	b.Write(bs)
@@ -371,7 +380,7 @@ func (t *udp) readLoop() {
 }
 
 func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
-	buffer := bytes.NewBuffer(buf)
+	buffer :=  bytes.NewBuffer(buf)
 	packet, fromID, err := decodePacket(buffer)
 	if err != nil {
 		//t.logger.Debugf("Bad packet from %v: %v", from, err)
@@ -386,21 +395,22 @@ func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	return err
 }
 
+
 type packetHead struct {
-	mType   uint8
-	id      NodeId
+	mType uint8
+	id NodeId
 	dataLen uint8
 }
 
-func decodePacketHead(reader io.Reader) (*packetHead, int, error) {
+func decodePacketHead(reader io.Reader) (*packetHead,int,error) {
 	headerBuf := bytes.NewBuffer(nil)
 	var offset int
-	for headerBuf.Len() < nodeIdLen+2 {
+	for headerBuf.Len() < nodeIdLen + 2 {
 		b := make([]byte, 1)
 		if n, err := reader.Read(b); err != nil {
 			offset += n
 			return nil, offset, err
-		} else {
+		}else {
 			offset += n
 		}
 		headerBuf.Write(b)
@@ -409,12 +419,12 @@ func decodePacketHead(reader io.Reader) (*packetHead, int, error) {
 	h := new(packetHead)
 	h.mType, err = headerBuf.ReadByte()
 	if err != nil {
-		return nil, offset, err
+		return nil,offset, err
 	}
 	nid := NodeId{}
 	_, err = headerBuf.Read(nid[:])
 	if err != nil {
-		return nil, offset, err
+		return nil,offset, err
 	}
 	h.id = nid
 	h.dataLen, err = headerBuf.ReadByte()
@@ -423,12 +433,12 @@ func decodePacketHead(reader io.Reader) (*packetHead, int, error) {
 func decodePacket(reader io.Reader) (packet, NodeId, error) {
 	h, _, err := decodePacketHead(reader)
 	if err != nil {
-		return nil, NodeId{}, err
+		return nil,NodeId{},err
 	}
 	var data = make([]byte, h.dataLen)
 	_, err = reader.Read(data)
 	if err != nil {
-		return nil, NodeId{}, err
+		return nil,NodeId{}, err
 	}
 	var req packet
 	switch ptype := h.mType; ptype {

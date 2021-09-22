@@ -26,7 +26,7 @@ type EmptyArgs = interface{}
 
 type GetBlockByNumberBlockHeader struct {
 	Height        uint64         `json:"height"`
-	Version       int32          `json:"version"`
+	Version       uint32         `json:"version"`
 	HashPrevBlock common.Hash    `json:"hash_prev_block"`
 	Timestamp     uint64         `json:"timestamp"`
 	Coinbase      common.Address `json:"coinbase"`
@@ -38,6 +38,12 @@ type GetBlockByNumberBlockHeader struct {
 	Bits  uint32      `json:"bits"`
 	Nonce uint64      `json:"nonce"`
 	Hash  common.Hash `json:"hash"`
+}
+
+type StateObj struct {
+	Address string `json:"address"`
+	Balance string `json:"balance"`
+	Nonce   uint64 `json:"nonce"`
 }
 
 type GetBlockByNumberBlock struct {
@@ -55,4 +61,6 @@ type TransferObj struct {
 }
 
 type GetBlocks []*GetBlockByNumberBlock
+type GetBlockChains []*xfsgo.Block
 type transactions []*xfsgo.Transaction
+type TransferObjs []*TransferObj

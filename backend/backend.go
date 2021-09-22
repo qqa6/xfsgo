@@ -54,6 +54,13 @@ type Config struct {
 	StateDB *badger.Storage
 	ExtraDB *badger.Storage
 }
+type chainSyncProtocol struct {
+	protocolHandler *handler
+}
+
+func (c *chainSyncProtocol) Run(p p2p.Peer) error {
+	return c.protocolHandler.handleNewPeer(p)
+}
 
 // NewBackend constructs and returns a Backend instance by a note in network and config.
 // This method is for daemon whick should be started firstly when xfs blockchain runs.
@@ -92,7 +99,7 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 	}
 
 	back.wallet = xfsgo.NewWallet(back.config.KeysDB)
-	back.txPool = xfsgo.NewTxPool(back.blockchain.CurrentStateTree, back.eventBus)
+	back.txPool = xfsgo.NewTxPool(back.blockchain.CurrentStateTree, back.blockchain.CurrentBlock().Header.GasLimit, back.eventBus)
 
 	coinbase := config.Coinbase
 	addrdef := back.wallet.GetDefault()
@@ -110,6 +117,10 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 	back.miner = miner.NewMiner(&miner.Config{
 		Coinbase: back.wallet.GetDefault(),
 	}, back.config.StateDB, back.blockchain, back.eventBus, back.txPool)
+
+	//Sets the minimal gasprice when mining transactions
+	back.miner.SetGasPrice(common.DefaultGasPrice)
+
 	//Node resgisters apis of baclend on the node  for RPC service.
 	if err = stack.RegisterBackend(
 		back.config.StateDB, back.blockchain, back.miner, back.wallet, back.txPool); err != nil {
@@ -120,10 +131,8 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 		back.config.ProtocolVersion, back.config.NetworkID, back.eventBus, back.txPool); err != nil {
 		return nil, err
 	}
-	back.p2pServer.Bind(&p2p.SimpleProtocol{
-		Func: func(p p2p.Peer) error {
-			return back.handler.handleNewPeer(p)
-		},
+	back.p2pServer.Bind(&chainSyncProtocol{
+		protocolHandler: back.handler,
 	})
 	return back, nil
 }

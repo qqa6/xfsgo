@@ -19,7 +19,7 @@ package sub
 import "encoding/json"
 
 type getBlockHashArgs struct {
-	Address string `json:"address"`
+	Hash string `json:"hash"`
 }
 
 type getTransactionArgs struct {
@@ -27,6 +27,14 @@ type getTransactionArgs struct {
 }
 
 type getReceiptArgs struct {
+	Hash string `json:"hash"`
+}
+
+type gettxbyBlocknumArgs struct {
+	Number json.Number `json:"number"`
+}
+
+type gettxbyBlockHashArgs struct {
 	Hash string `json:"hash"`
 }
 
@@ -56,4 +64,16 @@ type transferFromArgs struct {
 type getBlockNumArgs struct {
 	From  json.Number `json:"from"`
 	Count json.Number `json:"count"`
+}
+
+type GetBlocksArgs struct {
+	Blocks string `json:"blocks"`
+}
+
+type SetGasLimitArgs struct {
+	Gas json.Number `json:"gas"`
+}
+
+type SetGasPriceArgs struct {
+	GasPrice json.Number `json:"gas_price"`
 }

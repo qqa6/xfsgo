@@ -19,6 +19,7 @@ package xfsgo
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"sort"
 	"sync"
 	"xfsgo/common"
@@ -43,17 +44,21 @@ type TxPool struct {
 	pendingState *ManagedState
 	eventBus     *EventBus
 	mu           sync.RWMutex
+	gasLimit     *big.Int // The current gas limit function callback
+	minGasPrice  *big.Int
 	pending      map[common.Hash]*Transaction // processable transactions
 	queue        map[common.Address]map[common.Hash]*Transaction
 }
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(currentStateFn stateFn, eventBus *EventBus) *TxPool {
+func NewTxPool(currentStateFn stateFn, gasLimit *big.Int, eventBus *EventBus) *TxPool {
 	pool := &TxPool{
 		pending:      make(map[common.Hash]*Transaction),
 		queue:        make(map[common.Address]map[common.Hash]*Transaction),
 		quit:         make(chan bool),
+		gasLimit:     gasLimit,
+		minGasPrice:  new(big.Int),
 		currentState: currentStateFn,
 		pendingState: NewManageState(currentStateFn()),
 	}
@@ -80,6 +85,11 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 		from common.Address
 		err  error
 	)
+	// Drop transactions under our own minimal accepted gas price
+	if pool.minGasPrice.Cmp(tx.GasPrice) > 0 {
+		return errors.New("gas price too low for acceptance")
+	}
+
 	if from, err = tx.FromAddr(); err != nil {
 		return errors.New("from fields is invalid")
 	}
@@ -87,9 +97,18 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 		return errors.New("account not enough balance")
 	}
 
+	// Last but not least check for nonce errors
 	if pool.currentState().GetNonce(from) > tx.Nonce {
 		return errors.New("last but not least check for nonce errors")
 	}
+
+	// Check the transaction doesn't exceed the current
+	// block limit gas.
+	fmt.Printf("pool.gasLimit:%v tx.GasLimit:%v\n", pool.gasLimit, tx.GasLimit)
+	if pool.gasLimit.Cmp(tx.GasLimit) < 0 {
+		return errors.New("exceeds block gas limit")
+	}
+
 	if tx.Value.Sign() <= 0 {
 		return errors.New("val < 0")
 	}
@@ -227,6 +246,7 @@ func (pool *TxPool) Add(tx *Transaction) error {
 func (pool *TxPool) eventLoop() {
 	chainHeadEventSub := pool.eventBus.Subscript(ChainHeadEvent{})
 	defer chainHeadEventSub.Unsubscribe()
+	GasPriceChangedSub := pool.eventBus.Subscript(GasPriceChanged{})
 	for {
 		select {
 		case e := <-chainHeadEventSub.Chan():
@@ -238,6 +258,13 @@ func (pool *TxPool) eventLoop() {
 			_ = block
 			pool.resetState()
 			pool.mu.Unlock()
+		case e := <-GasPriceChangedSub.Chan():
+			event := e.(GasPriceChanged)
+			pool.mu.Lock()
+			pool.minGasPrice = event.Price
+			pool.resetState()
+			pool.mu.Unlock()
+
 		}
 	}
 }

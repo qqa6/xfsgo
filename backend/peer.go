@@ -23,8 +23,6 @@ import (
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/p2p"
-
-	"github.com/sirupsen/logrus"
 )
 
 type peer struct {
@@ -103,7 +101,7 @@ func (p *peer) Handshake(head common.Hash, height uint64) error {
 			switch msgCode {
 			case MsgCodeVersion:
 				data, _ := msg.ReadAll()
-				logrus.Infof("handle message type: %d, data: %s", msgCode, string(data))
+				//logrus.Infof("handle message type: %d, data: %s", msgCode, string(data))
 				status := statusData{}
 				if err := json.Unmarshal(data, &status); err != nil {
 					return err
@@ -112,7 +110,7 @@ func (p *peer) Handshake(head common.Hash, height uint64) error {
 					return errors.New("p2p version not match")
 				}
 				if status.Network != p.network {
-					return errors.New("network id not match")
+					return errors.New("network id n ot match")
 				}
 				p.head = status.Head
 				p.height = status.Height
@@ -129,7 +127,6 @@ func (p *peer) Handshake(head common.Hash, height uint64) error {
 
 // RequestHashesFromNumber fetches a batch of hashes from a peer, starting at from, getting count
 func (p *peer) RequestHashesFromNumber(from uint64, count uint64) error {
-	logrus.Infof("form:%v count:%v\n", from, count)
 	if err := p2p.SendMsgData(p.p2pPeer, GetBlockHashesFromNumberMsg, &getBlockHashesFromNumberData{
 		From:  from,
 		Count: count,

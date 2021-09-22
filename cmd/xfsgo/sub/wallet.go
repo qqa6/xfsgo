@@ -17,9 +17,9 @@
 package sub
 
 import (
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
-	"math"
+	"math/big"
 	"xfsgo"
 	"xfsgo/common"
 
@@ -103,13 +103,12 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-
-	jsonStr, err := json.Marshal(result)
+	bs, err := common.MarshalIndent(result)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	fmt.Println(jsonStr)
+	fmt.Printf("%v\n", string(bs))
 
 	return nil
 }
@@ -198,16 +197,29 @@ func setWalletAddrDef(cmd *cobra.Command, args []string) error {
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	addr := args[0]
-	req := &setWalletAddrDefArgs{
-		Address: addr,
-	}
-	var r *string = nil
-	err = cli.CallMethod(1, "Wallet.SetDefaultAddress", req, &r)
+
+	walletAddress := make([]common.Address, 0)
+	err = cli.CallMethod(1, "Wallet.List", nil, &walletAddress)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	fmt.Println(*r)
+	for _, item := range walletAddress {
+		if item.String() == addr {
+			req := &setWalletAddrDefArgs{
+				Address: addr,
+			}
+			var r *string = nil
+			err = cli.CallMethod(1, "Wallet.SetDefaultAddress", req, &r)
+			if err != nil {
+				fmt.Println(err)
+				return err
+			}
+			fmt.Println(*r)
+			return nil
+		}
+	}
+	fmt.Println("Wallet address does not exist")
 	return nil
 }
 
@@ -250,8 +262,8 @@ func runWalletList() error {
 	hash := block["header"].(map[string]interface{})["state_root"].(string)
 
 	// wallet list
-	addresses := make([]common.Address, 0)
-	err = cli.CallMethod(1, "Wallet.List", nil, &addresses)
+	walletAddress := make([]common.Address, 0)
+	err = cli.CallMethod(1, "Wallet.List", nil, &walletAddress)
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -260,10 +272,9 @@ func runWalletList() error {
 	// Wallet balance
 	// getBalance
 	balance := make(map[string]interface{}, 1)
-
-	fmt.Print("Address                                 Balance              ")
+	fmt.Print("Address                            Balance                       Default")
 	fmt.Println()
-	for _, w := range addresses {
+	for _, w := range walletAddress {
 
 		req := &getStateObjArgs{
 			RootHash: hash,
@@ -274,20 +285,28 @@ func runWalletList() error {
 			fmt.Println(err)
 			return err
 		}
-		var t uint64
-		if balance["balance"] != nil {
-			t = uint64(balance["balance"].(float64) * math.Pow10(0))
+
+		var bal *big.Int = nil
+		balanceStr := balance["balance"].(string)
+		if balanceStr == "" {
+			bal = new(big.Int).SetUint64(0)
 		}
 
-		if w == defAddr {
-			fmt.Printf("%-40v", "x")
-			fmt.Printf("%-50d", t)
-			fmt.Println()
-		} else {
-			fmt.Printf("%-40s", w.B58String())
-			fmt.Printf("%-50v", t)
-			fmt.Println()
+		bs, err := hex.DecodeString(balanceStr)
+		if err != nil {
+			return err
 		}
+
+		bal = new(big.Int).SetBytes(bs)
+		fto := common.Atto2BaseCoin(bal)
+		toFloat := new(big.Float).SetUint64(fto.Uint64())
+		fmt.Printf("%-35v", w.B58String())
+		fmt.Printf("%-30.9f", toFloat)
+
+		if w == defAddr {
+			fmt.Printf("%-10v", "x")
+		}
+		fmt.Println()
 	}
 	return nil
 }

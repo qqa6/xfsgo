@@ -309,17 +309,25 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	// get header block height
 	height := headBlock.Height()
 	var from uint64
-	froms := int(height) - int(MaxHashFetch)
-	if froms < 0 {
-		from = uint64(0)
-	} else {
-		from = uint64(froms)
+	var couting uint64
+	froms := p.height - height
+
+	if froms <= uint64(0) {
+		return 0, nil
 	}
 
-	logrus.Infof("Find a fixed height range: [%d, %d]", from, MaxHashFetch)
+	if froms/MaxHashFetch >= 1 {
+		from = height
+		couting = MaxHashFetch
+	} else {
+		from = uint64(height/MaxHashFetch*MaxHashFetch) + 1
+		couting = froms
+	}
+
+	logrus.Infof("Find a fixed height range: [%d, %d]", from, couting)
 	// Get block Hash list
 
-	if err = p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
+	if err = p.RequestHashesFromNumber(from, couting); err != nil {
 		return 0, err
 	}
 	number := uint64(0)

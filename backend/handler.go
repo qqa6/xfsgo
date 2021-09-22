@@ -473,6 +473,8 @@ func (h *handler) process(blocks remoteBlocks) {
 }
 
 func (h *handler) BroadcastBlock(block *xfsgo.Block) {
+	hash := block.Hash()
+	logrus.Debugf("Broadcast block height: %d, hash: 0x%x...%x", block.Height(), hash[:4], hash[len(hash):])
 	for k := range h.peers {
 		p := h.peers[k]
 		if err := p.SendNewBlock(block); err != nil {

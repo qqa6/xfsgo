@@ -17,6 +17,7 @@
 package miner
 
 import (
+	"math/big"
 	"path"
 	"testing"
 	"xfsgo"
@@ -44,7 +45,7 @@ func TestMiner_Start(t *testing.T) {
 	bc, err := xfsgo.NewBlockChain(stateDb, chainDb, extraDb, eventBus)
 	assert.Error(t, err)
 
-	txpool := xfsgo.NewTxPool(bc.CurrentStateTree, eventBus)
+	txpool := xfsgo.NewTxPool(bc.CurrentStateTree, new(big.Int),eventBus)
 	miner := NewMiner(&Config{
 		Coinbase: common.StrB58ToAddress(defaultCoinbase),
 	}, stateDb, bc, eventBus, txpool)

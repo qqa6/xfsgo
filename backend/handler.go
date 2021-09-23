@@ -328,7 +328,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 		from = uint64(height/MaxHashFetch*MaxHashFetch) + 1
 		couting = froms
 	}
-
+	//logrus.WithFields()
 	logrus.Infof("Find a fixed height range: [%d, %d]", from, couting)
 	// Get block Hash list
 

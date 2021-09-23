@@ -24,6 +24,7 @@ import (
 	"time"
 	"xfsgo"
 	"xfsgo/backend"
+	"xfsgo/log"
 	"xfsgo/node"
 	"xfsgo/storage/badger"
 
@@ -92,6 +93,7 @@ func runDaemon() error {
 		TimestampFormat: time.RFC3339,
 		FullTimestamp:   true,
 	})
+	logrus.SetFormatter(&log.Formatter{})
 	logrus.SetLevel(loglevel)
 	nodeConf := &config.nodeConfig
 	nodeConf.RPCConfig.Logger = logrus.StandardLogger()

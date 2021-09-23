@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"sync"
 	"time"
 	"xfsgo/common"
@@ -266,6 +267,15 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) ([]*Receipt, error) {
 	receipts := make([]*Receipt, 0)
 	totalUsedGas := big.NewInt(0)
+
+	txPro := make([]*Transaction, 1)
+	for i := 0; i < len(txs); i++ {
+		sort.Slice(txs, func(i, j int) bool { // desc
+			a := new(big.Int).Mul(txs[i].GasPrice, txs[i].GasLimit)
+			b := new(big.Int).Mul(txs[j].GasPrice, txs[j].GasLimit)
+			return a.Cmp(b) > 0
+		})
+	}
 
 	for _, tx := range txs {
 		r, err := bc.applyTransaction(stateTree, totalUsedGas, header, tx)

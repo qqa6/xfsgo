@@ -43,11 +43,11 @@ func TestMiner_Start(t *testing.T) {
 	assert.Error(t, err)
 	bc, err := xfsgo.NewBlockChain(stateDb, chainDb, extraDb, eventBus)
 	assert.Error(t, err)
-
+	b := bc.GetHead()
 	txpool := xfsgo.NewTxPool(bc.CurrentStateTree, eventBus)
 	miner := NewMiner(&Config{
 		Coinbase: common.StrB58ToAddress(defaultCoinbase),
-	}, stateDb, bc, eventBus, txpool)
+	}, stateDb, bc, eventBus, txpool, b.Header.GasLimit)
 	_ = miner
 	miner.Start()
 	select {}

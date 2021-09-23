@@ -34,6 +34,8 @@ func NewBlockByNumBlockHeader(data *xfsgo.BlockHeader, hash common.Hash) *GetBlo
 		Bits:             data.Bits,
 		Nonce:            data.Nonce,
 		Hash:             hash,
+		GasLimit:         data.GasLimit,
+		GasUsed:          data.GasUsed,
 	}
 }
 

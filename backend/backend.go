@@ -116,7 +116,7 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 	//constructs Miner instance.
 	back.miner = miner.NewMiner(&miner.Config{
 		Coinbase: back.wallet.GetDefault(),
-	}, back.config.StateDB, back.blockchain, back.eventBus, back.txPool)
+	}, back.config.StateDB, back.blockchain, back.eventBus, back.txPool, common.DefaultGasPrice)
 
 	//Sets the minimal gasprice when mining transactions
 	back.miner.SetGasPrice(common.DefaultGasPrice)

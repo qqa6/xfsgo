@@ -25,9 +25,8 @@ var Big0 = new(big.Int).SetInt64(0)
 var TxGas = BaseCoin2Atto(float64(1))                                                // Per transaction. NOTE: Not payable on data of calls between transactions.
 var GasLimitBoundDivisor = big.NewInt(1024)                                          // The bound divisor of the gas limit, used in update calculations.
 var MinGasLimit = big.NewInt(5000)                                                   // Minimum the gas limit may ever be.
-var GenesisGasLimit = BaseCoin2Atto(float64(200))                                    // Gas limit of the Genesis block.
+var GenesisGasLimit = BaseCoin2Atto(float64(121))                                    // Gas limit of the Genesis block.
 var DefaultGasPrice = new(big.Int).Mul(big.NewInt(500), Atto2BaseCoin(new(big.Int))) // miner minGasPirce
-
 func ParseString2BigInt(str string) *big.Int {
 	if str == "" {
 		return Big0

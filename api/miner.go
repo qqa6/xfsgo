@@ -19,6 +19,8 @@ package api
 import (
 	"encoding/json"
 	"runtime"
+	"xfsgo"
+	"xfsgo/common"
 	"xfsgo/miner"
 )
 
@@ -67,24 +69,27 @@ func (handler *MinerAPIHandler) WorkersDown(_ EmptyArgs, resp *string) error {
 }
 
 func (handler *MinerAPIHandler) SetGasLimit(args SetGasLimitArgs, resp *string) error {
-
+	if args.Gas.String() == "" {
+		return xfsgo.NewRPCError(-1006, "value not be empty")
+	}
+	gasPrice, err := args.Gas.Float64()
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	priceNewBigInt := common.BaseCoin2Atto(gasPrice)
+	handler.Miner.SetGasLimit()
 	return nil
 }
 
 func (handler *MinerAPIHandler) SetGasPrices(args SetGasPriceArgs, resp *string) error {
-	// if args.GasPrice == "" {
-	// 	return xfsgo.NewRPCError(-1006, "value not be empty")
-	// }
-	// gasPrice, err := args.GasPrice.Int64()
-	// if err != nil {
-	// 	return xfsgo.NewRPCErrorCause(-32001, err)
-	// }
-	// priceNewBigInt := new(big.Int).SetInt64(gasPrice)
-	// err = handler.Miner.SetGasPrice(priceNewBigInt)
-	// if err != nil {
-
-	// }
-	// 	var defaultGasPrice = new(big.Int).SetUint64(1)    //150000000000
-	// var defaultGas = common.BaseCoin2Atto(float64(10)) //500000
+	if args.GasPrice.String() == "" {
+		return xfsgo.NewRPCError(-1006, "value not be empty")
+	}
+	gasPrice, err := args.GasPrice.Float64()
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	priceNewBigInt := common.BaseCoin2Atto(gasPrice)
+	handler.Miner.SetGasPrice(priceNewBigInt)
 	return nil
 }

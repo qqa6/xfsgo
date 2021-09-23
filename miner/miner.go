@@ -48,9 +48,9 @@ type Miner struct {
 	*Config
 	mu sync.Mutex
 	sync.Mutex
-	started          bool
-	quit             chan struct{}
-	runningWorkers   []chan struct{}
+	started bool
+	quit    chan struct{}
+	// runningWorkers   []chan struct{}
 	updateNumWorkers chan uint32
 	numWorkers       uint32
 	eventBus         *xfsgo.EventBus
@@ -58,9 +58,11 @@ type Miner struct {
 	pool             *xfsgo.TxPool
 	chain            *xfsgo.BlockChain
 	stateDb          *badger.Storage
+	gasPrice         *big.Int
+	gasLimit         *big.Int
 }
 
-func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, eventBus *xfsgo.EventBus, pool *xfsgo.TxPool) *Miner {
+func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, eventBus *xfsgo.EventBus, pool *xfsgo.TxPool, gasPrice *big.Int) *Miner {
 	m := &Miner{
 		Config:           config,
 		chain:            chain,
@@ -72,11 +74,18 @@ func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, 
 		canStart:         true,
 		started:          false,
 		eventBus:         eventBus,
+		gasLimit:         new(big.Int),
+		gasPrice:         gasPrice,
 	}
+	b := chain.GetHead()
+	m.gasLimit = CalcGasLimit(b)
 	go m.mainLoop()
 	return m
 }
 
+func (m *Miner) GetGasPrice() *big.Int {
+	return m.gasPrice
+}
 func (m *Miner) SetGasPrice(price *big.Int) {
 	// FIXME block tests set a nil gas price. Quick dirty fix
 	if price == nil {
@@ -86,6 +95,20 @@ func (m *Miner) SetGasPrice(price *big.Int) {
 		Price: price,
 	}
 	m.eventBus.Publish(GasPriceChanged)
+}
+
+func (m *Miner) GetGasLmmit() *big.Int {
+	return m.gasLimit
+}
+
+func (m *Miner) SetGasLimit(limit *big.Int) {
+	if limit == nil {
+		return
+	}
+	//The set limit cannot be less than the limit calculated by the block
+	if m.gasLimit.Cmp(limit) > 0 {
+		m.gasLimit = limit
+	}
 }
 
 // Start starts up xfs mining
@@ -172,7 +195,7 @@ func (m *Miner) mimeBlockWithParent(
 	}
 	header.GasUsed = new(big.Int)
 	// parentBlock last block
-	header.GasLimit = CalcGasLimit(parentBlock)
+	header.GasLimit = m.gasLimit
 	//calculate the next difficuty for hash value of next block.
 	var err error
 	header.Bits, err = m.chain.CalcNextRequiredDifficulty()

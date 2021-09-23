@@ -14,8 +14,10 @@ import (
 type BlockMap map[string]interface{}
 
 func (block BlockMap) MapMerge() map[string]interface{} {
+
 	result := make(map[string]interface{}, 1)
 	blockheader := block["header"].(map[string]interface{})
+
 	result["version"] = blockheader["version"]
 	result["height"] = blockheader["height"]
 	result["hash_prev_block"] = blockheader["hash_prev_block"]
@@ -29,8 +31,14 @@ func (block BlockMap) MapMerge() map[string]interface{} {
 	result["bits"] = bits.Hex()
 	result["nonce"] = blockheader["nonce"]
 	result["coinbase"] = blockheader["coinbase"]
-	result["transactions"] = block["transactions"]
-	result["receipts"] = block["receipts"]
+
+	gasNano := BaseCoin2Nano(blockheader["gas_limit"].(float64))
+	gasUesdNano := BaseCoin2Nano(blockheader["gas_used"].(float64))
+	gas := Atto2BaseCoin(gasNano)
+	gasUsed := Atto2BaseCoin(gasUesdNano)
+
+	result["gas_limit"] = gas.String() + " (Nanox)"
+	result["gas_used"] = gasUsed.String() + " (Nanox)"
 	return result
 }
 
@@ -47,6 +55,7 @@ func Marshal(info BlockMap, sortKey []string, isIndent bool) (string, error) {
 		jsonBuf.WriteString("\"" + k + "\":")
 		var content string
 		mydata := reflect.ValueOf(info).MapIndex(reflect.ValueOf(k))
+
 		switch reflect.ValueOf(mydata.Interface()).Kind() {
 		case reflect.String:
 			content = "\"" + reflect.ValueOf(mydata.Interface()).String() + "\""

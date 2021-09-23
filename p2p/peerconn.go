@@ -43,7 +43,7 @@ func (c *peerConn) serve() {
 			return
 		}
 	}
-	c.logger.Infof("p2p handshake success by %s", fromAddr)
+	c.logger.Debugf("P2P handshake success by %s", fromAddr)
 	c.server.addpeer <- c
 }
 

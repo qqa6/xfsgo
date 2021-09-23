@@ -211,7 +211,7 @@ func (srv *server) run(dialer *dialstate) {
 		case c := <-srv.addpeer:
 			p := newPeer(c, srv.protocols, srv.config.Encoder)
 			srv.peers[c.id] = p
-			srv.logger.Infof("save peer id to peers: %s", c.id)
+			srv.logger.Infof("Join peer id: %s", c.id)
 			go srv.runPeer(p)
 		// task is done
 		case t := <-taskdone:
@@ -236,13 +236,13 @@ func (srv *server) listenAndServe(realPort int) error {
 	ln, err := net.ListenTCP("tcp", addr)
 	laddr := ln.Addr().(*net.TCPAddr)
 	if err != nil {
-		srv.logger.Errorf("p2p listen and serve on %s err: %v", laddr, err)
+		srv.logger.Errorf("P2P listen and serve on %s err: %v", laddr, err)
 		return err
 	}
-	srv.logger.Infof("p2p listen and serve on %s", laddr)
+	srv.logger.Infof("P2P listen and serve on %s", laddr)
 
 	srv.node = discover.NewNode(addr.IP, uint16(addr.Port), uint16(addr.Port), srv.nodeId)
-	srv.logger.Infof("p2p server node id: %s", srv.nodeId)
+	srv.logger.Infof("P2P server node id: %s", srv.nodeId)
 	go srv.listenLoop(ln)
 	if !laddr.IP.IsLoopback() && srv.config.Nat != nil {
 		//srv.loopWG.Add(1)

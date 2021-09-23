@@ -91,7 +91,7 @@ func (h *handler) handle(p *peer) error {
 	if err = p.Handshake(head.Hash(), head.Height()); err != nil {
 		return err
 	}
-	logrus.Infof("handshake success, peer.height: %d, p.head: %s  p.id %v", p.height, p.head.Hex(), p.p2pPeer.ID())
+	logrus.Debugf("Handshake success height=%d, head=%s, id=%v", p.height, p.head.Hex(), p.p2pPeer.ID())
 	p2pPeer := p.p2p()
 	id := p2pPeer.ID()
 	h.peers[id] = p

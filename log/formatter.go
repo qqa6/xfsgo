@@ -25,7 +25,7 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	//}
 	buf := bytes.NewBuffer(nil)
 	_,_ = fmt.Fprintf(buf, "%s ", entry.Time.Format(time.RFC3339))
-	printLogLevel(buf, entry.Level)
+	printLogLevel(buf, entry.Level, false)
 	_,_ = fmt.Fprintf(buf, "%s ", firstUpper(entry.Message))
 	printFields(buf, entry.Data)
 	buf.WriteByte('\n')
@@ -50,7 +50,7 @@ func printFields(w io.Writer, fields logrus.Fields) {
 	}
 }
 
-func printLogLevel(w io.Writer, level logrus.Level) {
+func printLogLevel(w io.Writer, level logrus.Level, color bool) {
 	var levelColor int
 	switch level {
 	case logrus.DebugLevel, logrus.TraceLevel:
@@ -65,5 +65,9 @@ func printLogLevel(w io.Writer, level logrus.Level) {
 		levelColor = blue
 	}
 	levelString := strings.ToUpper(level.String())
-	_, _ = fmt.Fprintf(w,"\x1b[%dm%s\x1b[0m ",levelColor, levelString)
+	if color {
+		_, _ = fmt.Fprintf(w,"\x1b[%dm%s\x1b[0m ",levelColor, levelString)
+	}else {
+		_, _ = fmt.Fprintf(w,"%s ", levelString)
+	}
 }

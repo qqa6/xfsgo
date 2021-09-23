@@ -265,12 +265,12 @@ out:
 		default:
 		}
 		txs := m.pool.GetTransactions()
-		logrus.Debugf("woker-%d obtaining the transactions queue", num)
-		logrus.Debugf("woker-%d has obtained transaction counts: %d", num, len(txs))
+		logrus.Debugf("Obtaining the transactions queue workerId=%-3d", num)
+		logrus.Debugf("Has obtained transaction counts: %d, workerId=%-3d", len(txs), num)
 		lastBlock := m.chain.CurrentBlock()
 		lastStateRoot := lastBlock.StateRoot()
 		lastBlockHash := lastBlock.Hash()
-		logrus.Infof("Worker#%d: Generating block by parent height: %d, hash: 0x%x...%x", num, lastBlock.Height(), lastBlockHash[:4], lastBlockHash[len(lastBlockHash)-4:])
+		logrus.Debugf("Generating block by parent height=%d, hash=0x%x...%x, workerId=%-3d", lastBlock.Height(), lastBlockHash[:4], lastBlockHash[len(lastBlockHash)-4:], num)
 		stateTree := xfsgo.NewStateTree(m.stateDb, lastStateRoot.Bytes())
 		startTime := time.Now()
 
@@ -281,7 +281,7 @@ out:
 		timeused := time.Now().Sub(startTime)
 		hash := block.Hash()
 		timeused.Seconds()
-		logrus.Infof("Worker#%d: Sussessfully sealed new block, height: %d, hash: 0x%x...%x, used: %fs", num, block.Height(), hash[:4], hash[len(hash)-4:], timeused.Seconds())
+		logrus.Infof("Sussessfully sealed new block, height=%d, hash=0x%x...%x, used=%fs, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], timeused.Seconds(),num)
 		if err = stateTree.Commit(); err != nil {
 			continue out
 		}
@@ -289,13 +289,13 @@ out:
 			continue out
 		}
 		//sr := block.StateRoot()
-		logrus.Infof("Worker#%d: Write new block successfully, height: %d, hash: 0x%x...%x", num, block.Height(), hash[:4], hash[len(hash)-4:])
+		logrus.Debugf("Write new block successfully, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
 		//st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
 		//balance := st.GetBalance(m.Coinbase)
 		//logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
 		m.eventBus.Publish(xfsgo.NewMinedBlockEvent{Block: block})
 	}
-	logrus.Infof("Worker#%d Ended work", num)
+	logrus.Debugf("Ended work id=%-3d", num)
 }
 func closeWorkers(cs []chan struct{}) {
 	for _, c := range cs {
@@ -305,15 +305,16 @@ func closeWorkers(cs []chan struct{}) {
 func (m *Miner) miningWorkerController() {
 	var runningWorkers []chan struct{}
 	launchWorkers := func(numWorkers uint32) {
+		logrus.Infof("Launch Workers count=%d", numWorkers)
 		for i := uint32(0); i < numWorkers; i++ {
 			quit := make(chan struct{})
 			runningWorkers = append(runningWorkers, quit)
-			logrus.Infof("Woker#%d start-up", i)
+			logrus.Debugf("Start-up woker id=%-3d", i)
 			go m.generateBlocks(i, quit)
 		}
 	}
 	runningWorkers = make([]chan struct{}, 0)
-	logrus.Debugf("starting up workers, workers starting number: %d", m.numWorkers)
+	logrus.Debugf("Starting up workers, workers starting number=%d", m.numWorkers)
 	launchWorkers(m.numWorkers)
 	txPreEventSub := m.eventBus.Subscript(xfsgo.TxPreEvent{})
 	defer txPreEventSub.Unsubscribe()

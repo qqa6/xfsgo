@@ -417,6 +417,6 @@ func (server *RPCServer) Start() error {
 	if err != nil {
 		return fmt.Errorf("rpc server listen err: %s", err)
 	}
-	server.logger.Infof("rpc service listen on: %s", ln.Addr())
+	server.logger.Infof("RPC Service listen on: %s", ln.Addr())
 	return server.ginEngine.RunListener(ln)
 }

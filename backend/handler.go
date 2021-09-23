@@ -202,7 +202,7 @@ func (h *handler) handleMsg(p *peer) error {
 			p.SetHeight(data.Height())
 			p.SetHead(blockHash)
 			pHead := p.Head()
-			logrus.Infof("Successfully update peer: height=%d, hash=%x...%x, peerId=%x...%x",
+			logrus.Debugf("Successfully update peer: height=%d, hash=%x...%x, peerId=%x...%x",
 				p.Height(), pHead[:4], pHead[len(pHead)-4:], peerId[:4], peerId[len(peerId)-4:])
 			//go h.lessPeer(p)
 			go h.synchronise(p)
@@ -234,7 +234,7 @@ func (h *handler) syncer() {
 			}
 			go h.synchronise(h.basePeer())
 		case <-forceSync:
-			logrus.Infof("Pick base peer force sync")
+			//logrus.Debugf("Pick base peer force sync")
 			// synchronise block
 			go h.synchronise(h.basePeer())
 		}
@@ -253,10 +253,10 @@ func (h *handler) basePeer() *peer {
 			baseHeight = ph
 		}
 	}
-	if base != nil {
-		baseId := base.p2p().ID()
-		logrus.Infof("Successfully Pick base peer: id: %x...%x", baseId[:4], baseId[len(baseId)-4:])
-	}
+	//if base != nil {
+	//	baseId := base.p2p().ID()
+	//	logrus.Debugf("Successfully Pick base peer: id: %x...%x", baseId[:4], baseId[len(baseId)-4:])
+	//}
 	return base
 }
 
@@ -266,7 +266,7 @@ func (h *handler) synchronise(p *peer) {
 		return
 	}
 	pId := p.p2p().ID()
-	logrus.Infof("Synchronise from peer: id=%x...%x", pId[:4], pId[len(pId)-4:])
+	logrus.Debugf("Synchronise from peer: id=%x...%x", pId[:4], pId[len(pId)-4:])
 	h.syncLock.Lock()
 	h.eventBus.Publish(xfsgo.SyncStartEvent{})
 	defer func() {
@@ -279,11 +279,9 @@ func (h *handler) synchronise(p *peer) {
 		logrus.Infof("findAncestor errs %v\n", err.Error())
 		return
 	}
-	go func() {
-		if err = h.fetchHashes(p, number+1); err != nil {
-			logrus.Warn("fetch hashes err")
-		}
-	}()
+	if err = h.fetchHashes(p, number+1); err != nil {
+		logrus.Warn("fetch hashes err")
+	}
 	go func() {
 		if err = h.fetchBlocks(p); err != nil {
 			logrus.Warn("fetch blocks err")
@@ -307,7 +305,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	} else {
 		from = uint64(diff)
 	}
-	logrus.Infof("Find ancestor block hashes: currentHeight=%d, start=%d, count=%d, peerId=%x...%x",
+	logrus.Debugf("Find ancestor block hashes: currentHeight=%d, start=%d, count=%d, peerId=%x...%x",
 		height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 	if err = p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
 		return 0, err
@@ -318,10 +316,12 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 loop:
 	for {
 		select {
+		case <- p.CloseCh():
+			return 0, errors.New("peer closed")
 		// Skip loop if timeout
 		case <-time.After(3 * 60 * time.Second):
-			logrus.Warnf("Find ancestor block hashes timeout!!!")
-			return 0, errors.New("find hashes time out err1")
+			//logrus.Warnf("Find ancestor block hashes timeout!!!")
+			return 0, errors.New("find ancestor block hashes timeout")
 		case pack := <-h.hashPackCh:
 			wanId := p.p2p().ID()
 			wantPeerId := wanId[:]
@@ -341,7 +341,7 @@ loop:
 				// Record height and hash value
 				number = from + uint64(i)
 				haveHash = hash
-				logrus.Infof("Successfully found ancestor block: height=%d, hash=%x...%x, peerId=%x...%x",
+				logrus.Debugf("Successfully found ancestor block: height=%d, hash=%x...%x, peerId=%x...%x",
 					number, haveHash[:4], haveHash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
 				break loop
 			}
@@ -350,18 +350,20 @@ loop:
 	if !bytes.Equal(haveHash[:], common.HashZ[:]) {
 		return number - 1, nil
 	}
-	logrus.Infof("The fixed interval value is not found. Continue to traverse and find...")
+	logrus.Debugf("The fixed interval value is not found. Continue to traverse and find...")
 	// If no fixed interval value is found, traverse all blocks and binary search
 	left := 0
 	right := int(MaxHashFetch) + 1
 	for left < right {
-		logrus.Infof("Traversing height range: [%d, %d]", left, right)
+		logrus.Debugf("Traversing height range: [%d, %d]", left, right)
 		mid := (left + right) / 2
 		if err = p.RequestHashesFromNumber(uint64(mid), 1); err != nil {
 			return 0, err
 		}
 		for {
 			select {
+			case <- p.CloseCh():
+				return 0, errors.New("peer closed")
 			case <-time.After(3 * 60 * time.Second):
 				return 0, errors.New("find hashes time out err2")
 			case pack := <-h.hashPackCh:
@@ -398,8 +400,8 @@ func (h *handler) fetchHashes(p *peer, from uint64) error {
 	h.fetchHashesLock.Lock()
 	defer h.fetchHashesLock.Unlock()
 	pid := p.p2p().ID()
+	logrus.Debugf("Fetching Hashes: from=%d, count=%d, peerId=%x...%x", from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 	go func() {
-		logrus.Infof("Fetching Hashes: from=%d, count=%d, peerId=%x...%x", from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 		if err := p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
 			logrus.Warn("request hashes err")
 		}
@@ -419,10 +421,11 @@ func (h *handler) fetchHashes(p *peer, from uint64) error {
 			if len(hashes) == 0 {
 				return nil
 			}
-			logrus.Infof("Successfully fetched hashes: count=%d, peerId=%x...%x", len(hashes), pid[0:4], pid[len(pid)-4:])
+			logrus.Debugf("Successfully fetched hashes: count=%d, peerId=%x...%x", len(hashes), pid[0:4], pid[len(pid)-4:])
 			if err := p.RequestBlocks(hashes); err != nil {
 				return err
 			}
+			return nil
 		}
 	}
 }
@@ -432,6 +435,8 @@ func (h *handler) fetchBlocks(p *peer) error {
 	defer h.fetchBlocksLock.Unlock()
 	for {
 		select {
+		case <- p.CloseCh():
+			return errors.New("peer closed")
 		case <-time.After(3 * 60 * time.Second):
 			return errors.New("fetchHashes time out err")
 		case pack := <-h.blockPackCh:
@@ -446,7 +451,7 @@ func (h *handler) fetchBlocks(p *peer) error {
 			if len(blocks) == 0 {
 				return nil
 			}
-			logrus.Infof("Successfully fetched block pack: count=%d, peerId=%x...%x", len(blocks),
+			logrus.Debugf("Successfully fetched block pack: count=%d, peerId=%x...%x", len(blocks),
 				gotPeerId[0:4], gotPeerId[len(gotPeerId)-4:] )
 			go h.process(blocks)
 		}

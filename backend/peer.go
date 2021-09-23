@@ -199,3 +199,7 @@ func (p *peer) SendTransactions(data remoteTxs) error {
 	}
 	return nil
 }
+
+func (p *peer) CloseCh() chan struct{} {
+	return p.p2pPeer.CloseCh()
+}

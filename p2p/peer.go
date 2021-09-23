@@ -94,13 +94,13 @@ func (p *peer) handle(msg MessageReader) {
 	//p.logger.Infof("peer handle message type %d, data: %s", msg.Type(), string(data))
 	switch msg.Type() {
 	case typePingMsg:
-		p.logger.Debugln("receive heartbeat request")
+		//p.logger.Debugln("receive heartbeat request")
 		err = p.conn.writeMessage(typePongMsg, []byte("hello"))
 		if err != nil {
 			p.Close()
 		}
 	case typePongMsg:
-		p.logger.Debugln("receive response of heartbeat and update alive time")
+		//p.logger.Debugln("receive response of heartbeat and update alive time")
 		now := time.Now()
 		p.lastTime = now.Unix()
 	default:
@@ -132,7 +132,7 @@ func (p *peer) WriteMessageObj(mType uint8, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	p.logger.Debugln("peer write message type: %d, data: %x, obj: %v", mType, bs, obj)
+	//p.logger.Debugln("peer write message type: %d, data: %x, obj: %v", mType, bs, obj)
 	return p.WriteMessage(mType, bs)
 }
 

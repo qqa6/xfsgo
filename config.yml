@@ -62,4 +62,4 @@ storage:
   nodesdir: ""
 
 logger:
-  level: "INFO"
+  level: "DEBUG"

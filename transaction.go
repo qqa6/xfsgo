@@ -29,8 +29,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var defaultGasPrice = new(big.Int).SetUint64(1)    //150000000000
-var defaultGas = common.BaseCoin2Atto(float64(10)) //500000
+// var defaultGasPrice = new(big.Int).SetUint64(1)    //150000000000
+
 // Transaction type.
 type Transaction struct {
 	Version   uint32         `json:"version"`
@@ -42,28 +42,15 @@ type Transaction struct {
 	Signature []byte         `json:"signature"`
 }
 
-func NewTransaction(to common.Address, gasLimit string, gasPrice string, value *big.Int) *Transaction {
+func NewTransaction(to common.Address, gasLimit, gasPrice *big.Int, value *big.Int) *Transaction {
 
 	result := &Transaction{
 		Version:  version0,
 		To:       to,
-		GasLimit: new(big.Int),
-		GasPrice: new(big.Int),
+		GasLimit: gasLimit,
+		GasPrice: gasPrice,
 		Value:    value,
 	}
-
-	if gasLimit != "" {
-		result.GasLimit.Set(common.ParseString2BigInt(gasLimit))
-	} else {
-		result.GasLimit.Set(defaultGas)
-	}
-
-	if gasPrice != "" {
-		result.GasPrice.Set(common.ParseString2BigInt(gasPrice))
-	} else {
-		result.GasPrice.Set(defaultGasPrice)
-	}
-
 	return result
 }
 

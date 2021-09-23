@@ -17,7 +17,7 @@
 package api
 
 import (
-	"encoding/json"
+	"math/big"
 	"runtime"
 	"xfsgo"
 	"xfsgo/common"
@@ -28,12 +28,17 @@ type MinerAPIHandler struct {
 	Miner *miner.Miner
 }
 
-type SetGasLimitArgs struct {
-	Gas json.Number `json:"gas"`
+type MinSetGasLimitArgs struct {
+	Gas string `json:"gas"`
 }
 
-type SetGasPriceArgs struct {
-	GasPrice json.Number `json:"gas_price"`
+type MinSetGasPriceArgs struct {
+	GasPrice string `json:"gas_price"`
+}
+
+type MinGetGasInfoArgs struct {
+	Gas      *big.Int `json:"gas"`
+	GasPrice *big.Int `json:"gas_price"`
 }
 
 func (handler *MinerAPIHandler) Start(_ EmptyArgs, resp *string) error {
@@ -68,28 +73,27 @@ func (handler *MinerAPIHandler) WorkersDown(_ EmptyArgs, resp *string) error {
 	return nil
 }
 
-func (handler *MinerAPIHandler) SetGasLimit(args SetGasLimitArgs, resp *string) error {
-	if args.Gas.String() == "" {
-		return xfsgo.NewRPCError(-1006, "value not be empty")
+func (handler *MinerAPIHandler) MinSetGasPrice(args MinSetGasPriceArgs, resp *string) error {
+	if args.GasPrice == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
-	gasPrice, err := args.Gas.Float64()
-	if err != nil {
-		return xfsgo.NewRPCErrorCause(-32001, err)
+
+	GasPriceBigInt := common.ParseString2BigInt(args.GasPrice)
+	if GasPriceBigInt.Uint64() == uint64(0) {
+		GasPriceBigInt = common.MinGasLimit
 	}
-	priceNewBigInt := common.BaseCoin2Atto(gasPrice)
-	handler.Miner.SetGasLimit()
+	handler.Miner.SetGasPrice(common.BaseCoin2Atto(float64(GasPriceBigInt.Uint64())))
 	return nil
 }
 
-func (handler *MinerAPIHandler) SetGasPrices(args SetGasPriceArgs, resp *string) error {
-	if args.GasPrice.String() == "" {
-		return xfsgo.NewRPCError(-1006, "value not be empty")
+func (handler *MinerAPIHandler) GetGasInfo(_ EmptyArgs, resp *MinGetGasInfoArgs) error {
+	gasLimit := handler.Miner.GetGasLimit()
+	gasPrice := handler.Miner.GetGasPrice()
+
+	result := &MinGetGasInfoArgs{
+		Gas:      gasLimit,
+		GasPrice: gasPrice,
 	}
-	gasPrice, err := args.GasPrice.Float64()
-	if err != nil {
-		return xfsgo.NewRPCErrorCause(-32001, err)
-	}
-	priceNewBigInt := common.BaseCoin2Atto(gasPrice)
-	handler.Miner.SetGasPrice(priceNewBigInt)
+	*resp = *result
 	return nil
 }

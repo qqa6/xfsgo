@@ -17,9 +17,10 @@
 package sub
 
 import (
-	"encoding/json"
 	"fmt"
+	"math/big"
 	"xfsgo"
+	"xfsgo/common"
 
 	"github.com/spf13/cobra"
 )
@@ -55,15 +56,15 @@ var (
 		Short: "Miners reduce threads",
 		RunE:  WorkersDown,
 	}
-	minerSetGasCommand = &cobra.Command{
-		Use:   "setgas <limit>",
-		Short: "Set the miner gas online",
-		RunE:  SetGasLimit,
-	}
 	minerSetGasPriceCommand = &cobra.Command{
 		Use:   "setgasprice <price>",
 		Short: "Miner set gas price",
-		RunE:  SetGasPrice,
+		RunE:  MinSetGasPrice,
+	}
+	minerGetGasInfoCommand = &cobra.Command{
+		Use:   "getinfo",
+		Short: "Miner get gas info",
+		RunE:  GetGasInfo,
 	}
 )
 
@@ -127,7 +128,7 @@ func WorkersDown(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func SetGasLimit(cmd *cobra.Command, args []string) error {
+func MinSetGasPrice(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		cmd.Help()
 		return nil
@@ -139,10 +140,12 @@ func SetGasLimit(cmd *cobra.Command, args []string) error {
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	req := &SetGasLimitArgs{
-		Gas: json.Number(args[0]),
+	gasPrice, _ := new(big.Int).SetString(args[0], 0)
+	r := common.NanoCoin2BaseCoin(gasPrice)
+	req := &MinSetGasPriceArgs{
+		GasPrice: r.String(),
 	}
-	err = cli.CallMethod(1, "Miner.SetGasLimit", &req, &res)
+	err = cli.CallMethod(1, "Miner.MinSetGasPrice", &req, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -150,34 +153,32 @@ func SetGasLimit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func SetGasPrice(cmd *cobra.Command, args []string) error {
-	if len(args) < 1 {
-		cmd.Help()
-		return nil
-	}
-
+func GetGasInfo(_ *cobra.Command, _ []string) error {
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
 	}
-	var res *string = nil
+	res := make(map[string]interface{}, 1)
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	req := &SetGasPriceArgs{
-		GasPrice: json.Number(args[0]),
-	}
-	err = cli.CallMethod(1, "Miner.SetGasPrice", &req, &res)
+	err = cli.CallMethod(1, "Miner.GetGasInfo", nil, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
 	}
+	bs, err := common.MarshalIndent(res)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(bs))
+
 	return nil
 }
-
 func init() {
 	minerCommand.AddCommand(minerStartCommand)
 	minerCommand.AddCommand(minerStopCommand)
 	minerCommand.AddCommand(minerWorkersAddCommand)
 	minerCommand.AddCommand(minerWorkersDownCommand)
-	minerCommand.AddCommand(minerSetGasCommand)
+	minerCommand.AddCommand(minerSetGasPriceCommand)
+	minerCommand.AddCommand(minerGetGasInfoCommand)
 	rootCmd.AddCommand(minerCommand)
 }

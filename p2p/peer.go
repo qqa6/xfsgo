@@ -9,6 +9,11 @@ import (
 	"xfsgo/p2p/discover"
 )
 
+const pingloopinterval = 1
+const aliveloopinterval = 10
+const alivemaxinterval = 30
+
+
 type encoder interface {
 	Encode(obj interface{}) ([]byte, error)
 }
@@ -17,7 +22,7 @@ type Peer interface {
 	ID() discover.NodeId
 	Close()
 	Run()
-	QuitCh() chan struct{}
+	CloseCh() chan struct{}
 	Read(bs []byte) (int, error)
 	WriteMessage(mType uint8, data []byte) error
 	WriteMessageObj(mType uint8, data interface{}) error
@@ -47,7 +52,6 @@ func newPeer(conn *peerConn, ps []Protocol, en encoder) Peer {
 		logger: conn.logger,
 		ps:    ps,
 		close: make(chan struct{}),
-		quit:  make(chan struct{}),
 		psCh:  make(chan MessageReader),
 		encoder: en,
 	}
@@ -60,8 +64,8 @@ func (p *peer) ID() discover.NodeId {
 	return p.id
 }
 
-func (p *peer) QuitCh() chan struct{} {
-	return p.quit
+func (p *peer) CloseCh() chan struct{} {
+	return p.close
 }
 func (p *peer) Is(flag int) bool {
 	return p.conn.flag & flag != 0
@@ -87,12 +91,16 @@ func (p *peer) handle(msg MessageReader) {
 	if err != nil {
 		return
 	}
+	//p.logger.Infof("peer handle message type %d, data: %s", msg.Type(), string(data))
 	switch msg.Type() {
 	case typePingMsg:
-		//p.logger.Debugln("receive heartbeat request")
-		_ = p.conn.writeMessage(typePongMsg, []byte("hello"))
+		p.logger.Debugln("receive heartbeat request")
+		err = p.conn.writeMessage(typePongMsg, []byte("hello"))
+		if err != nil {
+			p.Close()
+		}
 	case typePongMsg:
-		//p.logger.Debugln("receive response of haertbeat and update alive time")
+		p.logger.Debugln("receive response of heartbeat and update alive time")
 		now := time.Now()
 		p.lastTime = now.Unix()
 	default:
@@ -124,17 +132,18 @@ func (p *peer) WriteMessageObj(mType uint8, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	//p.logger.Debugln("peer write message type: %d, data: %x, obj: %v", mType, bs, obj)
+	p.logger.Debugln("peer write message type: %d, data: %x, obj: %v", mType, bs, obj)
 	return p.WriteMessage(mType, bs)
 }
 
 func (p *peer) pingLoop() {
-	ping := time.NewTicker(10 * time.Second)
+	ping := time.NewTicker(pingloopinterval * time.Second)
 	defer ping.Stop()
 	for {
 		select {
 		case <-ping.C:
 			if err := p.conn.writeMessage(typePingMsg, []byte("hello")); err != nil {
+				p.Close()
 				return
 			}
 		case <-p.close:
@@ -144,6 +153,7 @@ func (p *peer) pingLoop() {
 }
 
 func (p *peer) suicide(timout chan struct{}) {
+	defer close(timout)
 	for {
 		select {
 		case <-p.close:
@@ -154,13 +164,13 @@ func (p *peer) suicide(timout chan struct{}) {
 		nowTime := now.Unix()
 		interval := nowTime - p.lastTime
 		// 10s
-		if interval > 30 {
-			p.logger.Debugln("peer stop running because of timeout ")
+		if interval > alivemaxinterval {
+			p.logger.Debugln("peer stop running because of timeout")
+			p.Close()
 			break
 		}
-		time.Sleep(10 * time.Second)
+		time.Sleep(aliveloopinterval * time.Second)
 	}
-	close(timout)
 }
 
 func (p *peer) Run() {
@@ -186,7 +196,6 @@ loop:
 			break loop
 		}
 	}
-	close(p.close)
 }
 
 func (p *peer) Close() {

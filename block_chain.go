@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sort"
 	"sync"
 	"time"
 	"xfsgo/common"
@@ -239,7 +238,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 		return nil
 	}
 	targetTxsRoot := CalcTxsRootHash(block.Transactions)
-	if bytes.Compare(targetTxsRoot.Bytes(), txsRoot.Bytes()) != common.Zero {
+	if !bytes.Equal(targetTxsRoot.Bytes(), txsRoot.Bytes()) {
 		return fmt.Errorf("check transaction root err")
 	}
 	parentStateRoot := parent.StateRoot()
@@ -251,7 +250,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
 	targetRsRoot := CalcReceiptRootHash(rs)
-	if bytes.Compare(rsRoot.Bytes(), targetRsRoot.Bytes()) != common.Zero {
+	if !bytes.Equal(rsRoot.Bytes(), targetRsRoot.Bytes()) {
 		return fmt.Errorf("check receipt root err")
 	}
 	if err = stateTree.Commit(); err != nil {
@@ -267,15 +266,6 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) ([]*Receipt, error) {
 	receipts := make([]*Receipt, 0)
 	totalUsedGas := big.NewInt(0)
-
-	txPro := make([]*Transaction, 1)
-	for i := 0; i < len(txs); i++ {
-		sort.Slice(txs, func(i, j int) bool { // desc
-			a := new(big.Int).Mul(txs[i].GasPrice, txs[i].GasLimit)
-			b := new(big.Int).Mul(txs[j].GasPrice, txs[j].GasLimit)
-			return a.Cmp(b) > 0
-		})
-	}
 
 	for _, tx := range txs {
 		r, err := bc.applyTransaction(stateTree, totalUsedGas, header, tx)

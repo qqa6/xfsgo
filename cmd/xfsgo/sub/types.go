@@ -16,7 +16,9 @@
 
 package sub
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type getBlockHashArgs struct {
 	Hash string `json:"hash"`
@@ -70,10 +72,13 @@ type GetBlocksArgs struct {
 	Blocks string `json:"blocks"`
 }
 
-type SetGasLimitArgs struct {
-	Gas json.Number `json:"gas"`
+type MinSetGasPriceArgs struct {
+	GasPrice string `json:"gas_price"`
 }
 
+type GasLimitArgs struct {
+	Gas string `json:"gas"`
+}
 type SetGasPriceArgs struct {
-	GasPrice json.Number `json:"gas_price"`
+	GasPrice string `json:"gas_price"`
 }

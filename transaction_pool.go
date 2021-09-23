@@ -104,7 +104,7 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 
 	// Check the transaction doesn't exceed the current
 	// block limit gas.
-	fmt.Printf("pool.gasLimit:%v tx.GasLimit:%v\n", pool.gasLimit, tx.GasLimit)
+	// tx gasLimit compare txpool gasLimit
 	if pool.gasLimit.Cmp(tx.GasLimit) < 0 {
 		return errors.New("exceeds block gas limit")
 	}
@@ -245,8 +245,11 @@ func (pool *TxPool) Add(tx *Transaction) error {
 // outside blockchain events
 func (pool *TxPool) eventLoop() {
 	chainHeadEventSub := pool.eventBus.Subscript(ChainHeadEvent{})
-	defer chainHeadEventSub.Unsubscribe()
 	GasPriceChangedSub := pool.eventBus.Subscript(GasPriceChanged{})
+	defer func() {
+		GasPriceChangedSub.Unsubscribe()
+		chainHeadEventSub.Unsubscribe()
+	}()
 	for {
 		select {
 		case e := <-chainHeadEventSub.Chan():

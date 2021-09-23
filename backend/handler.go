@@ -102,7 +102,7 @@ out:
 	for {
 		select {
 		// Node exit channel
-		case <-p2pPeer.QuitCh():
+		case <-p2pPeer.CloseCh():
 			break out
 		default:
 		}
@@ -114,104 +114,109 @@ out:
 }
 
 func (h *handler) handleMsg(p *peer) error {
-	msg := <-p.p2pPeer.GetProtocolMsgCh()
-	msgCode := msg.Type()
-	bodyBs, err := msg.ReadAll()
-	if err != nil {
-		logrus.Printf("handle message err %s", err)
-		return err
-	}
+	select {
+	case <-p.p2pPeer.CloseCh():
+		return nil
+	case msg := <-p.p2pPeer.GetProtocolMsgCh():
+		msgCode := msg.Type()
+		bodyBs, err := msg.ReadAll()
+		if err != nil {
+			logrus.Printf("handle message err %s", err)
+			return err
+		}
 
-	switch msgCode {
-	case GetBlockHashesFromNumberMsg:
-		// Get local block Hash list
-		var data *getBlockHashesFromNumberData = nil
-		if err := json.Unmarshal(bodyBs, &data); err != nil {
-			logrus.Warnf("handle GetBlockHashesFromNumberMsg msg err: %s", err)
-			return err
-		}
-		hashes := h.blockchain.GetBlockHashes(data.From, data.Count)
-		// Send local hash value
-		//logrus.Infof("berthashes %v\n", hashes)
-		if err := p.SendBlockHashes(hashes); err != nil {
-			logrus.Warnf("send block hashes data err: %s", err)
-			return err
-		}
-	case BlockHashesMsg:
-		// Accept block Hash list message
-		var data []common.Hash = nil
-		if err := json.Unmarshal(bodyBs, &data); err != nil {
-			logrus.Warnf("handle BlockHashesMsg msg err: %s", err)
-			return err
-		}
-		h.hashPackCh <- hashPack{
-			peerId: p.p2p().ID(),
-			hashes: data,
-		}
-	case GetBlocksMsg:
-		// Process get block list request
-		var data []common.Hash = nil
-		if err := json.Unmarshal(bodyBs, &data); err != nil {
-			logrus.Warnf("handle GetBlocksMsg msg err: %s", err)
-			return err
-		}
-		blocks := make([]*xfsgo.Block, 0)
-		for _, hash := range data {
-			block := h.blockchain.GetBlockByHash(hash)
-			if block == nil {
-				break
+		switch msgCode {
+		case GetBlockHashesFromNumberMsg:
+			// Get local block Hash list
+			var data *getBlockHashesFromNumberData = nil
+			if err := json.Unmarshal(bodyBs, &data); err != nil {
+				logrus.Warnf("handle GetBlockHashesFromNumberMsg msg err: %s", err)
+				return err
 			}
-			blocks = append(blocks, block)
-		}
-		if err := p.SendBlocks(blocks); err != nil {
-			logrus.Warnf("send blocks data err: %s", err)
-			return err
-		}
-	case BlocksMsg: // Accept block list message
-		// Accept block list message
-		var data remoteBlocks = nil
-		if err := json.Unmarshal(bodyBs, &data); err != nil {
-			logrus.Warnf("handle BlocksMsg msg err: %s", err)
-			return err
-		}
-		h.blockPackCh <- blockPack{
-			peerId: p.p2p().ID(),
-			blocks: data,
-		}
-	case NewBlockMsg: // Processing block broadcasting
-		// Processing block broadcasting
-		var data *xfsgo.Block = nil
-		if err := json.Unmarshal(bodyBs, &data); err != nil {
-			logrus.Warnf("handle NewBlockMsg err: %s", err)
-			return err
-		}
-		p.height = data.Height()
-		p.head = data.Hash()
-		go h.lessPeer(p)
-		go h.synchronise(p)
-	case TxMsg: // Process transaction broadcast
-		// Process transaction broadcast
-		var txs remoteTxs = nil
-		if err := json.Unmarshal(bodyBs, &txs); err != nil {
-			logrus.Warnf("handle TxMsg msg err: %s", err)
-			return err
-		}
-		for _, tx := range txs {
-			if err := h.txPool.Add(tx); err != nil {
-				logrus.Warnf("handle TxMsg msg err: %s", err)
+			hashes := h.blockchain.GetBlockHashes(data.From, data.Count)
+			// Send local hash value
+			//logrus.Infof("berthashes %v\n", hashes)
+			if err := p.SendBlockHashes(hashes); err != nil {
+				logrus.Warnf("send block hashes data err: %s", err)
+				return err
 			}
-		}
-	case AllSyncMsg:
-		var txsr *AllSyncData = nil
-		if err := json.Unmarshal(bodyBs, &txsr); err != nil {
-			logrus.Warnf("handle AllSyncData msg err: %s", err)
-			return err
-		}
-		if p.height < txsr.Height {
-			p.height = txsr.Height
-			p.head = txsr.Head
+		case BlockHashesMsg:
+			// Accept block Hash list message
+			var data []common.Hash = nil
+			if err := json.Unmarshal(bodyBs, &data); err != nil {
+				logrus.Warnf("handle BlockHashesMsg msg err: %s", err)
+				return err
+			}
+			h.hashPackCh <- hashPack{
+				peerId: p.p2p().ID(),
+				hashes: data,
+			}
+		case GetBlocksMsg:
+			// Process get block list request
+			var data []common.Hash = nil
+			if err := json.Unmarshal(bodyBs, &data); err != nil {
+				logrus.Warnf("handle GetBlocksMsg msg err: %s", err)
+				return err
+			}
+			blocks := make([]*xfsgo.Block, 0)
+			for _, hash := range data {
+				block := h.blockchain.GetBlockByHash(hash)
+				if block == nil {
+					break
+				}
+				blocks = append(blocks, block)
+			}
+			if err := p.SendBlocks(blocks); err != nil {
+				logrus.Warnf("send blocks data err: %s", err)
+				return err
+			}
+		case BlocksMsg: // Accept block list message
+			// Accept block list message
+			var data remoteBlocks = nil
+			if err := json.Unmarshal(bodyBs, &data); err != nil {
+				logrus.Warnf("handle BlocksMsg msg err: %s", err)
+				return err
+			}
+			h.blockPackCh <- blockPack{
+				peerId: p.p2p().ID(),
+				blocks: data,
+			}
+		case NewBlockMsg: // Processing block broadcasting
+			// Processing block broadcasting
+			var data *xfsgo.Block = nil
+			if err := json.Unmarshal(bodyBs, &data); err != nil {
+				logrus.Warnf("handle NewBlockMsg err: %s", err)
+				return err
+			}
+			p.height = data.Height()
+			p.head = data.Hash()
+			go h.lessPeer(p)
 			go h.synchronise(p)
+		case TxMsg: // Process transaction broadcast
+			// Process transaction broadcast
+			var txs remoteTxs = nil
+			if err := json.Unmarshal(bodyBs, &txs); err != nil {
+				logrus.Warnf("handle TxMsg msg err: %s", err)
+				return err
+			}
+			for _, tx := range txs {
+				if err := h.txPool.Add(tx); err != nil {
+					logrus.Warnf("handle TxMsg msg err: %s", err)
+				}
+			}
+		case AllSyncMsg:
+			var txsr *AllSyncData = nil
+			if err := json.Unmarshal(bodyBs, &txsr); err != nil {
+				logrus.Warnf("handle AllSyncData msg err: %s", err)
+				return err
+			}
+			if p.height < txsr.Height {
+				p.height = txsr.Height
+				p.head = txsr.Head
+				go h.synchronise(p)
+			}
 		}
+	default:
 	}
 	return nil
 }
@@ -309,17 +314,25 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	// get header block height
 	height := headBlock.Height()
 	var from uint64
-	froms := int(height) - int(MaxHashFetch)
-	if froms < 0 {
-		from = uint64(0)
-	} else {
-		from = uint64(froms)
+	var couting uint64
+	froms := p.height - height
+
+	if froms <= uint64(0) {
+		return 0, nil
 	}
 
-	logrus.Infof("Find a fixed height range: [%d, %d]", from, MaxHashFetch)
+	if froms/MaxHashFetch >= 1 {
+		from = height
+		couting = MaxHashFetch
+	} else {
+		from = uint64(height/MaxHashFetch*MaxHashFetch) + 1
+		couting = froms
+	}
+	//logrus.WithFields()
+	logrus.Infof("Find a fixed height range: [%d, %d]", from, couting)
 	// Get block Hash list
 
-	if err = p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
+	if err = p.RequestHashesFromNumber(from, couting); err != nil {
 		return 0, err
 	}
 	number := uint64(0)
@@ -465,6 +478,8 @@ func (h *handler) process(blocks remoteBlocks) {
 }
 
 func (h *handler) BroadcastBlock(block *xfsgo.Block) {
+	hash := block.Hash()
+	logrus.Debugf("Broadcast block height: %d, hash: 0x%x...%x", block.Height(), hash[:4], hash[len(hash):])
 	for k := range h.peers {
 		p := h.peers[k]
 		if err := p.SendNewBlock(block); err != nil {

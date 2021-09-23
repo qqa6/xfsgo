@@ -82,10 +82,12 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 		StateRoot:     rootHash,
 	}, nil, nil)
 	if old := chaindb.GetBlockByHash(block.Hash()); old != nil {
-		logrus.Infof("get genesis block hash: %s", old.HashHex())
+		logrus.WithField("hash", old.HashHex()).Infof("Genesis Block")
+		//logrus.Infof("get genesis block hash %s", old.HashHex())
 		return old, nil
 	}
-	logrus.Infof("write genesis block hash: %s", block.HashHex())
+	logrus.WithField("hash", block.HashHex()).Infof("Write genesis block")
+	//logrus.Infof("write genesis block hash: %s", block.HashHex())
 	if err = stateTree.Commit(); err != nil {
 		return nil, err
 	}

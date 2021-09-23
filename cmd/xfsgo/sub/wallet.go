@@ -80,6 +80,16 @@ var (
 		Short: "transfer <form> <to> <value>",
 		RunE:  runWalletTransfer,
 	}
+	walletSetGasCommand = &cobra.Command{
+		Use:   "setgasprice <price>",
+		Short: "set gas price",
+		RunE:  SetGasPrice,
+	}
+	walletSetGasLimitCommand = &cobra.Command{
+		Use:   "setgaslimit <limit>",
+		Short: "set gas limit",
+		RunE:  SetGas,
+	}
 )
 
 func runWalletTransfer(cmd *cobra.Command, args []string) error {
@@ -311,6 +321,56 @@ func runWalletList() error {
 	return nil
 }
 
+func SetGasPrice(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		cmd.Help()
+		return nil
+	}
+
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		return err
+	}
+	var res *string = nil
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	gasPrice, _ := new(big.Int).SetString(args[0], 0)
+	r := common.NanoCoin2BaseCoin(gasPrice)
+	req := &SetGasPriceArgs{
+		GasPrice: r.String(),
+	}
+	err = cli.CallMethod(1, "Wallet.SetGasPrice", &req, &res)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+	return nil
+}
+
+func SetGas(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		cmd.Help()
+		return nil
+	}
+
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		return err
+	}
+	var res *string = nil
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	gasLimit, _ := new(big.Int).SetString(args[0], 0)
+	r := common.NanoCoin2BaseCoin(gasLimit)
+	req := &GasLimitArgs{
+		Gas: r.String(),
+	}
+	err = cli.CallMethod(1, "Wallet.SetGasLimit", &req, &res)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+	return nil
+}
+
 func init() {
 	walletCommand.AddCommand(walletListCommand)
 	walletCommand.AddCommand(walletNewCommand)
@@ -320,5 +380,7 @@ func init() {
 	walletCommand.AddCommand(walletGetAddrDefCommand)
 	walletCommand.AddCommand(walletTransferCommand)
 	walletCommand.AddCommand(walletSetAddrDefCommand)
+	walletCommand.AddCommand(walletSetGasCommand)
+	walletCommand.AddCommand(walletSetGasLimitCommand)
 	rootCmd.AddCommand(walletCommand)
 }

@@ -35,6 +35,7 @@ type (
 
 var (
 	ZeroHash        = Bytes2Hash([]byte{})
+	HashZ = Hash{}
 	AddrCheckSumLen = 4
 )
 

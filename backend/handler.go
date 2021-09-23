@@ -20,14 +20,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/p2p"
 	"xfsgo/p2p/discover"
-
-	"github.com/sirupsen/logrus"
 )
 
 var MaxHashFetch = uint64(512)
@@ -91,7 +90,9 @@ func (h *handler) handle(p *peer) error {
 	if err = p.Handshake(head.Hash(), head.Height()); err != nil {
 		return err
 	}
-	logrus.Debugf("Handshake success height=%d, head=%s, id=%v", p.height, p.head.Hex(), p.p2pPeer.ID())
+	pHeight := p.Height()
+	pHead := p.Head()
+	logrus.Debugf("Handshake success height=%d, head=%s, id=%v", pHeight, pHead.Hex(), p.p2pPeer.ID())
 	p2pPeer := p.p2p()
 	id := p2pPeer.ID()
 	h.peers[id] = p
@@ -114,6 +115,7 @@ out:
 }
 
 func (h *handler) handleMsg(p *peer) error {
+	peerId := p.p2p().ID()
 	select {
 	case <-p.p2pPeer.CloseCh():
 		return nil
@@ -133,9 +135,9 @@ func (h *handler) handleMsg(p *peer) error {
 				logrus.Warnf("handle GetBlockHashesFromNumberMsg msg err: %s", err)
 				return err
 			}
+			//logrus.Infof("Handle get block hashes: start=%d, count=%d, peerId=%x...%x",
+			//	data.From, data.Count, peerId[:4], peerId[len(peerId)-4:])
 			hashes := h.blockchain.GetBlockHashes(data.From, data.Count)
-			// Send local hash value
-			//logrus.Infof("berthashes %v\n", hashes)
 			if err := p.SendBlockHashes(hashes); err != nil {
 				logrus.Warnf("send block hashes data err: %s", err)
 				return err
@@ -147,6 +149,8 @@ func (h *handler) handleMsg(p *peer) error {
 				logrus.Warnf("handle BlockHashesMsg msg err: %s", err)
 				return err
 			}
+			//logrus.Infof("Handle Peer BlockHashesMsg: count=%d, peerId=%x...%x",
+			//	len(data), peerId[:4], peerId[len(peerId)-4:])
 			h.hashPackCh <- hashPack{
 				peerId: p.p2p().ID(),
 				hashes: data,
@@ -158,6 +162,8 @@ func (h *handler) handleMsg(p *peer) error {
 				logrus.Warnf("handle GetBlocksMsg msg err: %s", err)
 				return err
 			}
+			//logrus.Infof("Handle Peer GetBlocksMsg: hashCount=%d, peerId=%x...%x",
+			//	len(data), peerId[:4], peerId[len(peerId)-4:])
 			blocks := make([]*xfsgo.Block, 0)
 			for _, hash := range data {
 				block := h.blockchain.GetBlockByHash(hash)
@@ -177,6 +183,8 @@ func (h *handler) handleMsg(p *peer) error {
 				logrus.Warnf("handle BlocksMsg msg err: %s", err)
 				return err
 			}
+			//logrus.Infof("Handle Peer BlocksMsg: count=%d, peerId=%x...%x",
+			//	len(data), peerId[:4], peerId[len(peerId)-4:])
 			h.blockPackCh <- blockPack{
 				peerId: p.p2p().ID(),
 				blocks: data,
@@ -188,9 +196,15 @@ func (h *handler) handleMsg(p *peer) error {
 				logrus.Warnf("handle NewBlockMsg err: %s", err)
 				return err
 			}
-			p.height = data.Height()
-			p.head = data.Hash()
-			go h.lessPeer(p)
+			blockHash := data.Hash()
+			//logrus.Infof("Handle Peer NewBlockMsg: height=%d, hash=%x...%x, peerId=%x...%x",
+			//	data.Height(), blockHash[:4], blockHash[len(blockHash)-4:], peerId[:4], peerId[len(peerId)-4:])
+			p.SetHeight(data.Height())
+			p.SetHead(blockHash)
+			pHead := p.Head()
+			logrus.Infof("Successfully update peer: height=%d, hash=%x...%x, peerId=%x...%x",
+				p.Height(), pHead[:4], pHead[len(pHead)-4:], peerId[:4], peerId[len(peerId)-4:])
+			//go h.lessPeer(p)
 			go h.synchronise(p)
 		case TxMsg: // Process transaction broadcast
 			// Process transaction broadcast
@@ -204,43 +218,10 @@ func (h *handler) handleMsg(p *peer) error {
 					logrus.Warnf("handle TxMsg msg err: %s", err)
 				}
 			}
-		case AllSyncMsg:
-			var txsr *AllSyncData = nil
-			if err := json.Unmarshal(bodyBs, &txsr); err != nil {
-				logrus.Warnf("handle AllSyncData msg err: %s", err)
-				return err
-			}
-			if p.height < txsr.Height {
-				p.height = txsr.Height
-				p.head = txsr.Head
-				go h.synchronise(p)
-			}
 		}
 	default:
 	}
 	return nil
-}
-
-func (h *handler) lessPeer(peer *peer) {
-	peerheight := peer.height
-	peerHeader := peer.head
-	if len(h.peers) < 2 {
-		return
-	}
-	for _, v := range h.peers {
-		if v.height < peerheight {
-			r := &AllSyncData{
-				ID:     v.p2pPeer.ID().String(),
-				Height: peerheight,
-				Head:   peerHeader,
-			}
-			err := v.SendAllSync(r)
-			if err != nil {
-				logrus.Errorf("err SendAllSync %v\n", err.Error())
-			}
-
-		}
-	}
 }
 
 func (h *handler) syncer() {
@@ -253,6 +234,7 @@ func (h *handler) syncer() {
 			}
 			go h.synchronise(h.basePeer())
 		case <-forceSync:
+			logrus.Infof("Pick base peer force sync")
 			// synchronise block
 			go h.synchronise(h.basePeer())
 		}
@@ -262,16 +244,20 @@ func (h *handler) syncer() {
 func (h *handler) basePeer() *peer {
 	head := h.blockchain.CurrentBlock()
 	var (
-		bestPeer   *peer  = nil
-		baseHeight uint64 = head.Height()
+		base   *peer  = nil
+		baseHeight = head.Height()
 	)
 	for _, v := range h.peers {
-		if ph := v.height; ph > baseHeight {
-			bestPeer = v
+		if ph := v.Height(); ph > baseHeight {
+			base = v
 			baseHeight = ph
 		}
 	}
-	return bestPeer
+	if base != nil {
+		baseId := base.p2p().ID()
+		logrus.Infof("Successfully Pick base peer: id: %x...%x", baseId[:4], baseId[len(baseId)-4:])
+	}
+	return base
 }
 
 //Node synchronization
@@ -279,6 +265,8 @@ func (h *handler) synchronise(p *peer) {
 	if p == nil {
 		return
 	}
+	pId := p.p2p().ID()
+	logrus.Infof("Synchronise from peer: id=%x...%x", pId[:4], pId[len(pId)-4:])
 	h.syncLock.Lock()
 	h.eventBus.Publish(xfsgo.SyncStartEvent{})
 	defer func() {
@@ -305,45 +293,35 @@ func (h *handler) synchronise(p *peer) {
 
 // Find common block height
 func (h *handler) findAncestor(p *peer) (uint64, error) {
+	pid := p.p2p().ID()
 	var err error = nil
 	headBlock := h.blockchain.CurrentBlock()
 	if headBlock == nil {
 		return 0, errors.New("empty")
 	}
-
-	// get header block height
 	height := headBlock.Height()
-	var from uint64
-	var couting uint64
-	froms := p.height - height
-
-	if froms <= uint64(0) {
-		return 0, nil
-	}
-
-	if froms/MaxHashFetch >= 1 {
-		from = height
-		couting = MaxHashFetch
+	var from uint64 = 0
+	diff := int(height - MaxHashFetch)
+	if diff < 0 {
+		from = uint64(0)
 	} else {
-		from = uint64(height/MaxHashFetch*MaxHashFetch) + 1
-		couting = froms
+		from = uint64(diff)
 	}
-	//logrus.WithFields()
-	logrus.Infof("Find a fixed height range: [%d, %d]", from, couting)
-	// Get block Hash list
-
-	if err = p.RequestHashesFromNumber(from, couting); err != nil {
+	logrus.Infof("Find ancestor block hashes: currentHeight=%d, start=%d, count=%d, peerId=%x...%x",
+		height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
+	if err = p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
 		return 0, err
 	}
 	number := uint64(0)
-	haveHash := common.ZeroHash
+	haveHash := common.HashZ
 	// Blocking receive pack messages
 loop:
 	for {
 		select {
 		// Skip loop if timeout
-		case <-time.After(30 * 60 * time.Second):
-			return 0, errors.New("find hashes time out err")
+		case <-time.After(3 * 60 * time.Second):
+			logrus.Warnf("Find ancestor block hashes timeout!!!")
+			return 0, errors.New("find hashes time out err1")
 		case pack := <-h.hashPackCh:
 			wanId := p.p2p().ID()
 			wantPeerId := wanId[:]
@@ -352,7 +330,6 @@ loop:
 			if !bytes.Equal(wantPeerId, gotPeerId) {
 				break
 			}
-
 			hashes := pack.hashes
 			if len(hashes) == 0 {
 				return 0, errors.New("empty hashes")
@@ -364,26 +341,29 @@ loop:
 				// Record height and hash value
 				number = from + uint64(i)
 				haveHash = hash
+				logrus.Infof("Successfully found ancestor block: height=%d, hash=%x...%x, peerId=%x...%x",
+					number, haveHash[:4], haveHash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
 				break loop
 			}
 		}
 	}
-	if bytes.Equal(common.ZeroHash.Bytes(), haveHash.Bytes()) {
-		return number, nil
+	if !bytes.Equal(haveHash[:], common.HashZ[:]) {
+		return number - 1, nil
 	}
+	logrus.Infof("The fixed interval value is not found. Continue to traverse and find...")
 	// If no fixed interval value is found, traverse all blocks and binary search
 	left := 0
 	right := int(MaxHashFetch) + 1
 	for left < right {
-		//logrus.Infof("Traversing height range: [%d, %d]", left, right)
+		logrus.Infof("Traversing height range: [%d, %d]", left, right)
 		mid := (left + right) / 2
 		if err = p.RequestHashesFromNumber(uint64(mid), 1); err != nil {
 			return 0, err
 		}
 		for {
 			select {
-			case <-time.After(30 * 60 * time.Second):
-				return 0, errors.New("find hashes time out err")
+			case <-time.After(3 * 60 * time.Second):
+				return 0, errors.New("find hashes time out err2")
 			case pack := <-h.hashPackCh:
 				wanId := p.p2p().ID()
 				wantPeerId := wanId[:]
@@ -417,14 +397,16 @@ func (h *handler) hashBlock(hash common.Hash) bool {
 func (h *handler) fetchHashes(p *peer, from uint64) error {
 	h.fetchHashesLock.Lock()
 	defer h.fetchHashesLock.Unlock()
+	pid := p.p2p().ID()
 	go func() {
+		logrus.Infof("Fetching Hashes: from=%d, count=%d, peerId=%x...%x", from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 		if err := p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
 			logrus.Warn("request hashes err")
 		}
 	}()
 	for {
 		select {
-		case <-time.After(30 * 60 * time.Second):
+		case <-time.After(3 * 60 * time.Second):
 			return errors.New("fetchHashes time out err")
 		case pack := <-h.hashPackCh:
 			wanId := p.p2p().ID()
@@ -437,6 +419,7 @@ func (h *handler) fetchHashes(p *peer, from uint64) error {
 			if len(hashes) == 0 {
 				return nil
 			}
+			logrus.Infof("Successfully fetched hashes: count=%d, peerId=%x...%x", len(hashes), pid[0:4], pid[len(pid)-4:])
 			if err := p.RequestBlocks(hashes); err != nil {
 				return err
 			}
@@ -449,9 +432,10 @@ func (h *handler) fetchBlocks(p *peer) error {
 	defer h.fetchBlocksLock.Unlock()
 	for {
 		select {
-		case <-time.After(30 * 60 * time.Second):
+		case <-time.After(3 * 60 * time.Second):
 			return errors.New("fetchHashes time out err")
 		case pack := <-h.blockPackCh:
+
 			wanId := p.p2p().ID()
 			wantPeerId := wanId[:]
 			gotPeerId := pack.peerId[:]
@@ -462,6 +446,8 @@ func (h *handler) fetchBlocks(p *peer) error {
 			if len(blocks) == 0 {
 				return nil
 			}
+			logrus.Infof("Successfully fetched block pack: count=%d, peerId=%x...%x", len(blocks),
+				gotPeerId[0:4], gotPeerId[len(gotPeerId)-4:] )
 			go h.process(blocks)
 		}
 	}

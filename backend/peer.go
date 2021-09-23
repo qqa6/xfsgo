@@ -19,6 +19,7 @@ package backend
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 	"xfsgo"
 	"xfsgo/common"
@@ -26,6 +27,7 @@ import (
 )
 
 type peer struct {
+	lock sync.RWMutex
 	p2pPeer p2p.Peer
 	version uint32
 	network uint32
@@ -41,7 +43,6 @@ const (
 	BlocksMsg                   uint8 = 9
 	NewBlockMsg                 uint8 = 10
 	TxMsg                       uint8 = 11
-	AllSyncMsg                  uint8 = 12
 )
 
 func newPeer(p p2p.Peer, version uint32, network uint32) *peer {
@@ -51,6 +52,29 @@ func newPeer(p p2p.Peer, version uint32, network uint32) *peer {
 		network: network,
 	}
 	return pt
+}
+func (p *peer) Head() (out common.Hash) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	copy(out[:], p.head[:])
+	return out
+}
+
+func (p *peer) Height() uint64 {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	return p.height
+}
+func (p *peer) SetHead(hash common.Hash)  {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	copy(p.head[:], hash[:])
+}
+
+func (p *peer) SetHeight(height uint64)  {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.height = height
 }
 
 func (p *peer) p2p() p2p.Peer {
@@ -131,13 +155,6 @@ func (p *peer) RequestHashesFromNumber(from uint64, count uint64) error {
 		From:  from,
 		Count: count,
 	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *peer) SendAllSync(allMsg *AllSyncData) error {
-	if err := p2p.SendMsgData(p.p2pPeer, AllSyncMsg, &allMsg); err != nil {
 		return err
 	}
 	return nil

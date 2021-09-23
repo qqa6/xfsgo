@@ -198,7 +198,7 @@ func (m *Miner) mimeBlockWithParent(
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debugf("block height: %d, difficuty: %d, timestamp: %d", header.Height, header.Bits, header.Timestamp)
+	//logrus.Debugf("block height: %d, difficuty: %d, timestamp: %d", header.Height, header.Bits, header.Timestamp)
 	//process the transations
 	res, err := m.chain.ApplyTransactions(stateTree, header, txs)
 	if err != nil {
@@ -222,7 +222,7 @@ func (m *Miner) execPow(perBlock *xfsgo.Block, quit chan struct{}, ticker *time.
 	target := targetDifficulty.Bytes()
 	targetHash := make([]byte, 32)
 	copy(targetHash[32-len(target):], target)
-	logrus.Debugf("running the POW consensusm，block height: %d, block difficulty: %d, target: 0x%x", perBlock.Height(), perBlock.Bits(), targetHash)
+	//logrus.Debugf("running the POW consensusm，block height: %d, block difficulty: %d, target: 0x%x", perBlock.Height(), perBlock.Bits(), targetHash)
 
 out:
 	for nonce := uint64(0); nonce <= maxNonce; nonce++ {
@@ -235,7 +235,7 @@ out:
 			currentBlockHeight := perBlock.Height()
 			//exit this loop if the current height is updated and larger than the height of the blockchain.
 			if lastHeight >= currentBlockHeight {
-				logrus.Debugf("current height of blockchain has been updated: %d, current height: %d", lastHeight, currentBlockHeight)
+				//logrus.Debugf("current height of blockchain has been updated: %d, current height: %d", lastHeight, currentBlockHeight)
 				break out
 			}
 		default:
@@ -265,12 +265,12 @@ out:
 		default:
 		}
 		txs := m.pool.GetTransactions()
-		logrus.Debugf("Obtaining the transactions queue workerId=%-3d", num)
-		logrus.Debugf("Has obtained transaction counts: %d, workerId=%-3d", len(txs), num)
+		//logrus.Debugf("Obtaining the transactions queue workerId=%-3d", num)
+		//logrus.Debugf("Has obtained transaction counts: %d, workerId=%-3d", len(txs), num)
 		lastBlock := m.chain.CurrentBlock()
 		lastStateRoot := lastBlock.StateRoot()
-		lastBlockHash := lastBlock.Hash()
-		logrus.Debugf("Generating block by parent height=%d, hash=0x%x...%x, workerId=%-3d", lastBlock.Height(), lastBlockHash[:4], lastBlockHash[len(lastBlockHash)-4:], num)
+		//lastBlockHash := lastBlock.Hash()
+		//logrus.Debugf("Generating block by parent height=%d, hash=0x%x...%x, workerId=%-3d", lastBlock.Height(), lastBlockHash[:4], lastBlockHash[len(lastBlockHash)-4:], num)
 		stateTree := xfsgo.NewStateTree(m.stateDb, lastStateRoot.Bytes())
 		startTime := time.Now()
 
@@ -289,13 +289,13 @@ out:
 			continue out
 		}
 		//sr := block.StateRoot()
-		logrus.Debugf("Write new block successfully, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
+		logrus.Debugf("successfully Write new block, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
 		//st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
 		//balance := st.GetBalance(m.Coinbase)
 		//logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
 		m.eventBus.Publish(xfsgo.NewMinedBlockEvent{Block: block})
 	}
-	logrus.Debugf("Ended work id=%-3d", num)
+	//logrus.Debugf("Ended work id=%-3d", num)
 }
 func closeWorkers(cs []chan struct{}) {
 	for _, c := range cs {
@@ -305,16 +305,15 @@ func closeWorkers(cs []chan struct{}) {
 func (m *Miner) miningWorkerController() {
 	var runningWorkers []chan struct{}
 	launchWorkers := func(numWorkers uint32) {
-		logrus.Infof("Launch Workers count=%d", numWorkers)
 		for i := uint32(0); i < numWorkers; i++ {
 			quit := make(chan struct{})
 			runningWorkers = append(runningWorkers, quit)
-			logrus.Debugf("Start-up woker id=%-3d", i)
+			//logrus.Debugf("Start-up woker id=%-3d", i)
 			go m.generateBlocks(i, quit)
 		}
 	}
 	runningWorkers = make([]chan struct{}, 0)
-	logrus.Debugf("Starting up workers, workers starting number=%d", m.numWorkers)
+	logrus.Infof("Launch Workers count=%d", m.numWorkers)
 	launchWorkers(m.numWorkers)
 	txPreEventSub := m.eventBus.Subscript(xfsgo.TxPreEvent{})
 	defer txPreEventSub.Unsubscribe()

@@ -65,9 +65,9 @@ type handler struct {
 func newHandler(bc *xfsgo.BlockChain, pv uint32, nv uint32, eventBus *xfsgo.EventBus, txPool *xfsgo.TxPool) (*handler, error) {
 	h := &handler{
 		newPeerCh:   make(chan *peer, 1),
-		hashPackCh:  make(chan hashPack),
-		blockPackCh: make(chan blockPack),
-		txPackCh:    make(chan txPack),
+		hashPackCh:  make(chan hashPack, 1),
+		blockPackCh: make(chan blockPack, 1),
+		txPackCh:    make(chan txPack, 1),
 		peers:       make(map[discover.NodeId]*peer),
 		blockchain:  bc,
 		version:     pv,
@@ -279,9 +279,11 @@ func (h *handler) synchronise(p *peer) {
 		logrus.Infof("findAncestor errs %v\n", err.Error())
 		return
 	}
-	if err = h.fetchHashes(p, number+1); err != nil {
-		logrus.Warn("fetch hashes err")
-	}
+	go func() {
+		if err = h.fetchHashes(p, number+1); err != nil {
+			logrus.Warn("fetch hashes err")
+		}
+	}()
 	go func() {
 		if err = h.fetchBlocks(p); err != nil {
 			logrus.Warn("fetch blocks err")
@@ -313,6 +315,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	number := uint64(0)
 	haveHash := common.HashZ
 	// Blocking receive pack messages
+	//time.After(3 * 60 * time.Second)
 loop:
 	for {
 		select {

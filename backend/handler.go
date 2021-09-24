@@ -305,7 +305,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	if diff < 0 {
 		from = uint64(0)
 	} else {
-		from = uint64(diff)
+		from = height
 	}
 	logrus.Debugf("Find ancestor block hashes: currentHeight=%d, start=%d, count=%d, peerId=%x...%x",
 		height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])

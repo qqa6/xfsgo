@@ -85,8 +85,6 @@ func NewBlockChain(stateDB, chainDB, extraDB *badger.Storage, eventBus *EventBus
 }
 
 func (bc *BlockChain) GetNonce(addr common.Address) uint64 {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
 	return bc.stateTree.GetNonce(addr)
 }
 
@@ -154,8 +152,10 @@ func (bc *BlockChain) LastBlockHash() common.Hash {
 
 func (bc *BlockChain) setLastState() error {
 	if block := bc.chainDB.GetHeadBlock(); block != nil {
+		bc.mu.Lock()
 		bc.currentBlock = block
 		bc.lastBlockHash = block.Hash()
+		bc.mu.Unlock()
 	}
 	return nil
 }
@@ -171,7 +171,7 @@ func (bc *BlockChain) GetBalance(addr common.Address) *big.Int {
 
 // WriteBlock stores the block inputed to the local database.
 func (bc *BlockChain) WriteBlock(block *Block) error {
-	cb := bc.currentBlock
+	cb := bc.CurrentBlock()
 	if block.Height() > cb.Height() {
 		bc.mu.Lock()
 		if err := bc.chainDB.WriteHead(block); err != nil {
@@ -215,6 +215,7 @@ func calcBlockSubsidy(currentHeight uint64) *big.Int {
 
 // AccumulateRewards calculates the rewards and add it to the miner's account.
 func AccumulateRewards(stateTree *StateTree, header *BlockHeader) {
+
 	subsidy := calcBlockSubsidy(header.Height)
 	//logrus.Debugf("current height of the blockchain %d, reward: %d", header.Height, subsidy)
 	stateTree.AddBalance(header.Coinbase, subsidy)
@@ -405,6 +406,8 @@ func (bc *BlockChain) transfer(st *StateTree, from, to common.Address, amount *b
 }
 
 func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	head := bc.currentBlock.Height()
 	if from+count > head {
 		count = head
@@ -418,6 +421,8 @@ func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
 }
 
 func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	head := bc.currentBlock.Height()
 	if count > head {
 		return nil
@@ -438,8 +443,8 @@ func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
 // head blocks match), we do a binary search to find the common ancestor.
 
 func (bc *BlockChain) FindAncestor(current *Block, height uint64) *Block {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.findAncestor(current, height)
 }
 

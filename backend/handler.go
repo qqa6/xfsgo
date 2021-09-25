@@ -145,9 +145,9 @@ func (h *handler) handleMsg(p *peer) error {
 			logrus.Debugf("Handle get block hashes request: from=%d, count=%d, peerId=%x...%x",
 				data.From, data.Count, peerId[:4], peerId[len(peerId)-4:])
 			hashes := h.blockchain.GetBlockHashes(data.From, data.Count)
-			jsonData,_ := json.Marshal(hashes)
-			logrus.Debugf("Send block hashes: data=%s, requestStart=%d, requestCount=%d, peerId=%x...%x",
-				string(jsonData), data.From, data.Count, peerId[:4], peerId[len(peerId)-4:])
+			//jsonData,_ := json.Marshal(hashes)
+			logrus.Debugf("Send block hashes: dataCout=%d, requestStart=%d, requestCount=%d, peerId=%x...%x",
+				len(hashes), data.From, data.Count, peerId[:4], peerId[len(peerId)-4:])
 			if err := p.SendBlockHashes(hashes); err != nil {
 				logrus.Warnf("Send block hashes data err: %s", err)
 				return err

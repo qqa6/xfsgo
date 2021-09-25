@@ -316,7 +316,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	if from < 0 {
 		from = 0
 	}
-	logrus.Debugf("Find ancestor block hashes: currentHeight=%d, start=%d, count=%d, peerId=%x...%x",
+	logrus.Debugf("Find ancestor block hashes: chainHeight=%d, start=%d, count=%d, peerId=%x...%x",
 		height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 	if err = p.RequestHashesFromNumber(uint64(from), MaxHashFetch); err != nil {
 		return 0, err
@@ -329,12 +329,12 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	for finished := false; !finished; {
 		select {
 		case <- p.CloseCh():
-			logrus.Warnf("Fetch ancestor hashes failed peer closed: currentHeight=%d, from=%d, count: %d,  peerId=%x...%x",
+			logrus.Warnf("Fetch ancestor hashes failed peer closed: chainHeight=%d, from=%d, count: %d,  peerId=%x...%x",
 				height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 			return 0, errPeerClosed
 		// Skip loop if timeout
 		case <-timeout:
-			logrus.Warnf("Fetch ancestor hashes timeout: currentHeight=%d, from=%d, count: %d, peerId=%x...%x",
+			logrus.Warnf("Fetch ancestor hashes timeout: chainHeight=%d, from=%d, count: %d, peerId=%x...%x",
 				height,  from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 			return 0, errTimeout
 		case pack := <-h.hashPackCh:
@@ -346,13 +346,18 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 			}
 			hashes := pack.hashes
 			if len(hashes) == 0 {
-				logrus.Warnf("Fetch ancestor hashes is emtpy: currentHeight=%d, from=%d, count: %d, peerId=%x...%x",
+				logrus.Warnf("Fetch ancestor hashes is emtpy: chainHeight=%d, from=%d, count: %d, peerId=%x...%x",
 					height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
 				return 0, errEmptyHashes
 			}
 			finished = true
+			logrus.Debugf("Found ancestor hashes: currentHeight=%d, fetchFrom=%d, fetchCount: %d, foundCount=%d, peerId=%x...%x",
+				height, from, MaxHashFetch, len(hashes), pid[:4], pid[len(pid)-4:])
 			for i := len(hashes) - 1; i >= 0; i-- {
-				if h.hashBlock(hashes[i]) {
+				hash := hashes[i]
+				logrus.Debugf("Check ancestor hashes: chainHeight=%d, fetchFrom=%d, fetchCount: %d, foundCount=%d, index=%d, hash=%x...%x, peerId=%x...%x",
+					height, from, MaxHashFetch, len(hashes), i, hash[:4], hash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
+				if h.hashBlock(hash) {
 					number, haveHash = uint64(from) + uint64(i), hashes[i]
 					break
 				}

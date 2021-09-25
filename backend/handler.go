@@ -305,16 +305,14 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 		return 0, errors.New("empty")
 	}
 	height := headBlock.Height()
-	var from uint64 = 0
-	diff := int(height - MaxHashFetch)
-	if diff < 0 {
-		from = uint64(0)
-	} else {
-		from = height
+	var from = 0
+	from = int(height) - int(MaxHashFetch)
+	if from < 0 {
+		from = 0
 	}
 	logrus.Debugf("Find ancestor block hashes: currentHeight=%d, start=%d, count=%d, peerId=%x...%x",
 		height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
-	if err = p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
+	if err = p.RequestHashesFromNumber(uint64(from), MaxHashFetch); err != nil {
 		return 0, err
 	}
 	number := uint64(0)
@@ -345,7 +343,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 			finished = true
 			for i := len(hashes) - 1; i >= 0; i-- {
 				if h.hashBlock(hashes[i]) {
-					number, haveHash = from + uint64(i), hashes[i]
+					number, haveHash = uint64(from) + uint64(i), hashes[i]
 					break
 				}
 			}
@@ -356,44 +354,44 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 			number, haveHash[:4], haveHash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
 		return number, nil
 	}
-	logrus.Debugf("The fixed interval value is not found. Continue to traverse and find...")
+	logrus.Debugf("Not found ancestor")
 	// If no fixed interval value is found, traverse all blocks and binary search
-	left := 0
-	right := int(MaxHashFetch) + 1
-	for left < right {
-		logrus.Debugf("Traversing height range: [%d, %d]", left, right)
-		mid := (left + right) / 2
-		if err = p.RequestHashesFromNumber(uint64(mid), 1); err != nil {
-			return 0, err
-		}
-		timeout := time.After(timeoutTTL)
-		for arrived := false; !arrived; {
-			select {
-			case <- p.CloseCh():
-				return 0, errors.New("peer closed")
-			case <-timeout:
-				return 0, errors.New("find hashes time out")
-			case pack := <-h.hashPackCh:
-				wanId := p.p2p().ID()
-				wantPeerId := wanId[:]
-				gotPeerId := pack.peerId[:]
-				if !bytes.Equal(wantPeerId, gotPeerId) {
-					break
-				}
-				hashes := pack.hashes
-				if len(hashes) != 1 {
-					return 0, nil
-				}
-				arrived = true
-				if h.hashBlock(hashes[0]) {
-					left = mid + 1
-				} else {
-					right = mid
-				}
-			}
-		}
-	}
-	return uint64(left) - 1, nil
+	//left := 0
+	//right := int(MaxHashFetch) + 1
+	//for left < right {
+	//	logrus.Debugf("Traversing height range: [%d, %d]", left, right)
+	//	mid := (left + right) / 2
+	//	if err = p.RequestHashesFromNumber(uint64(mid), 1); err != nil {
+	//		return 0, err
+	//	}
+	//	timeout := time.After(timeoutTTL)
+	//	for arrived := false; !arrived; {
+	//		select {
+	//		case <- p.CloseCh():
+	//			return 0, errors.New("peer closed")
+	//		case <-timeout:
+	//			return 0, errors.New("find hashes time out")
+	//		case pack := <-h.hashPackCh:
+	//			wanId := p.p2p().ID()
+	//			wantPeerId := wanId[:]
+	//			gotPeerId := pack.peerId[:]
+	//			if !bytes.Equal(wantPeerId, gotPeerId) {
+	//				break
+	//			}
+	//			hashes := pack.hashes
+	//			if len(hashes) != 1 {
+	//				return 0, nil
+	//			}
+	//			arrived = true
+	//			if h.hashBlock(hashes[0]) {
+	//				left = mid + 1
+	//			} else {
+	//				right = mid
+	//			}
+	//		}
+	//	}
+	//}
+	return 0, nil
 }
 
 // Find out whether the hash value exists locally in the local block list

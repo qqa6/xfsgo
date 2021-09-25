@@ -30,7 +30,7 @@ import (
 )
 
 var MaxHashFetch = uint64(512)
-
+var timeoutTTL = 3 * 60 * time.Second
 type hashPack struct {
 	peerId discover.NodeId
 	hashes remoteHashes
@@ -197,15 +197,20 @@ func (h *handler) handleMsg(p *peer) error {
 				return err
 			}
 			blockHash := data.Hash()
+			blockHeight := data.Height()
 			//logrus.Infof("Handle Peer NewBlockMsg: height=%d, hash=%x...%x, peerId=%x...%x",
 			//	data.Height(), blockHash[:4], blockHash[len(blockHash)-4:], peerId[:4], peerId[len(peerId)-4:])
-			p.SetHeight(data.Height())
-			p.SetHead(blockHash)
 			pHead := p.Head()
 			logrus.Debugf("Successfully update peer: height=%d, hash=%x...%x, peerId=%x...%x",
 				p.Height(), pHead[:4], pHead[len(pHead)-4:], peerId[:4], peerId[len(peerId)-4:])
+			if blockHeight > p.Height() {
+				p.SetHeight(data.Height())
+				p.SetHead(blockHash)
+
+				go h.synchronise(p)
+			}
 			//go h.lessPeer(p)
-			go h.synchronise(p)
+
 		case TxMsg: // Process transaction broadcast
 			// Process transaction broadcast
 			var txs remoteTxs = nil
@@ -314,15 +319,15 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	}
 	number := uint64(0)
 	haveHash := common.HashZ
-	// Blocking receive pack messages
-	//time.After(3 * 60 * time.Second)
-loop:
-	for {
+	timeout := time.After(timeoutTTL)
+	//finished := false
+	//loop:
+	for finished := false; !finished; {
 		select {
 		case <- p.CloseCh():
 			return 0, errors.New("peer closed")
 		// Skip loop if timeout
-		case <-time.After(3 * 60 * time.Second):
+		case <-timeout:
 			//logrus.Warnf("Find ancestor block hashes timeout!!!")
 			return 0, errors.New("find ancestor block hashes timeout")
 		case pack := <-h.hashPackCh:
@@ -337,21 +342,19 @@ loop:
 			if len(hashes) == 0 {
 				return 0, errors.New("empty hashes")
 			}
-			for i, hash := range hashes {
-				if h.hashBlock(hash) {
-					continue
+			finished = true
+			for i := len(hashes) - 1; i >= 0; i-- {
+				if h.hashBlock(hashes[i]) {
+					number, haveHash = from + uint64(i), hashes[i]
+					break
 				}
-				// Record height and hash value
-				number = from + uint64(i)
-				haveHash = hash
-				logrus.Debugf("Successfully found ancestor block: height=%d, hash=%x...%x, peerId=%x...%x",
-					number, haveHash[:4], haveHash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
-				break loop
 			}
 		}
 	}
 	if !bytes.Equal(haveHash[:], common.HashZ[:]) {
-		return number - 1, nil
+		logrus.Debugf("Found ancestor block: height=%d, hash=%x...%x, peerId=%x...%x",
+			number, haveHash[:4], haveHash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
+		return number, nil
 	}
 	logrus.Debugf("The fixed interval value is not found. Continue to traverse and find...")
 	// If no fixed interval value is found, traverse all blocks and binary search
@@ -363,12 +366,13 @@ loop:
 		if err = p.RequestHashesFromNumber(uint64(mid), 1); err != nil {
 			return 0, err
 		}
-		for {
+		timeout := time.After(timeoutTTL)
+		for arrived := false; !arrived; {
 			select {
 			case <- p.CloseCh():
 				return 0, errors.New("peer closed")
-			case <-time.After(3 * 60 * time.Second):
-				return 0, errors.New("find hashes time out err2")
+			case <-timeout:
+				return 0, errors.New("find hashes time out")
 			case pack := <-h.hashPackCh:
 				wanId := p.p2p().ID()
 				wantPeerId := wanId[:]
@@ -380,6 +384,7 @@ loop:
 				if len(hashes) != 1 {
 					return 0, nil
 				}
+				arrived = true
 				if h.hashBlock(hashes[0]) {
 					left = mid + 1
 				} else {
@@ -404,14 +409,20 @@ func (h *handler) fetchHashes(p *peer, from uint64) error {
 	defer h.fetchHashesLock.Unlock()
 	pid := p.p2p().ID()
 	logrus.Debugf("Fetching Hashes: from=%d, count=%d, peerId=%x...%x", from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
+	timeout := time.NewTimer(0)
+	<-timeout.C
+	defer timeout.Stop()
 	go func() {
 		if err := p.RequestHashesFromNumber(from, MaxHashFetch); err != nil {
 			logrus.Warn("request hashes err")
 		}
+		timeout.Reset(timeoutTTL)
 	}()
+	//timeout := time.NewTimer(0)
+	//timeout := time.After(timeoutTTL)
 	for {
 		select {
-		case <-time.After(3 * 60 * time.Second):
+		case <-timeout.C:
 			return errors.New("fetchHashes time out err")
 		case pack := <-h.hashPackCh:
 			wanId := p.p2p().ID()
@@ -420,6 +431,7 @@ func (h *handler) fetchHashes(p *peer, from uint64) error {
 			if !bytes.Equal(wantPeerId, gotPeerId) {
 				break
 			}
+			timeout.Stop()
 			hashes := pack.hashes
 			if len(hashes) == 0 {
 				return nil

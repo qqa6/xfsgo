@@ -85,6 +85,8 @@ func NewBlockChain(stateDB, chainDB, extraDB *badger.Storage, eventBus *EventBus
 }
 
 func (bc *BlockChain) GetNonce(addr common.Address) uint64 {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.stateTree.GetNonce(addr)
 }
 
@@ -99,15 +101,21 @@ func (bc *BlockChain) getBlockByNumber(num uint64) *Block {
 }
 
 func (bc *BlockChain) GetBlockHeaderByNumber(num uint64) (*BlockHeader, common.Hash) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	data := bc.chainDB.GetBlockByNumber(num)
 	return data.Header, data.Hash()
 }
 
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) *Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.chainDB.GetBlockByHash(hash)
 }
 
 func (bc *BlockChain) GetReceiptByHash(hash common.Hash) *Receipt {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.extraDB.GetReceipt(hash)
 }
 

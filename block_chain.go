@@ -139,8 +139,8 @@ func (bc *BlockChain) GenesisBlock() *Block {
 }
 
 func (bc *BlockChain) CurrentBlock() *Block {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
 	return bc.currentBlock
 }
 
@@ -171,7 +171,7 @@ func (bc *BlockChain) GetBalance(addr common.Address) *big.Int {
 
 // WriteBlock stores the block inputed to the local database.
 func (bc *BlockChain) WriteBlock(block *Block) error {
-	cb := bc.CurrentBlock()
+	cb := bc.currentBlock
 	if block.Height() > cb.Height() {
 		bc.mu.Lock()
 		if err := bc.chainDB.WriteHead(block); err != nil {

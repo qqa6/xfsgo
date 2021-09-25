@@ -31,6 +31,13 @@ import (
 
 var MaxHashFetch = uint64(512)
 var timeoutTTL = 3 * 60 * time.Second
+
+var (
+	errPeerClosed = errors.New("peer closed")
+	errTimeout = errors.New("timeout")
+	errEmptyHashes = errors.New("empty hashes")
+)
+
 type hashPack struct {
 	peerId discover.NodeId
 	hashes remoteHashes
@@ -323,11 +330,10 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	for finished := false; !finished; {
 		select {
 		case <- p.CloseCh():
-			return 0, errors.New("peer closed")
+			return 0, errPeerClosed
 		// Skip loop if timeout
 		case <-timeout:
-			//logrus.Warnf("Find ancestor block hashes timeout!!!")
-			return 0, errors.New("find ancestor block hashes timeout")
+			return 0, errTimeout
 		case pack := <-h.hashPackCh:
 			wanId := p.p2p().ID()
 			wantPeerId := wanId[:]
@@ -338,7 +344,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 			}
 			hashes := pack.hashes
 			if len(hashes) == 0 {
-				return 0, errors.New("empty hashes")
+				return 0, errEmptyHashes
 			}
 			finished = true
 			for i := len(hashes) - 1; i >= 0; i-- {
@@ -354,7 +360,7 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 			number, haveHash[:4], haveHash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
 		return number, nil
 	}
-	logrus.Debugf("Not found ancestor")
+	logrus.Warnf("Not found ancestor: currentHeight=%d, start=%d, peerId=%x...%x",height, from, pid[0:4], pid[len(pid)-4:])
 	// If no fixed interval value is found, traverse all blocks and binary search
 	//left := 0
 	//right := int(MaxHashFetch) + 1
@@ -420,8 +426,10 @@ func (h *handler) fetchHashes(p *peer, from uint64) error {
 	//timeout := time.After(timeoutTTL)
 	for {
 		select {
+		case <-p.CloseCh():
+			return errPeerClosed
 		case <-timeout.C:
-			return errors.New("fetchHashes time out err")
+			return errTimeout
 		case pack := <-h.hashPackCh:
 			wanId := p.p2p().ID()
 			wantPeerId := wanId[:]
@@ -449,11 +457,8 @@ func (h *handler) fetchBlocks(p *peer) error {
 	for {
 		select {
 		case <- p.CloseCh():
-			return errors.New("peer closed")
-		case <-time.After(3 * 60 * time.Second):
-			return errors.New("fetchHashes time out err")
+			return errPeerClosed
 		case pack := <-h.blockPackCh:
-
 			wanId := p.p2p().ID()
 			wantPeerId := wanId[:]
 			gotPeerId := pack.peerId[:]

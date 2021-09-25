@@ -142,11 +142,14 @@ func (h *handler) handleMsg(p *peer) error {
 				logrus.Warnf("handle GetBlockHashesFromNumberMsg msg err: %s", err)
 				return err
 			}
-			//logrus.Infof("Handle get block hashes: start=%d, count=%d, peerId=%x...%x",
-			//	data.From, data.Count, peerId[:4], peerId[len(peerId)-4:])
+			logrus.Debugf("Handle get block hashes request: from=%d, count=%d, peerId=%x...%x",
+				data.From, data.Count, peerId[:4], peerId[len(peerId)-4:])
 			hashes := h.blockchain.GetBlockHashes(data.From, data.Count)
+			jsonData,_ := json.Marshal(hashes)
+			logrus.Debugf("Send block hashes: data=%s, requestStart=%d, requestCount=%d, peerId=%x...%x",
+				string(jsonData), data.From, data.Count, peerId[:4], peerId[len(peerId)-4:])
 			if err := p.SendBlockHashes(hashes); err != nil {
-				logrus.Warnf("send block hashes data err: %s", err)
+				logrus.Warnf("Send block hashes data err: %s", err)
 				return err
 			}
 		case BlockHashesMsg:
@@ -505,7 +508,7 @@ func (h *handler) process(blocks remoteBlocks) {
 
 func (h *handler) BroadcastBlock(block *xfsgo.Block) {
 	hash := block.Hash()
-	logrus.Debugf("Broadcast block height: %d, hash: 0x%x...%x", block.Height(), hash[:4], hash[len(hash):])
+	logrus.Debugf("Broadcast block height: %d, hash: %x...%x", block.Height(), hash[:4], hash[len(hash)-4:])
 	for k := range h.peers {
 		p := h.peers[k]
 		if err := p.SendNewBlock(block); err != nil {

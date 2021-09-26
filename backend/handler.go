@@ -359,8 +359,8 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 				height, from, MaxHashFetch, len(hashes), pid[:4], pid[len(pid)-4:])
 			for i := len(hashes) - 1; i >= 0; i-- {
 				hash := hashes[i]
-				logrus.Debugf("Check ancestor hashes: chainHeight=%d, fetchFrom=%d, fetchCount: %d, foundCount=%d, index=%d, hash=%x...%x, peerId=%x...%x",
-					height, from, MaxHashFetch, len(hashes), i, hash[:4], hash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
+				//logrus.Debugf("Check ancestor hashes: chainHeight=%d, fetchFrom=%d, fetchCount: %d, foundCount=%d, index=%d, hash=%x...%x, peerId=%x...%x",
+				//	height, from, MaxHashFetch, len(hashes), i, hash[:4], hash[len(haveHash)-4:], pid[:4], pid[len(pid)-4:])
 				if h.hashBlock(hash) {
 					number, haveHash = uint64(from) + uint64(i), hashes[i]
 					break
@@ -410,43 +410,6 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 		}
 	}
 	return left, nil
-	// If no fixed interval value is found, traverse all blocks and binary search
-	//left := 0
-	//right := int(MaxHashFetch) + 1
-	//for left < right {
-	//	logrus.Debugf("Traversing height range: [%d, %d]", left, right)
-	//	mid := (left + right) / 2
-	//	if err = p.RequestHashesFromNumber(uint64(mid), 1); err != nil {
-	//		return 0, err
-	//	}
-	//	timeout := time.After(timeoutTTL)
-	//	for arrived := false; !arrived; {
-	//		select {
-	//		case <- p.CloseCh():
-	//			return 0, errors.New("peer closed")
-	//		case <-timeout:
-	//			return 0, errors.New("find hashes time out")
-	//		case pack := <-h.hashPackCh:
-	//			wanId := p.p2p().ID()
-	//			wantPeerId := wanId[:]
-	//			gotPeerId := pack.peerId[:]
-	//			if !bytes.Equal(wantPeerId, gotPeerId) {
-	//				break
-	//			}
-	//			hashes := pack.hashes
-	//			if len(hashes) != 1 {
-	//				return 0, nil
-	//			}
-	//			arrived = true
-	//			if h.hashBlock(hashes[0]) {
-	//				left = mid + 1
-	//			} else {
-	//				right = mid
-	//			}
-	//		}
-	//	}
-	//}
-	return 0, nil
 }
 
 // Find out whether the hash value exists locally in the local block list

@@ -89,35 +89,45 @@ func (bc *BlockChain) GetNonce(addr common.Address) uint64 {
 }
 
 func (bc *BlockChain) GetBlockByNumber(num uint64) *Block {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
 	return bc.getBlockByNumber(num)
 }
 
 func (bc *BlockChain) getBlockByNumber(num uint64) *Block {
+	bc.chainmu.RUnlock()
+	defer bc.chainmu.RUnlock()
 	return bc.chainDB.GetBlockByNumber(num)
 }
 
 func (bc *BlockChain) GetBlockHeaderByNumber(num uint64) (*BlockHeader, common.Hash) {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
+	bc.chainmu.RUnlock()
+	defer bc.chainmu.RUnlock()
 	data := bc.chainDB.GetBlockByNumber(num)
 	return data.Header, data.Hash()
 }
 
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) *Block {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
+	bc.chainmu.RUnlock()
+	defer bc.chainmu.RUnlock()
 	return bc.chainDB.GetBlockByHash(hash)
 }
 
 func (bc *BlockChain) GetReceiptByHash(hash common.Hash) *Receipt {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
+	bc.chainmu.RUnlock()
+	defer bc.chainmu.RUnlock()
 	return bc.extraDB.GetReceipt(hash)
 }
 
 func (bc *BlockChain) GetBlockHeaderByHash(hash common.Hash) (*BlockHeader, common.Hash) {
+	bc.chainmu.RUnlock()
+	defer bc.chainmu.RUnlock()
 	data := bc.chainDB.GetBlockByHash(hash)
 	return data.Header, data.Hash()
 }
@@ -406,8 +416,8 @@ func (bc *BlockChain) transfer(st *StateTree, from, to common.Address, amount *b
 }
 
 func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
 	head := bc.currentBlock.Height()
 	if from+count > head {
 		count = head

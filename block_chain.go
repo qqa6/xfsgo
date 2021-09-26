@@ -84,50 +84,30 @@ func NewBlockChain(stateDB, chainDB, extraDB *badger.Storage, eventBus *EventBus
 	return bc, nil
 }
 
-func (bc *BlockChain) GetNonce(addr common.Address) uint64 {
-	return bc.stateTree.GetNonce(addr)
-}
-
 func (bc *BlockChain) GetBlockByNumber(num uint64) *Block {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.getBlockByNumber(num)
 }
 
 func (bc *BlockChain) getBlockByNumber(num uint64) *Block {
-	//bc.chainmu.RUnlock()
-	//defer bc.chainmu.RUnlock()
 	return bc.chainDB.GetBlockByNumber(num)
 }
 
 func (bc *BlockChain) GetBlockHeaderByNumber(num uint64) (*BlockHeader, common.Hash) {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
-	//bc.chainmu.RUnlock()
-	//defer bc.chainmu.RUnlock()
 	data := bc.chainDB.GetBlockByNumber(num)
 	return data.Header, data.Hash()
 }
 
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) *Block {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
-	bc.chainmu.RUnlock()
-	defer bc.chainmu.RUnlock()
 	return bc.chainDB.GetBlockByHash(hash)
 }
 
 func (bc *BlockChain) GetReceiptByHash(hash common.Hash) *Receipt {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
-	bc.chainmu.RUnlock()
-	defer bc.chainmu.RUnlock()
 	return bc.extraDB.GetReceipt(hash)
 }
 
 func (bc *BlockChain) GetBlockHeaderByHash(hash common.Hash) (*BlockHeader, common.Hash) {
-	//bc.chainmu.RUnlock()
-	//defer bc.chainmu.RUnlock()
 	data := bc.chainDB.GetBlockByHash(hash)
 	return data.Header, data.Hash()
 }
@@ -149,23 +129,21 @@ func (bc *BlockChain) GenesisBlock() *Block {
 }
 
 func (bc *BlockChain) CurrentBlock() *Block {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.currentBlock
 }
 
 func (bc *BlockChain) LastBlockHash() common.Hash {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	return bc.lastBlockHash
 }
 
 func (bc *BlockChain) setLastState() error {
 	if block := bc.chainDB.GetHeadBlock(); block != nil {
-		//bc.mu.Lock()
 		bc.currentBlock = block
 		bc.lastBlockHash = block.Hash()
-		//bc.mu.Unlock()
 	}
 	return nil
 }
@@ -218,16 +196,14 @@ func (bc *BlockChain) GetTransaction(Hash common.Hash) *Transaction {
 // calculate rewards for packing the block by miners
 func calcBlockSubsidy(currentHeight uint64) *big.Int {
 	// reduce the reward by half
-	nSubsidy := uint64(50) >> uint(currentHeight/210000)
-	//logrus.Debugf("nSubsidy: %d", nSubsidy)
-	return common.BaseCoin2Atto(float64(nSubsidy))
+	nSubsidy := uint64(50 * common.Coin)
+	return new(big.Int).SetUint64(nSubsidy >> uint(currentHeight/210000))
 }
 
 // AccumulateRewards calculates the rewards and add it to the miner's account.
 func AccumulateRewards(stateTree *StateTree, header *BlockHeader) {
-
 	subsidy := calcBlockSubsidy(header.Height)
-	//logrus.Debugf("current height of the blockchain %d, reward: %d", header.Height, subsidy)
+	logrus.Debugf("current height of the blockchain %d, reward: %d", header.Height, subsidy)
 	stateTree.AddBalance(header.Coinbase, subsidy)
 }
 
@@ -236,19 +212,17 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 	blockHash := block.Hash()
-	logrus.Infof("Insert block to local chain: height=%d, hash=%x...%x",
-		block.Height(), blockHash[:4], blockHash[len(blockHash)-4:])
 	txs := block.Transactions
-	header := block.GetHeader()
 	txsRoot := block.TransactionRoot()
 	rsRoot := block.ReceiptsRoot()
-	//logrus.Infof("Processing block %v", blockHash)
+	logrus.Infof("Processing block %v", blockHash)
 	if old := bc.GetBlockByHash(blockHash); old != nil {
 		return fmt.Errorf("already have block %v", blockHash)
 	}
 	if _, has := bc.orphansCache.Get(blockHash); has {
 		return fmt.Errorf("already have block (orphan) %v", blockHash)
 	}
+	header := block.GetHeader()
 	if err := bc.checkBlockHeaderSanity(header, blockHash); err != nil {
 		return err
 	}
@@ -259,19 +233,19 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 		return nil
 	}
 	targetTxsRoot := CalcTxsRootHash(block.Transactions)
-	if !bytes.Equal(targetTxsRoot.Bytes(), txsRoot.Bytes()) {
+	if bytes.Compare(targetTxsRoot.Bytes(), txsRoot.Bytes()) != common.Zero {
 		return fmt.Errorf("check transaction root err")
 	}
 	parentStateRoot := parent.StateRoot()
 	stateTree := NewStateTree(bc.stateDB, parentStateRoot.Bytes())
-	rs, err := bc.ApplyTransactions(stateTree, header, txs)
+	rs, err := bc.ApplyTransactions(stateTree, txs)
 	if err != nil {
 		return err
 	}
 	AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
 	targetRsRoot := CalcReceiptRootHash(rs)
-	if !bytes.Equal(rsRoot.Bytes(), targetRsRoot.Bytes()) {
+	if bytes.Compare(rsRoot.Bytes(), targetRsRoot.Bytes()) != common.Zero {
 		return fmt.Errorf("check receipt root err")
 	}
 	if err = stateTree.Commit(); err != nil {
@@ -280,17 +254,14 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	if err = bc.WriteBlock(block); err != nil {
 		return err
 	}
-	logrus.Infof("Successfully write block to local chain: height=%d, hash=%x...%x",
-		block.Height(), blockHash[:4], blockHash[len(blockHash)-4:])
+
 	return nil
 }
 
-func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) ([]*Receipt, error) {
+func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, txs []*Transaction) ([]*Receipt, error) {
 	receipts := make([]*Receipt, 0)
-	totalUsedGas := big.NewInt(0)
-
 	for _, tx := range txs {
-		r, err := bc.applyTransaction(stateTree, totalUsedGas, header, tx)
+		r, err := bc.applyTransaction(stateTree, tx)
 		if err != nil {
 			logrus.Errorf("something wrong to execute the transactions: %s", tx.Hash())
 			return nil, err
@@ -326,74 +297,21 @@ func (bc *BlockChain) checkTransactionSanity(tx *Transaction) error {
 	return nil
 }
 
-// IntrinsicGas computes the 'intrisic gas' for a message
-// with the given data.
-func (bc *BlockChain) IntrinsicGas(_ []byte) *big.Int {
-	igas := new(big.Int).Set(common.TxGas)
-	return igas
-}
-
-func (bc *BlockChain) UseGas(gas, amount *big.Int) (*big.Int, error) {
-	if gas.Cmp(amount) < 0 {
-		return nil, errors.New("out of gas")
-	}
-
-	return gas.Sub(gas, amount), nil
-}
-
-func (bc *BlockChain) applyTransaction(stateTree *StateTree, usedGas *big.Int, header *BlockHeader, tx *Transaction) (*Receipt, error) {
+func (bc *BlockChain) applyTransaction(stateTree *StateTree, tx *Transaction) (*Receipt, error) {
 	if err := bc.checkTransactionSanity(tx); err != nil {
 		return nil, err
 	}
-	cb := stateTree.GetStateObj(header.Coinbase)
-
-	// Pre-pay gas / Buy gas of the coinbase account
-	cb.SetGasLimit(header.GasLimit)
-	mgas := tx.GasLimit
-	mgval := new(big.Int).Mul(mgas, tx.GasPrice)
-
 	sender, err := tx.FromAddr()
 	if err != nil {
 		return nil, err
 	}
-	senderObj := stateTree.GetOrNewStateObj(sender) // get from Transaction state object
-	if senderObj.GetBalance().Cmp(mgval) < 0 {
-		return nil, fmt.Errorf("insufficient for gas (%x). Req %v, has %v", sender.Bytes()[:4], mgval, senderObj.GetBalance())
-	}
-	if err = cb.SubGas(mgas, tx.GasPrice); err != nil {
-		return nil, err
-	}
-	gas := new(big.Int)
-	gas.Add(gas, mgas) // user max gas
-	initialGas := new(big.Int)
-	initialGas.Set(mgas)
-	senderObj.SubBalance(mgval)
-
-	// IntrinsicGas
-	amount := bc.IntrinsicGas([]byte{})
-
-	if mgas.Cmp(amount) < 0 {
-		return nil, errors.New("out of gas")
-	}
-
-	surplus, err := bc.UseGas(gas, amount)
-	if err != nil {
-		return nil, err
-	}
-	senderObj.AddBalance(surplus)
-	cb.AddBalance(amount)
-
 	stateTree.AddNonce(sender, 1)
-
 	if err = bc.callTransfer(stateTree, sender, tx.To, tx.Value); err != nil {
 		return nil, err
 	}
 	stateTree.UpdateAll()
 	receipt := &Receipt{
-		TxHash:  tx.Hash(),
-		Version: tx.Version,
-		Status:  uint32(1),
-		GasUsed: amount,
+		TxHash: tx.Hash(),
 	}
 	return receipt, nil
 }
@@ -405,24 +323,32 @@ func (bc *BlockChain) callTransfer(st *StateTree, from, to common.Address, amoun
 func (bc *BlockChain) transfer(st *StateTree, from, to common.Address, amount *big.Int) error {
 	fromObj := st.GetOrNewStateObj(from)
 	toObj := st.GetOrNewStateObj(to)
-
 	if fromObj.balance.Cmp(amount) < 0 {
 		return errors.New("from balance is not enough")
 	}
-
 	fromObj.SubBalance(amount)
 	toObj.AddBalance(amount)
 	return nil
 }
 
 func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
 	head := bc.currentBlock.Height()
+
+	logrus.Infof("headTTT%v\n", head)
+	logrus.Infof("FormTTT%v\n", from)
+	// var number uint64 = 0
+	// if head > from {
+	// 	number = head
+	// } else {
+	// 	number = from
+	// }
 	if from+count > head {
 		count = head
+		// return nil
 	}
+	// logrus.Infof("NumberTTTT%v\n", number)
 	hashes := make([]common.Hash, 0)
+	// logrus.Infof("fromh%v\n", from+uint64(0))
 	for h := uint64(0); from+h <= count; h++ {
 		block := bc.GetBlockByNumber(from + h)
 		hashes = append(hashes, block.Hash())
@@ -431,13 +357,11 @@ func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
 }
 
 func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
 	head := bc.currentBlock.Height()
-	if count > head {
+	result := int(from) + int(count)
+	if uint64(result) > head {
 		return nil
 	}
-
 	hashes := make([]*Block, 0)
 	for h := uint64(0); from+h <= count; h++ {
 		block := bc.GetBlockByNumber(from + h)
@@ -453,8 +377,8 @@ func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
 // head blocks match), we do a binary search to find the common ancestor.
 
 func (bc *BlockChain) FindAncestor(current *Block, height uint64) *Block {
-	//bc.mu.RLock()
-	//defer bc.mu.RUnlock()
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
 	return bc.findAncestor(current, height)
 }
 
@@ -525,9 +449,9 @@ func (bc *BlockChain) calcNextRequiredDifficulty(lastBlock *Block) (uint32, erro
 
 //calculate the next difficuty for hash value of next block.
 func (bc *BlockChain) CalcNextRequiredDifficulty() (uint32, error) {
-	//bc.mu.Lock()
+	bc.mu.Lock()
 	difficulty, err := bc.calcNextRequiredDifficulty(bc.currentBlock)
-	//bc.mu.Unlock()
+	bc.mu.Unlock()
 	return difficulty, err
 }
 

@@ -36,6 +36,7 @@ var (
 	errPeerClosed = errors.New("peer closed")
 	errTimeout = errors.New("timeout")
 	errEmptyHashes = errors.New("empty hashes")
+	errBadHashes = errors.New("bad hashes")
 )
 
 type hashPack struct {
@@ -374,6 +375,41 @@ func (h *handler) findAncestor(p *peer) (uint64, error) {
 	}
 	logrus.Warnf("Not found ancestor: currentHeight=%d, from=%d, count=%d, peerId=%x...%x",
 		height, from, MaxHashFetch, pid[0:4], pid[len(pid)-4:])
+	left, right := uint64(0), height
+	for left+1 < right {
+		logrus.Debugf("Traversing height range:  left=%d, right=%d", left, right)
+		mid := (left + right) / 2
+		if err = p.RequestHashesFromNumber(mid, 1); err != nil {
+			return 0, err
+		}
+		timeout := time.After(timeoutTTL)
+		for arrived := false; !arrived; {
+			select {
+			case <- p.CloseCh():
+				return 0, errPeerClosed
+			case <-timeout:
+				return 0, errTimeout
+			case pack := <-h.hashPackCh:
+				wanId := p.p2p().ID()
+				wantPeerId := wanId[:]
+				gotPeerId := pack.peerId[:]
+				if !bytes.Equal(wantPeerId, gotPeerId) {
+					break
+				}
+				hashes := pack.hashes
+				if len(hashes) != 1 {
+					return 0, errBadHashes
+				}
+				arrived = true
+				if h.hashBlock(hashes[0]) {
+					left = mid
+				} else {
+					right = mid
+				}
+			}
+		}
+	}
+	return left, nil
 	// If no fixed interval value is found, traverse all blocks and binary search
 	//left := 0
 	//right := int(MaxHashFetch) + 1

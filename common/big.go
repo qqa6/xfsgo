@@ -22,15 +22,15 @@ var Big0 = new(big.Int).SetInt64(0)
 
 // var TxDataZeroGas = big.NewInt(4)                                                    // Per byte of data attached to a transaction that equals zero. NOTE: Not payable on data of calls between transactions.
 // var TxDataNonZeroGas = big.NewInt(68)                                                // Per byte of data attached to a transaction that is not equal to zero. NOTE: Not payable on data of calls between transactions.
-var TxGas = BaseCoin2Atto(float64(1))            // Per transaction. NOTE: Not payable on data of calls between transactions.
-var GasLimitBoundDivisor = big.NewInt(1024)      // The bound divisor of the gas limit, used in update calculations.
-var GenesisGasLimit = BaseCoin2Atto(float64(50)) // Gas limit of the Genesis block.
+var TxGas = Atto2BaseCoin(BaseCoin2Nano(float64(1)))            // Per transaction. NOTE: Not payable on data of calls between transactions.
+var GasLimitBoundDivisor = big.NewInt(1024)                     // The bound divisor of the gas limit, used in update calculations.
+var GenesisGasLimit = Atto2BaseCoin(BaseCoin2Nano(float64(50))) // Gas limit of the Genesis block.
 // miner
-var MinGasPrice = BaseCoin2Atto(float64(1))   // miner minGasPirce
-var MinGasLimit = BaseCoin2Atto(float64(100)) // Minimum the gas limit may ever be.
+var MinGasPrice = Atto2BaseCoin(BaseCoin2Nano(float64(1)))   // miner minGasPirce
+var MinGasLimit = Atto2BaseCoin(BaseCoin2Nano(float64(100))) // Minimum the gas limit may ever be.
 // wallet
-var DefaultGasPrice = BaseCoin2Atto(float64(2)) //1 00  0000 0000 0000 0000
-var DefaultGas = BaseCoin2Atto(float64(10))     //1 000 0000 0000 0000 0000
+var DefaultGasPrice = Atto2BaseCoin(BaseCoin2Nano(float64(2))) //1 00  0000 0000 0000 0000
+var DefaultGas = Atto2BaseCoin(BaseCoin2Nano(float64(10)))     //1 000 0000 0000 0000 0000
 
 func ParseString2BigInt(str string) *big.Int {
 	if str == "" {

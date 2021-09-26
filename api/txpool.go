@@ -17,11 +17,23 @@
 package api
 
 import (
+	"math/big"
 	"xfsgo"
+	"xfsgo/common"
 )
 
 type TxPoolHandler struct {
 	TxPool *xfsgo.TxPool
+}
+
+type TranArgs struct {
+	Hash string `json:"hash"`
+}
+
+type TranGasArgs struct {
+	GasLimit string `json:"gas_limit"`
+	GasPrice string `json:"gas_price"`
+	Hash     string `json:"hash"`
 }
 
 func (tx *TxPoolHandler) GetPending(_ EmptyArgs, resp *transactions) error {
@@ -33,5 +45,31 @@ func (tx *TxPoolHandler) GetPending(_ EmptyArgs, resp *transactions) error {
 func (tx *TxPoolHandler) GetPendingSize(_ EmptyArgs, resp *int) error {
 	data := tx.TxPool.GetTransactionsSize()
 	*resp = data
+	return nil
+}
+
+func (tx *TxPoolHandler) GetTran(args TranArgs, resp *xfsgo.Transaction) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	tranObj := tx.TxPool.GetTransaction(args.Hash)
+	*resp = *tranObj
+	return nil
+}
+
+func (tx *TxPoolHandler) ModifyTrans(args TranGasArgs, resp *string) error {
+	if args.GasLimit == "" || args.GasPrice == "" || args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	var gasLimit, gasPrice *big.Int
+	gasLimit = common.ParseString2BigInt(args.GasLimit)
+	gasLimit = common.Atto2BaseCoin(gasLimit)
+
+	gasPrice = common.ParseString2BigInt(args.GasPrice)
+	gasPrice = common.Atto2BaseCoin(gasPrice)
+
+	if err := tx.TxPool.ModifyTrans(gasLimit, gasPrice, args.Hash); err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
 	return nil
 }

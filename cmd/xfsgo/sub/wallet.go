@@ -71,8 +71,8 @@ var (
 		RunE:  runWalletExport,
 	}
 	walletImportCommand = &cobra.Command{
-		Use:   "import <private_key>",
-		Short: "import wallet <privatekey>",
+		Use:   "import <key>",
+		Short: "import wallet <key>",
 		RunE:  runWalletImport,
 	}
 	walletTransferCommand = &cobra.Command{
@@ -286,7 +286,7 @@ func runWalletList() error {
 	fmt.Println()
 	for _, w := range walletAddress {
 
-		req := &getStateObjArgs{
+		req := &getAccountArgs{
 			RootHash: hash,
 			Address:  w.B58String(),
 		}

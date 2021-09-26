@@ -26,10 +26,6 @@ import (
 	"xfsgo/crypto"
 )
 
-// var (
-// 	notFoundBlockErr = xfsgo.NewRPCError(-32001, "Not found block")
-// )
-
 type ChainAPIHandler struct {
 	BlockChain    *xfsgo.BlockChain
 	TxPendingPool *xfsgo.TxPool

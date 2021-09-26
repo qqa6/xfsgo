@@ -19,7 +19,6 @@ package xfsgo
 import (
 	"crypto/ecdsa"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
@@ -92,10 +91,8 @@ func (t *Transaction) SignHash() common.Hash {
 }
 
 func (t *Transaction) Cost() *big.Int {
-	// fmt.Printf("total:%v\n", total)
 	total := new(big.Int).Mul(t.GasPrice, t.GasLimit)
 	total.Add(total, t.Value)
-	fmt.Printf("total:%v\n", total)
 	return total
 }
 

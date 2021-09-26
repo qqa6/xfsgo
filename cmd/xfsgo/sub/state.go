@@ -32,16 +32,22 @@ var (
 			return cmd.Help()
 		},
 	}
-	getStateObjCommand = &cobra.Command{
-		Use:   "getstateobj <roothash> <address>",
-		Short: "get state object  <roothash>  <address>",
-		RunE:  getStateObj,
+	getAccountCommand = &cobra.Command{
+		Use:   "getaccount --roothash [hash] <address>",
+		Short: "Specifies the hash value of the world state tree root",
+		RunE:  GetAccount,
 	}
 )
 
-func getStateObj(cmd *cobra.Command, args []string) error {
-	if len(args) != 2 {
+func GetAccount(cmd *cobra.Command, args []string) error {
+	var RootHash, Address string
+	if len(args) < 1 {
 		return cmd.Help()
+	}
+	Address = args[0]
+	if len(args) > 1 {
+		RootHash = args[0]
+		Address = args[1]
 	}
 
 	config, err := parseClientConfig(cfgFile)
@@ -51,9 +57,9 @@ func getStateObj(cmd *cobra.Command, args []string) error {
 
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	result := make(map[string]interface{}, 1)
-	req := &getStateObjArgs{
-		RootHash: args[0],
-		Address:  args[1],
+	req := &getAccountArgs{
+		RootHash: RootHash,
+		Address:  Address,
 	}
 	err = cli.CallMethod(1, "State.GetStateObj", &req, &result)
 	if err != nil {
@@ -72,5 +78,5 @@ func getStateObj(cmd *cobra.Command, args []string) error {
 
 func init() {
 	rootCmd.AddCommand(getStateCommand)
-	getStateCommand.AddCommand(getStateObjCommand)
+	getStateCommand.AddCommand(getAccountCommand)
 }

@@ -40,7 +40,7 @@ type gettxbyBlockHashArgs struct {
 	Hash string `json:"hash"`
 }
 
-type getStateObjArgs struct {
+type getAccountArgs struct {
 	RootHash string `json:"root_hash"`
 	Address  string `json:"address"`
 }
@@ -75,10 +75,27 @@ type GetBlocksArgs struct {
 type MinSetGasPriceArgs struct {
 	GasPrice string `json:"gas_price"`
 }
+type MinSetGasLimitArgs struct {
+	GasLimit string `json:"gas_limit"`
+}
+
+type MinWorkerArgs struct {
+	WorkerNum int `json:"worker_num"`
+}
+
+type MinSetCoinbaseArgs struct {
+	Coinbase string `json:"coinbase"`
+}
 
 type GasLimitArgs struct {
 	Gas string `json:"gas"`
 }
 type SetGasPriceArgs struct {
 	GasPrice string `json:"gas_price"`
+}
+
+type TranGasArgs struct {
+	GasLimit string `json:"gas_limit"`
+	GasPrice string `json:"gas_price"`
+	Hash     string `json:"hash"`
 }

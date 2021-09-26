@@ -77,16 +77,16 @@ func New(config *Config) (*Node, error) {
 	enc := new(rawencode.StdEncoder)
 	//logrus.Infof("logger level: %s", logrus.GetLevel())
 	p2pServer := p2p.NewServer(p2p.Config{
-		Encoder: enc,
-		Nat: nat.Any(),
-		ListenAddr:      config.P2PListenAddress,
-		Key:             nodeKeyByPath(config.NodeDBPath),
-		BootstrapNodes:  bootstraps,
-		StaticNodes:     staticNodes,
-		Discover:        true,
-		MaxPeers:        10,
-		NodeDBPath:      config.NodeDBPath,
-		Logger: logrus.StandardLogger(),
+		Encoder:        enc,
+		Nat:            nat.Any(),
+		ListenAddr:     config.P2PListenAddress,
+		Key:            nodeKeyByPath(config.NodeDBPath),
+		BootstrapNodes: bootstraps,
+		StaticNodes:    staticNodes,
+		Discover:       true,
+		MaxPeers:       10,
+		NodeDBPath:     config.NodeDBPath,
+		Logger:         logrus.StandardLogger(),
 	})
 	n := &Node{
 		config:    config,
@@ -135,7 +135,8 @@ func (n *Node) RegisterBackend(
 		TxPool: txPool,
 	}
 	stateHandler := &api.StateAPIHandler{
-		StateDb: stateDb,
+		StateDb:    stateDb,
+		BlockChain: bc,
 	}
 	if err := n.rpcServer.RegisterName("Chain", chainApiHandler); err != nil {
 		log.Fatalf("RPC service register error: %s", err)
@@ -174,7 +175,7 @@ func nodeKeyByPath(filepath string) *ecdsa.PrivateKey {
 		return k
 	}
 	keyfile := path.Join(filepath, datadirPrivateKey)
-	if file,err := os.OpenFile(keyfile, os.O_RDWR,0666); err == nil {
+	if file, err := os.OpenFile(keyfile, os.O_RDWR, 0666); err == nil {
 		defer common.Safeclose(file.Close)
 		if der, err := ioutil.ReadAll(file); err == nil {
 			if key, err := x509.ParseECPrivateKey(der); err == nil {

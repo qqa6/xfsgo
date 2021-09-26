@@ -60,6 +60,7 @@ type Miner struct {
 	stateDb          *badger.Storage
 	gasPrice         *big.Int
 	gasLimit         *big.Int
+	LastStartTime    time.Time
 }
 
 func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, eventBus *xfsgo.EventBus, pool *xfsgo.TxPool, gasPrice *big.Int) *Miner {
@@ -77,8 +78,8 @@ func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, 
 		gasLimit:         new(big.Int),
 		gasPrice:         new(big.Int),
 	}
-	headBlock := chain.GetHead()
-	m.gasLimit = CalcGasLimit(headBlock)
+
+	m.gasLimit = common.MinGasLimit
 	//Sets the minimal gasprice when mining transactions
 	m.SetGasPrice(gasPrice)
 	go m.mainLoop()
@@ -87,6 +88,18 @@ func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, 
 
 func (m *Miner) GetGasPrice() *big.Int {
 	return m.gasPrice
+}
+
+func (m *Miner) GetWorkerNum() uint32 {
+	return m.numWorkers
+}
+
+func (m *Miner) GetMinStatus() bool {
+	return m.started
+}
+
+func (m *Miner) HashRate() int {
+	return int(0)
 }
 
 // Update the minimum gas unit price of the trading pool
@@ -106,6 +119,14 @@ func (m *Miner) GetGasLimit() *big.Int {
 	return m.gasLimit
 }
 
+func (m *Miner) SetGasLimit(limit *big.Int) {
+	lashBlock := m.chain.CurrentBlock()
+	txpoolMaxGasLimit := m.CalcGasLimit(lashBlock)
+	if txpoolMaxGasLimit.Cmp(limit) > 0 {
+		m.gasLimit = limit
+	}
+}
+
 // Start starts up xfs mining
 func (m *Miner) Start() {
 	m.mu.Lock()
@@ -114,15 +135,15 @@ func (m *Miner) Start() {
 		return
 	}
 	go m.miningWorkerController()
+	m.LastStartTime = time.Now()
 	m.started = true
-}
-
-func (m *Miner) GetNumWorkers() uint32 {
-	return m.numWorkers
 }
 
 func (m *Miner) SetNumWorkers(num uint32) {
 	m.updateNumWorkers <- num
+}
+func (m *Miner) SetCoinbase(address common.Address) {
+	m.Coinbase = address
 }
 
 // mainLoop is the miner's main event loop, waiting for and reacting to synchronize events.
@@ -149,7 +170,7 @@ out:
 	}
 }
 
-func CalcGasLimit(parent *xfsgo.Block) *big.Int {
+func (m *Miner) CalcGasLimit(parent *xfsgo.Block) *big.Int {
 	// 	// contrib = (parentGasUsed * 3 / 2) / 1024
 	contrib := new(big.Int).Mul(parent.Header.GasUsed, big.NewInt(3))
 	contrib = contrib.Div(contrib, big.NewInt(2))
@@ -161,7 +182,8 @@ func CalcGasLimit(parent *xfsgo.Block) *big.Int {
 
 	gl := new(big.Int).Sub(parent.Header.GasLimit, decay)
 	gl = gl.Add(gl, contrib)
-	gl.Set(common.BigMax(gl, common.MinGasLimit))
+	// gl.Set(common.BigMax(gl, common.MinGasLimit))
+	gl.Set(common.BigMax(gl, m.gasLimit))
 
 	if gl.Cmp(common.GenesisGasLimit) < 0 {
 		gl.Add(parent.Header.GasLimit, decay)
@@ -190,8 +212,9 @@ func (m *Miner) mimeBlockWithParent(
 	}
 	header.GasUsed = new(big.Int)
 	// parentBlock last block
-	m.gasLimit = CalcGasLimit(parentBlock)
-	header.GasLimit = m.gasLimit
+
+	header.GasLimit = m.CalcGasLimit(parentBlock)
+	fmt.Printf("gasLImit:%v\n", header.GasLimit)
 	//calculate the next difficuty for hash value of next block.
 	var err error
 	header.Bits, err = m.chain.CalcNextRequiredDifficulty()
@@ -200,10 +223,11 @@ func (m *Miner) mimeBlockWithParent(
 	}
 	//logrus.Debugf("block height: %d, difficuty: %d, timestamp: %d", header.Height, header.Bits, header.Timestamp)
 	//process the transations
-	res, err := m.chain.ApplyTransactions(stateTree, header, txs)
+	AccountGasUse, res, err := m.chain.ApplyTransactions(stateTree, header, txs)
 	if err != nil {
 		return nil, fmt.Errorf("apply trasactions err")
 	}
+	header.GasUsed = AccountGasUse
 	//calculate the rewards
 	xfsgo.AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
@@ -281,7 +305,7 @@ out:
 		timeused := time.Now().Sub(startTime)
 		hash := block.Hash()
 		timeused.Seconds()
-		logrus.Infof("Sussessfully sealed new block, height=%d, hash=0x%x...%x, used=%fs, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], timeused.Seconds(),num)
+		logrus.Infof("Sussessfully sealed new block, height=%d, hash=0x%x...%x, used=%fs, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], timeused.Seconds(), num)
 		if err = stateTree.Commit(); err != nil {
 			continue out
 		}

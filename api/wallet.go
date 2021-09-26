@@ -162,14 +162,14 @@ func (handler *WalletHandler) Transfer(args TransferArgs, resp *TransferObj) err
 
 	if args.GasLimit != "" {
 		GasLimit = common.ParseString2BigInt(args.GasLimit)
-		GasLimit = common.BaseCoin2Atto(float64(GasLimit.Uint64()))
+		GasLimit = common.Atto2BaseCoin(GasLimit)
 	} else {
 		GasLimit = handler.Wallet.GasLimit
 	}
 
 	if args.GasPrice != "" {
 		GasPrice = common.ParseString2BigInt(args.GasPrice)
-		GasPrice = common.BaseCoin2Atto(float64(GasPrice.Uint64()))
+		GasPrice = common.Atto2BaseCoin(GasPrice)
 	} else {
 		GasPrice = handler.Wallet.GasPrice
 	}
@@ -215,14 +215,14 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 
 	if args.GasLimit != "" {
 		GasLimit = common.ParseString2BigInt(args.GasLimit)
-		GasLimit = common.BaseCoin2Atto(float64(GasLimit.Uint64()))
+		GasLimit = common.Atto2BaseCoin(GasLimit)
 	} else {
 		GasLimit = handler.Wallet.GasLimit
 	}
 
 	if args.GasPrice != "" {
 		GasPrice = common.ParseString2BigInt(args.GasPrice)
-		GasPrice = common.BaseCoin2Atto(float64(GasPrice.Uint64()))
+		GasPrice = common.Atto2BaseCoin(GasPrice)
 	} else {
 		GasPrice = handler.Wallet.GasPrice
 	}

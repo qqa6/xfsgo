@@ -95,16 +95,16 @@ func (bc *BlockChain) GetBlockByNumber(num uint64) *Block {
 }
 
 func (bc *BlockChain) getBlockByNumber(num uint64) *Block {
-	bc.chainmu.RUnlock()
-	defer bc.chainmu.RUnlock()
+	//bc.chainmu.RUnlock()
+	//defer bc.chainmu.RUnlock()
 	return bc.chainDB.GetBlockByNumber(num)
 }
 
 func (bc *BlockChain) GetBlockHeaderByNumber(num uint64) (*BlockHeader, common.Hash) {
 	//bc.mu.RLock()
 	//defer bc.mu.RUnlock()
-	bc.chainmu.RUnlock()
-	defer bc.chainmu.RUnlock()
+	//bc.chainmu.RUnlock()
+	//defer bc.chainmu.RUnlock()
 	data := bc.chainDB.GetBlockByNumber(num)
 	return data.Header, data.Hash()
 }
@@ -126,8 +126,8 @@ func (bc *BlockChain) GetReceiptByHash(hash common.Hash) *Receipt {
 }
 
 func (bc *BlockChain) GetBlockHeaderByHash(hash common.Hash) (*BlockHeader, common.Hash) {
-	bc.chainmu.RUnlock()
-	defer bc.chainmu.RUnlock()
+	//bc.chainmu.RUnlock()
+	//defer bc.chainmu.RUnlock()
 	data := bc.chainDB.GetBlockByHash(hash)
 	return data.Header, data.Hash()
 }
@@ -155,17 +155,17 @@ func (bc *BlockChain) CurrentBlock() *Block {
 }
 
 func (bc *BlockChain) LastBlockHash() common.Hash {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
 	return bc.lastBlockHash
 }
 
 func (bc *BlockChain) setLastState() error {
 	if block := bc.chainDB.GetHeadBlock(); block != nil {
-		bc.mu.Lock()
+		//bc.mu.Lock()
 		bc.currentBlock = block
 		bc.lastBlockHash = block.Hash()
-		bc.mu.Unlock()
+		//bc.mu.Unlock()
 	}
 	return nil
 }
@@ -453,8 +453,8 @@ func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
 // head blocks match), we do a binary search to find the common ancestor.
 
 func (bc *BlockChain) FindAncestor(current *Block, height uint64) *Block {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	//bc.mu.RLock()
+	//defer bc.mu.RUnlock()
 	return bc.findAncestor(current, height)
 }
 
@@ -525,9 +525,9 @@ func (bc *BlockChain) calcNextRequiredDifficulty(lastBlock *Block) (uint32, erro
 
 //calculate the next difficuty for hash value of next block.
 func (bc *BlockChain) CalcNextRequiredDifficulty() (uint32, error) {
-	bc.mu.Lock()
+	//bc.mu.Lock()
 	difficulty, err := bc.calcNextRequiredDifficulty(bc.currentBlock)
-	bc.mu.Unlock()
+	//bc.mu.Unlock()
 	return difficulty, err
 }
 

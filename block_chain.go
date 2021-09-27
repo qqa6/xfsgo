@@ -217,8 +217,6 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 	blockHash := block.Hash()
-	logrus.Infof("Insert block to local chain: height=%d, hash=%x...%x",
-		block.Height(), blockHash[:4], blockHash[len(blockHash)-4:])
 	txs := block.Transactions
 	header := block.GetHeader()
 	txsRoot := block.TransactionRoot()
@@ -261,8 +259,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	if err = bc.WriteBlock(block); err != nil {
 		return err
 	}
-	logrus.Infof("Successfully write block to local chain: height=%d, hash=%x...%x",
-		block.Height(), blockHash[:4], blockHash[len(blockHash)-4:])
+
 	return nil
 }
 

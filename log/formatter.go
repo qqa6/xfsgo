@@ -68,6 +68,6 @@ func printLogLevel(w io.Writer, level logrus.Level, color bool) {
 	if color {
 		_, _ = fmt.Fprintf(w,"\x1b[%dm%s\x1b[0m ",levelColor, levelString)
 	}else {
-		_, _ = fmt.Fprintf(w,"%s ", levelString)
+		_, _ = fmt.Fprintf(w,"%-7s ", levelString)
 	}
 }

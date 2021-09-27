@@ -58,9 +58,11 @@ type setWalletAddrDefArgs struct {
 }
 
 type transferFromArgs struct {
-	From  string `json:"form"`
-	To    string `json:"to"`
-	Value string `json:"value"`
+	From     string `json:"form"`
+	To       string `json:"to"`
+	GasLimit string `json:"gas_limit"`
+	GasPrice string `json:"gas_price"`
+	Value    string `json:"value"`
 }
 
 type getBlockNumArgs struct {
@@ -98,4 +100,12 @@ type TranGasArgs struct {
 	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`
 	Hash     string `json:"hash"`
+}
+
+type AddPeerArgs struct {
+	Url string `json:"url"`
+}
+
+type DelPeerArgs struct {
+	Id string `json:"id"`
 }

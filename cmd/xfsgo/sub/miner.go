@@ -27,6 +27,11 @@ import (
 )
 
 var (
+	workers  int
+	coinbase string
+	gasprice string
+	gaslimit string
+
 	minerCommand = &cobra.Command{
 		Use:   "miner",
 		Short: "miner serve info",
@@ -38,7 +43,7 @@ var (
 		},
 	}
 	minerStartCommand = &cobra.Command{
-		Use:   "start --workers [number] --coinbase [address] --gasprice [number] --gaslimit [number]",
+		Use:   "start",
 		Short: "Start mining service",
 		RunE:  runMinerStart,
 	}
@@ -87,7 +92,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 	}
 
 	// worker
-	if len(args) > 0 {
+	if workers > 0 {
 		num, err := strconv.Atoi(args[0])
 		if err != nil {
 			return err
@@ -103,7 +108,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 		}
 	}
 	// coinbase
-	if len(args) > 1 {
+	if coinbase != "" {
 		req := &MinSetCoinbaseArgs{
 			Coinbase: args[1],
 		}
@@ -114,7 +119,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 		}
 	}
 	// gasprice
-	if len(args) > 2 {
+	if gasprice != "" {
 		gasPrice, _ := new(big.Int).SetString(args[2], 0)
 		bigGasPrice := common.NanoCoin2BaseCoin(gasPrice)
 		req := &MinSetGasPriceArgs{
@@ -127,7 +132,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 		}
 	}
 	// gaslimit
-	if len(args) > 3 {
+	if gaslimit != "" {
 		gasLimit, _ := new(big.Int).SetString(args[3], 0)
 		bigGasLimit := common.NanoCoin2BaseCoin(gasLimit)
 		req := &MinSetGasLimitArgs{
@@ -304,6 +309,11 @@ func MinGetStatus(_ *cobra.Command, _ []string) error {
 }
 func init() {
 	minerCommand.AddCommand(minerStartCommand)
+	mFlags := minerStartCommand.PersistentFlags()
+	mFlags.IntVarP(&workers, "workers", "", 0, "Set number of workers")
+	mFlags.StringVarP(&coinbase, "coinbase", "", "", "Set miner income address")
+	mFlags.StringVarP(&gasprice, "gasprice", "", "", "Set expected gas unit price")
+	mFlags.StringVarP(&gaslimit, "gaslimit", "", "", "Set maximum gas purchase quantity")
 	minerCommand.AddCommand(minerStopCommand)
 	minerCommand.AddCommand(minerWorkersAddCommand)
 	minerCommand.AddCommand(minerWorkersDownCommand)

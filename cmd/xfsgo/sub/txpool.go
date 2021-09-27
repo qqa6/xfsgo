@@ -32,13 +32,6 @@ var (
 			return cmd.Help()
 		},
 	}
-	getTxpoolListCommand = &cobra.Command{
-		Use:   "list",
-		Short: "transaction pool transaction list",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTxPoolList()
-		},
-	}
 	getGetPendingCommand = &cobra.Command{
 		Use:   "pending",
 		Short: "get transaction pool pending queue",
@@ -59,33 +52,11 @@ var (
 		},
 	}
 	modifyTransCommand = &cobra.Command{
-		Use:   "replace --gaslimit <number> --gasprice <number> <transaction_hash>",
+		Use:   "replace <gas_limit> <gas_price> <transaction_hash>",
 		Short: "Replace the information of the specified transaction in the transaction pool",
 		RunE:  ModifyTrans,
 	}
 )
-
-func runTxPoolList() error {
-	config, err := parseClientConfig(cfgFile)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	result := make([]xfsgo.Transaction, 1)
-	err = cli.CallMethod(1, "TxPool.GetPending", nil, &result)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	bs, err := common.MarshalIndent(result)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	fmt.Println(string(bs))
-	return nil
-}
 
 func GetPending() error {
 	config, err := parseClientConfig(cfgFile)
@@ -150,7 +121,7 @@ func GetTran(cmd *cobra.Command, args []string) error {
 }
 
 func ModifyTrans(cmd *cobra.Command, args []string) error {
-	if len(args) < 2 {
+	if len(args) < 3 {
 		return cmd.Help()
 	}
 	config, err := parseClientConfig(cfgFile)
@@ -175,8 +146,8 @@ func ModifyTrans(cmd *cobra.Command, args []string) error {
 
 func init() {
 	rootCmd.AddCommand(getTxpoolCommand)
-	getTxpoolCommand.AddCommand(getTxpoolListCommand)
 	getTxpoolCommand.AddCommand(getTxpoolCountCommand)
 	getTxpoolCommand.AddCommand(getGetPendingCommand)
 	getTxpoolCommand.AddCommand(modifyTransCommand)
+	getTxpoolCommand.AddCommand(getGetTranCommand)
 }

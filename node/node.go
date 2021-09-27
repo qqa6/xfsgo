@@ -138,6 +138,10 @@ func (n *Node) RegisterBackend(
 		StateDb:    stateDb,
 		BlockChain: bc,
 	}
+	netAPIHandler := &api.NetAPIHandler{
+		NetServer: n.P2PServer(),
+	}
+
 	if err := n.rpcServer.RegisterName("Chain", chainApiHandler); err != nil {
 		log.Fatalf("RPC service register error: %s", err)
 		return err
@@ -156,6 +160,10 @@ func (n *Node) RegisterBackend(
 		return err
 	}
 	if err := n.rpcServer.RegisterName("State", stateHandler); err != nil {
+		log.Fatalf("RPC service register error: %s", err)
+		return err
+	}
+	if err := n.rpcServer.RegisterName("Net", netAPIHandler); err != nil {
 		log.Fatalf("RPC service register error: %s", err)
 		return err
 	}

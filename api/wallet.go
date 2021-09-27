@@ -22,6 +22,8 @@ import (
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/common/urlsafeb64"
+
+	"github.com/sirupsen/logrus"
 )
 
 type WalletHandler struct {
@@ -147,62 +149,66 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 	return nil
 }
 
-func (handler *WalletHandler) Transfer(args TransferArgs, resp *TransferObj) error {
-	if args.To == "" {
-		return xfsgo.NewRPCError(-1006, "to addr not be empty")
-	}
-	if args.Value == "" {
-		return xfsgo.NewRPCError(-1006, "value not be empty")
-	}
-	formAddr, err := handler.Wallet.GetKeyByAddress(handler.Wallet.GetDefault())
-	if err != nil {
-		return err
-	}
-	var GasLimit, GasPrice *big.Int
+// func (handler *WalletHandler) Transfer(args TransferArgs, resp *TransferObj) error {
+// 	if args.To == "" {
+// 		return xfsgo.NewRPCError(-1006, "to addr not be empty")
+// 	}
+// 	if args.Value == "" {
+// 		return xfsgo.NewRPCError(-1006, "value not be empty")
+// 	}
+// formAddr, err := handler.Wallet.GetKeyByAddress(handler.Wallet.GetDefault())
+// if err != nil {
+// 	return err
+// }
+// var GasLimit, GasPrice *big.Int
 
-	if args.GasLimit != "" {
-		GasLimit = common.ParseString2BigInt(args.GasLimit)
-		GasLimit = common.Atto2BaseCoin(GasLimit)
-	} else {
-		GasLimit = handler.Wallet.GasLimit
-	}
+// if args.GasLimit != "" {
+// 	GasLimit = common.ParseString2BigInt(args.GasLimit)
+// 	GasLimit = common.Atto2BaseCoin(GasLimit)
+// } else {
+// 	GasLimit = handler.Wallet.GasLimit
+// }
 
-	if args.GasPrice != "" {
-		GasPrice = common.ParseString2BigInt(args.GasPrice)
-		GasPrice = common.Atto2BaseCoin(GasPrice)
-	} else {
-		GasPrice = handler.Wallet.GasPrice
-	}
+// if args.GasPrice != "" {
+// 	GasPrice = common.ParseString2BigInt(args.GasPrice)
+// 	GasPrice = common.Atto2BaseCoin(GasPrice)
+// } else {
+// 	GasPrice = handler.Wallet.GasPrice
+// }
 
-	toAddr := common.B58ToAddress([]byte(args.To))
-	value := common.ParseString2BigInt(args.Value)
+// toAddr := common.B58ToAddress([]byte(args.To))
+// value := common.ParseString2BigInt(args.Value)
 
-	tx := xfsgo.NewTransaction(toAddr, GasLimit, GasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
-	tx.Nonce = handler.BlockChain.GetNonce(handler.Wallet.GetDefault())
+// tx := xfsgo.NewTransaction(toAddr, GasLimit, GasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
+// tx.Nonce = handler.BlockChain.GetNonce(handler.Wallet.GetDefault())
 
-	if err = tx.SignWithPrivateKey(formAddr); err != nil {
-		return xfsgo.NewRPCErrorCause(-1006, err)
-	}
-	if err = handler.TxPendingPool.Add(tx); err != nil {
-		return xfsgo.NewRPCErrorCause(-1006, err)
-	}
+// 	if err = tx.SignWithPrivateKey(formAddr); err != nil {
+// 		return xfsgo.NewRPCErrorCause(-1006, err)
+// 	}
+// 	if err = handler.TxPendingPool.Add(tx); err != nil {
+// 		return xfsgo.NewRPCErrorCause(-1006, err)
+// 	}
 
-	result := NewTransferObj(tx)
-	*resp = *result
-	return nil
-}
+// 	result := NewTransferObj(tx)
+// 	*resp = *result
+// 	return nil
+// }
 
 func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *TransferObj) error {
-	if args.From == "" {
-		return xfsgo.NewRPCError(-1006, "from addr not be empty")
-	}
 	if args.To == "" {
 		return xfsgo.NewRPCError(-1006, "to addr not be empty")
 	}
 	if args.Value == "" {
 		return xfsgo.NewRPCError(-1006, "value not be empty")
 	}
-	fromAddr := common.B58ToAddress([]byte(args.From))
+
+	var fromAddr common.Address
+	if args.From != "" {
+		fromAddr = common.B58ToAddress([]byte(args.From))
+	} else {
+		fromAddr = handler.Wallet.GetDefault()
+	}
+
 	privateKey, err := handler.Wallet.GetKeyByAddress(fromAddr)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-1006, err)
@@ -217,15 +223,17 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 		GasLimit = common.ParseString2BigInt(args.GasLimit)
 		GasLimit = common.Atto2BaseCoin(GasLimit)
 	} else {
-		GasLimit = handler.Wallet.GasLimit
+		GasLimit = handler.Wallet.GetGas()
 	}
 
 	if args.GasPrice != "" {
 		GasPrice = common.ParseString2BigInt(args.GasPrice)
 		GasPrice = common.Atto2BaseCoin(GasPrice)
 	} else {
-		GasPrice = handler.Wallet.GasPrice
+		GasPrice = handler.Wallet.GetGasPrice()
 	}
+
+	logrus.Debugf("transaction obj: gasPrice=%v, gasLimit=%v, From=%v, to=%v val:%v", GasPrice, GasLimit, fromAddr.B58String(), args.To, args.Value)
 
 	tx := xfsgo.NewTransaction(toAddr, GasLimit, GasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
 	tx.Nonce = handler.BlockChain.GetNonce(fromAddr)

@@ -106,8 +106,8 @@ func getHead() error {
 		return nil
 	}
 	result := block.MapMerge()
-	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
-	bs, err := common.Marshal(result, sortKey, true)
+	sortIndex := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
+	bs, err := common.Marshal(result, sortIndex, true)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -150,8 +150,8 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 	for _, item := range receipt {
 		jsons = append(jsons, item.MapMerge())
 	}
-	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
-	bs, err := common.Marshals(jsons, sortKey, true)
+	sortIndex := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
+	bs, err := common.Marshals(jsons, sortIndex, true)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -176,9 +176,9 @@ func getBlockHash(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	sortKey := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
+	sortIndex := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
 	result := block.MapMerge()
-	bs, err := common.Marshal(result, sortKey, true)
+	bs, err := common.Marshal(result, sortIndex, true)
 	if err != nil {
 		fmt.Println(err)
 		return nil

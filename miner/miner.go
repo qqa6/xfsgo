@@ -214,7 +214,6 @@ func (m *Miner) mimeBlockWithParent(
 	// parentBlock last block
 
 	header.GasLimit = m.CalcGasLimit(parentBlock)
-	fmt.Printf("gasLImit:%v\n", header.GasLimit)
 	//calculate the next difficuty for hash value of next block.
 	var err error
 	header.Bits, err = m.chain.CalcNextRequiredDifficulty()

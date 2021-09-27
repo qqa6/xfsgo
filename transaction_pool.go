@@ -93,6 +93,7 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 	if from, err = tx.FromAddr(); err != nil {
 		return errors.New("from fields is invalid")
 	}
+
 	if !pool.currentState().HashAccount(from) {
 		return errors.New("account not enough balance")
 	}
@@ -112,8 +113,6 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 	if tx.Value.Sign() <= 0 {
 		return errors.New("val < 0")
 	}
-	fmt.Println("poolBalance:", pool.currentState().GetBalance(from))
-	fmt.Println("txCost:", tx.Cost())
 	if pool.currentState().GetBalance(from).Cmp(tx.Cost()) < 0 {
 		return errors.New("val out")
 	}

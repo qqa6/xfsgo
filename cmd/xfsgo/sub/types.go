@@ -16,10 +16,6 @@
 
 package sub
 
-import (
-	"encoding/json"
-)
-
 type getBlockHashArgs struct {
 	Hash string `json:"hash"`
 }
@@ -33,7 +29,7 @@ type getReceiptArgs struct {
 }
 
 type gettxbyBlocknumArgs struct {
-	Number json.Number `json:"number"`
+	Number string `json:"number"`
 }
 
 type gettxbyBlockHashArgs struct {
@@ -66,8 +62,8 @@ type transferFromArgs struct {
 }
 
 type getBlockNumArgs struct {
-	From  json.Number `json:"from"`
-	Count json.Number `json:"count"`
+	From  string `json:"from"`
+	Count string `json:"count"`
 }
 
 type GetBlocksArgs struct {

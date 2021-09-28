@@ -17,7 +17,6 @@
 package sub
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"xfsgo"
@@ -138,8 +137,8 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	var receipt []common.BlockMap
 	req := &getBlockNumArgs{
-		From:  json.Number(FormStr),
-		Count: json.Number(CountStr),
+		From:  FormStr,
+		Count: CountStr,
 	}
 	err = cli.CallMethod(1, "Chain.GetBlockSection", &req, &receipt)
 	if err != nil {
@@ -198,7 +197,7 @@ func gettxbyBlocknum(cmd *cobra.Command, args []string) error {
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	result := make([]map[string]interface{}, 1)
 	req := &gettxbyBlocknumArgs{
-		Number: json.Number(args[0]),
+		Number: args[0],
 	}
 	cli.CallMethod(1, "Chain.GetTxbyBlockNum", &req, &result)
 	bs, err := common.MarshalIndent(result)
@@ -341,8 +340,8 @@ func xfsLotusExport(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	req := &getBlockNumArgs{
-		From:  json.Number(FormStr),
-		Count: json.Number(CountStr),
+		From:  FormStr,
+		Count: CountStr,
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	var result string

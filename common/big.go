@@ -29,8 +29,8 @@ var GenesisGasLimit = BaseCoin2Nano(float64(5000000)) // Gas limit of the Genesi
 var MinGasPrice = BaseCoin2Nano(float64((100000)))      // miner minGasPirce
 var MinGasLimit = BaseCoin2Nano(float64(1000000000000)) // Minimum the gas limit may ever be.
 // wallet
-var DefaultGasPrice = BaseCoin2Nano(float64(200000)) //1 00  0000 0000 0000 0000
-var DefaultGas = BaseCoin2Nano(float64(100000000))   //1 000 0000 0000 0000 0000
+var DefaultGasPrice = BaseCoin2Nano(float64(200)) //1 00  0000 0000 0000 0000
+var DefaultGas = BaseCoin2Nano(float64(2000))     //1 000 0000 0000 0000 0000
 
 func ParseString2BigInt(str string) *big.Int {
 	if str == "" {

@@ -109,7 +109,6 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 	if pool.gasLimit.Cmp(tx.GasLimit) < 0 {
 		return errors.New("exceeds block gas limit")
 	}
-
 	if tx.Value.Sign() <= 0 {
 		return errors.New("val < 0")
 	}

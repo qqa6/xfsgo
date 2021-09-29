@@ -108,7 +108,7 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 	result := make(map[string]interface{}, 1)
 	req := &transferFromArgs{
 		To:    args[0],
-		Value: args[0],
+		Value: args[1],
 	}
 	if fromAddr != "" {
 		req.From = fromAddr

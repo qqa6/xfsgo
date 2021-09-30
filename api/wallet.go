@@ -18,6 +18,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"math/big"
 	"xfsgo"
 	"xfsgo/common"
@@ -30,6 +31,10 @@ type WalletHandler struct {
 	Wallet        *xfsgo.Wallet
 	BlockChain    *xfsgo.BlockChain
 	TxPendingPool *xfsgo.TxPool
+}
+
+type SendRawTransactionArgs struct {
+	Data string `json:"data"`
 }
 
 type GetWalletByAddressArgs struct {
@@ -194,6 +199,35 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 // 	return nil
 // }
 
+func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, resp *TransferObj) error {
+	if args.Data == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	databytes, err := urlsafeb64.Decode(args.Data)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	var tx *xfsgo.Transaction
+	err = json.Unmarshal(databytes, &tx)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	if tx.GasLimit.String() != "" {
+		tx.GasLimit.Set(common.NanoCoin2BaseCoin(tx.GasLimit))
+	}
+	if tx.GasPrice.String() != "" {
+		tx.GasPrice.Set(common.NanoCoin2BaseCoin(tx.GasLimit))
+	}
+
+	err = handler.TxPendingPool.Add(tx)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	result := NewTransferObj(tx)
+	*resp = *result
+
+	return nil
+}
 func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *TransferObj) error {
 	if args.To == "" {
 		return xfsgo.NewRPCError(-1006, "to addr not be empty")

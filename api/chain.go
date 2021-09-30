@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"xfsgo"
 	"xfsgo/common"
-	"xfsgo/common/urlsafeb64"
 	"xfsgo/crypto"
 )
 
@@ -66,10 +65,6 @@ type GetBlockHeaderByNumberArgs struct {
 
 type GetBlockHeaderByHashArgs struct {
 	Hash string `json:"hash"`
-}
-
-type SendRawTransactionArgs struct {
-	Data string `json:"data"`
 }
 
 type GetBlockSectionArgs struct {
@@ -196,32 +191,8 @@ func (receiver *ChainAPIHandler) GetTransaction(args GetTransactionArgs, resp *T
 	return nil
 }
 
-func (receiver *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, resp *TransferObj) error {
-	if args.Data == "" {
-		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
-	}
-	databytes, err := urlsafeb64.Decode(args.Data)
-	if err != nil {
-		return xfsgo.NewRPCErrorCause(-32001, err)
-	}
-	var tx *xfsgo.Transaction
-	err = json.Unmarshal(databytes, &tx)
-	if err != nil {
-		return xfsgo.NewRPCErrorCause(-32001, err)
-	}
-
-	err = receiver.TxPendingPool.Add(tx)
-	if err != nil {
-		return xfsgo.NewRPCErrorCause(-32001, err)
-	}
-	result := NewTransferObj(tx)
-	*resp = *result
-
-	return nil
-}
-
 func (receiver *ChainAPIHandler) GetBlockSection(args GetBlockSectionArgs, resp *GetBlocks) error {
-	if args.From == "" {
+	if args.Count == "" && args.From == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
 

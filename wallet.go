@@ -19,6 +19,7 @@ package xfsgo
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"math/big"
 	"sync"
 	"xfsgo/common"
 	"xfsgo/crypto"
@@ -31,17 +32,37 @@ type Wallet struct {
 	mu          sync.RWMutex
 	cacheMu     sync.RWMutex
 	defaultAddr common.Address
+	GasPrice    *big.Int
+	GasLimit    *big.Int
 	cache       map[common.Address]*ecdsa.PrivateKey
 }
 
 // NewWallet constructs and returns a new Wallet instance with badger db.
-func NewWallet(storage *badger.Storage) *Wallet {
+func NewWallet(storage *badger.Storage, gas, gasPrice *big.Int) *Wallet {
 	w := &Wallet{
-		db:    newKeyStoreDB(storage),
-		cache: make(map[common.Address]*ecdsa.PrivateKey),
+		db:       newKeyStoreDB(storage),
+		cache:    make(map[common.Address]*ecdsa.PrivateKey),
+		GasLimit: gas,
+		GasPrice: gasPrice,
 	}
 	w.defaultAddr, _ = w.db.GetDefaultAddress()
 	return w
+}
+
+func (w *Wallet) SetGas(gas *big.Int) {
+	w.GasLimit = gas
+}
+
+func (w *Wallet) GetGas() *big.Int {
+	return w.GasLimit
+}
+
+func (w *Wallet) SetGasPrice(gasPrice *big.Int) {
+	w.GasPrice = gasPrice
+}
+
+func (w *Wallet) GetGasPrice() *big.Int {
+	return w.GasPrice
 }
 
 // AddByRandom constructs a new Wallet with a random number and retuens the its address.

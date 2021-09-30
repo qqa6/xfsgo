@@ -5,13 +5,12 @@ const (
 )
 
 const (
-	typeHelloRequest   uint8 = 0
+	typeHelloRequest uint8 = 0
 	typeReHelloRequest uint8 = 1
-	typePingMsg        uint8 = 2
-	typePongMsg        uint8 = 3
-	typeGetAddrRequest uint8 = 4
+	typePingMsg uint8 = 2
+	typePongMsg uint8 = 3
 )
 
 func SendMsgData(p Peer, mType uint8, obj interface{}) error {
-	return p.WriteMessageObj(mType, obj)
+	return p.WriteMessageObj(mType,obj)
 }

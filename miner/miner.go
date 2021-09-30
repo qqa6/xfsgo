@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
 	"runtime"
 	"sync"
 	"time"
@@ -45,11 +46,11 @@ type Config struct {
 // Miner creates blocks with transactions in tx pool and searches for proof-of-work values.
 type Miner struct {
 	*Config
-	mu sync.Mutex
-	sync.Mutex
-	started          bool
-	quit             chan struct{}
-	runningWorkers   []chan struct{}
+	mu          sync.Mutex
+	newBlockMux sync.Mutex
+	started     bool
+	quit        chan struct{}
+	// runningWorkers   []chan struct{}
 	updateNumWorkers chan uint32
 	numWorkers       uint32
 	eventBus         *xfsgo.EventBus
@@ -57,9 +58,11 @@ type Miner struct {
 	pool             *xfsgo.TxPool
 	chain            *xfsgo.BlockChain
 	stateDb          *badger.Storage
+	gasPrice         *big.Int
+	gasLimit         *big.Int
 }
 
-func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, eventBus *xfsgo.EventBus, pool *xfsgo.TxPool) *Miner {
+func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, eventBus *xfsgo.EventBus, pool *xfsgo.TxPool, gasPrice *big.Int) *Miner {
 	m := &Miner{
 		Config:           config,
 		chain:            chain,
@@ -71,9 +74,36 @@ func NewMiner(config *Config, stateDb *badger.Storage, chain *xfsgo.BlockChain, 
 		canStart:         true,
 		started:          false,
 		eventBus:         eventBus,
+		gasLimit:         new(big.Int),
+		gasPrice:         new(big.Int),
 	}
+	headBlock := chain.GetHead()
+	m.gasLimit = CalcGasLimit(headBlock)
+	//Sets the minimal gasprice when mining transactions
+	m.SetGasPrice(gasPrice)
 	go m.mainLoop()
 	return m
+}
+
+func (m *Miner) GetGasPrice() *big.Int {
+	return m.gasPrice
+}
+
+// Update the minimum gas unit price of the trading pool
+func (m *Miner) SetGasPrice(price *big.Int) {
+	// FIXME block tests set a nil gas price. Quick dirty fix
+	if price == nil {
+		return
+	}
+	gasPriceChanged := &xfsgo.GasPriceChanged{
+		Price: price,
+	}
+	m.gasPrice = price
+	m.eventBus.Publish(gasPriceChanged)
+}
+
+func (m *Miner) GetGasLimit() *big.Int {
+	return m.gasLimit
 }
 
 // Start starts up xfs mining
@@ -118,6 +148,28 @@ out:
 		}
 	}
 }
+
+func CalcGasLimit(parent *xfsgo.Block) *big.Int {
+	// 	// contrib = (parentGasUsed * 3 / 2) / 1024
+	contrib := new(big.Int).Mul(parent.Header.GasUsed, big.NewInt(3))
+	contrib = contrib.Div(contrib, big.NewInt(2))
+	contrib = contrib.Div(contrib, common.GasLimitBoundDivisor)
+
+	// decay = parentGasLimit / 1024 -1
+	decay := new(big.Int).Div(parent.Header.GasLimit, common.GasLimitBoundDivisor)
+	decay.Sub(decay, big.NewInt(1))
+
+	gl := new(big.Int).Sub(parent.Header.GasLimit, decay)
+	gl = gl.Add(gl, contrib)
+	gl.Set(common.BigMax(gl, common.MinGasLimit))
+
+	if gl.Cmp(common.GenesisGasLimit) < 0 {
+		gl.Add(parent.Header.GasLimit, decay)
+		gl.Set(common.BigMin(gl, common.GenesisGasLimit))
+	}
+	return gl
+}
+
 func (m *Miner) mimeBlockWithParent(
 	stateTree *xfsgo.StateTree,
 	parentBlock *xfsgo.Block,
@@ -136,15 +188,19 @@ func (m *Miner) mimeBlockWithParent(
 		Timestamp:     uint64(lastGenerated),
 		Coinbase:      coinbase,
 	}
+	header.GasUsed = new(big.Int)
+	// parentBlock last block
+	m.gasLimit = CalcGasLimit(parentBlock)
+	header.GasLimit = m.gasLimit
 	//calculate the next difficuty for hash value of next block.
 	var err error
 	header.Bits, err = m.chain.CalcNextRequiredDifficulty()
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debugf("block height: %d, difficuty: %d, timestamp: %d", header.Height, header.Bits, header.Timestamp)
+	//logrus.Debugf("block height: %d, difficuty: %d, timestamp: %d", header.Height, header.Bits, header.Timestamp)
 	//process the transations
-	res, err := m.chain.ApplyTransactions(stateTree, txs)
+	res, err := m.chain.ApplyTransactions(stateTree, header, txs)
 	if err != nil {
 		return nil, fmt.Errorf("apply trasactions err")
 	}
@@ -154,6 +210,7 @@ func (m *Miner) mimeBlockWithParent(
 	stateRootBytes := stateTree.Root()
 	stateRootHash := common.Bytes2Hash(stateRootBytes)
 	header.StateRoot = stateRootHash
+
 	//create a new block and execite the consensus algorithms
 	perBlock := xfsgo.NewBlock(header, txs, res)
 	return m.execPow(perBlock, quit, ticker)
@@ -165,7 +222,7 @@ func (m *Miner) execPow(perBlock *xfsgo.Block, quit chan struct{}, ticker *time.
 	target := targetDifficulty.Bytes()
 	targetHash := make([]byte, 32)
 	copy(targetHash[32-len(target):], target)
-	logrus.Debugf("running the POW consensusm，block height: %d, block difficulty: %d, target: 0x%x", perBlock.Height(), perBlock.Bits(), targetHash)
+	//logrus.Debugf("running the POW consensusm，block height: %d, block difficulty: %d, target: 0x%x", perBlock.Height(), perBlock.Bits(), targetHash)
 
 out:
 	for nonce := uint64(0); nonce <= maxNonce; nonce++ {
@@ -178,7 +235,7 @@ out:
 			currentBlockHeight := perBlock.Height()
 			//exit this loop if the current height is updated and larger than the height of the blockchain.
 			if lastHeight >= currentBlockHeight {
-				logrus.Debugf("current height of blockchain has been updated: %d, current height: %d", lastHeight, currentBlockHeight)
+				//logrus.Debugf("current height of blockchain has been updated: %d, current height: %d", lastHeight, currentBlockHeight)
 				break out
 			}
 		default:
@@ -208,30 +265,39 @@ out:
 		default:
 		}
 		txs := m.pool.GetTransactions()
-		logrus.Debugf("woker-%d obtaining the transactions queue", num)
-		logrus.Debugf("woker-%d has obtained transaction counts: %d", num, len(txs))
+		//logrus.Debugf("Obtaining the transactions queue workerId=%-3d", num)
+		//logrus.Debugf("Has obtained transaction counts: %d, workerId=%-3d", len(txs), num)
 		lastBlock := m.chain.CurrentBlock()
 		lastStateRoot := lastBlock.StateRoot()
-		logrus.Debugf("woker-%d the newest block: %s, height: %d", num, lastBlock.HashHex(), lastBlock.Height())
+		//lastBlockHash := lastBlock.Hash()
+		//logrus.Debugf("Generating block by parent height=%d, hash=0x%x...%x, workerId=%-3d", lastBlock.Height(), lastBlockHash[:4], lastBlockHash[len(lastBlockHash)-4:], num)
 		stateTree := xfsgo.NewStateTree(m.stateDb, lastStateRoot.Bytes())
+		startTime := time.Now()
+
+		m.newBlockMux.Lock()
 		block, err := m.mimeBlockWithParent(stateTree, lastBlock, m.Coinbase, txs, quit, ticker)
+		m.newBlockMux.Unlock()
 		if err != nil {
 			continue out
 		}
+		timeused := time.Now().Sub(startTime)
+		hash := block.Hash()
+		timeused.Seconds()
+		logrus.Infof("Sussessfully sealed new block, height=%d, hash=0x%x...%x, used=%fs, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], timeused.Seconds(), num)
 		if err = stateTree.Commit(); err != nil {
 			continue out
 		}
 		if err = m.chain.WriteBlock(block); err != nil {
 			continue out
 		}
-		hash := block.Hash()
-		sr := block.StateRoot()
-		logrus.Infof("woker-%d, the block has packed successfully, height: %d, hash: %s, stateRoot: %s", num, block.Height(), hash.Hex(), sr.Hex())
-		st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
-		balance := st.GetBalance(m.Coinbase)
-		logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
+		//sr := block.StateRoot()
+		logrus.Debugf("successfully Write new block, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
+		//st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
+		//balance := st.GetBalance(m.Coinbase)
+		//logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
 		m.eventBus.Publish(xfsgo.NewMinedBlockEvent{Block: block})
 	}
+	//logrus.Debugf("Ended work id=%-3d", num)
 }
 func closeWorkers(cs []chan struct{}) {
 	for _, c := range cs {
@@ -244,12 +310,12 @@ func (m *Miner) miningWorkerController() {
 		for i := uint32(0); i < numWorkers; i++ {
 			quit := make(chan struct{})
 			runningWorkers = append(runningWorkers, quit)
-			logrus.Infof("woker-%d started", i)
+			//logrus.Debugf("Start-up woker id=%-3d", i)
 			go m.generateBlocks(i, quit)
 		}
 	}
 	runningWorkers = make([]chan struct{}, 0)
-	logrus.Debugf("starting up workers, workers starting number: %d", m.numWorkers)
+	logrus.Infof("Launch Workers count=%d", m.numWorkers)
 	launchWorkers(m.numWorkers)
 	txPreEventSub := m.eventBus.Subscript(xfsgo.TxPreEvent{})
 	defer txPreEventSub.Unsubscribe()
@@ -257,7 +323,6 @@ out:
 	for {
 		select {
 		case <-m.quit:
-			logrus.Info("miner quit")
 			closeWorkers(runningWorkers)
 			m.reset()
 			break out
@@ -274,6 +339,7 @@ out:
 		default:
 		}
 	}
+	logrus.Info("Miner quit")
 }
 
 func (m *Miner) Stop() {

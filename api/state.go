@@ -17,6 +17,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"math/big"
 	"xfsgo"
 	"xfsgo/common"
@@ -31,12 +32,6 @@ type StateAPIHandler struct {
 type GetStateObjArgs struct {
 	RootHash string `json:"root_hash"`
 	Address  string `json:"address"`
-}
-
-type StateObj struct {
-	Address string   `json:"address"`
-	Balance *big.Int `json:"balance"`
-	Nonce   uint64   `json:"nonce"`
 }
 
 func (state *StateAPIHandler) GetStateObj(args GetStateObjArgs, resp *StateObj) error {
@@ -68,8 +63,13 @@ func (state *StateAPIHandler) GetStateObj(args GetStateObjArgs, resp *StateObj) 
 	if !addressEqual.Equals(common.Address{}) {
 		addrStr = addressEqual.B58String()
 	}
+	ist := data.GetBalance()
+	if ist == nil {
+		ist = new(big.Int).SetUint64(0)
+	}
+	bal2Byte := ist.Bytes()
 	result := &StateObj{
-		Balance: data.GetBalance(),
+		Balance: hex.EncodeToString(bal2Byte),
 		Nonce:   data.GetNonce(),
 		Address: addrStr,
 	}

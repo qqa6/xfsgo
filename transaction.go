@@ -19,6 +19,7 @@ package xfsgo
 import (
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
@@ -28,19 +29,29 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// var defaultGasPrice = new(big.Int).SetUint64(1)    //150000000000
+
 // Transaction type.
 type Transaction struct {
+	Version   uint32         `json:"version"`
 	To        common.Address `json:"to"`
+	GasPrice  *big.Int       `json:"gas_price"`
+	GasLimit  *big.Int       `json:"gas_limit"`
 	Nonce     uint64         `json:"nonce"`
 	Value     *big.Int       `json:"value"`
 	Signature []byte         `json:"signature"`
 }
 
-func NewTransaction(to common.Address, value *big.Int) *Transaction {
-	return &Transaction{
-		To:    to,
-		Value: value,
+func NewTransaction(to common.Address, gasLimit, gasPrice *big.Int, value *big.Int) *Transaction {
+
+	result := &Transaction{
+		Version:  version0,
+		To:       to,
+		GasLimit: gasLimit,
+		GasPrice: gasPrice,
+		Value:    value,
 	}
+	return result
 }
 
 func (t *Transaction) Encode() ([]byte, error) {
@@ -81,7 +92,11 @@ func (t *Transaction) SignHash() common.Hash {
 }
 
 func (t *Transaction) Cost() *big.Int {
-	return t.Value
+	// fmt.Printf("total:%v\n", total)
+	total := new(big.Int).Mul(t.GasPrice, t.GasLimit)
+	total.Add(total, t.Value)
+	fmt.Printf("total:%v\n", total)
+	return total
 }
 
 func (t *Transaction) SignWithPrivateKey(key *ecdsa.PrivateKey) error {
@@ -112,8 +127,6 @@ func (t *Transaction) FromAddr() (common.Address, error) {
 	if err != nil {
 		return common.Bytes2Address([]byte{}), err
 	}
-	logrus.Infof("from addr pubx: %x", pub.X.Bytes())
-	logrus.Infof("from addr puby: %x", pub.Y.Bytes())
 	addr := crypto.DefaultPubKey2Addr(pub)
 	return addr, nil
 }

@@ -19,15 +19,15 @@ package backend
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/p2p"
-
-	"github.com/sirupsen/logrus"
 )
 
 type peer struct {
+	lock sync.RWMutex
 	p2pPeer p2p.Peer
 	version uint32
 	network uint32
@@ -43,7 +43,6 @@ const (
 	BlocksMsg                   uint8 = 9
 	NewBlockMsg                 uint8 = 10
 	TxMsg                       uint8 = 11
-	AllSyncMsg                  uint8 = 12
 )
 
 func newPeer(p p2p.Peer, version uint32, network uint32) *peer {
@@ -53,6 +52,29 @@ func newPeer(p p2p.Peer, version uint32, network uint32) *peer {
 		network: network,
 	}
 	return pt
+}
+func (p *peer) Head() (out common.Hash) {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	copy(out[:], p.head[:])
+	return out
+}
+
+func (p *peer) Height() uint64 {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	return p.height
+}
+func (p *peer) SetHead(hash common.Hash)  {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	copy(p.head[:], hash[:])
+}
+
+func (p *peer) SetHeight(height uint64)  {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.height = height
 }
 
 func (p *peer) p2p() p2p.Peer {
@@ -103,7 +125,7 @@ func (p *peer) Handshake(head common.Hash, height uint64) error {
 			switch msgCode {
 			case MsgCodeVersion:
 				data, _ := msg.ReadAll()
-				logrus.Infof("handle message type: %d, data: %s", msgCode, string(data))
+				//logrus.Infof("handle message type: %d, data: %s", msgCode, string(data))
 				status := statusData{}
 				if err := json.Unmarshal(data, &status); err != nil {
 					return err
@@ -112,7 +134,7 @@ func (p *peer) Handshake(head common.Hash, height uint64) error {
 					return errors.New("p2p version not match")
 				}
 				if status.Network != p.network {
-					return errors.New("network id not match")
+					return errors.New("network id n ot match")
 				}
 				p.head = status.Head
 				p.height = status.Height
@@ -129,18 +151,10 @@ func (p *peer) Handshake(head common.Hash, height uint64) error {
 
 // RequestHashesFromNumber fetches a batch of hashes from a peer, starting at from, getting count
 func (p *peer) RequestHashesFromNumber(from uint64, count uint64) error {
-	logrus.Infof("form:%v count:%v\n", from, count)
 	if err := p2p.SendMsgData(p.p2pPeer, GetBlockHashesFromNumberMsg, &getBlockHashesFromNumberData{
 		From:  from,
 		Count: count,
 	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *peer) SendAllSync(allMsg *AllSyncData) error {
-	if err := p2p.SendMsgData(p.p2pPeer, AllSyncMsg, &allMsg); err != nil {
 		return err
 	}
 	return nil
@@ -184,4 +198,8 @@ func (p *peer) SendTransactions(data remoteTxs) error {
 		return err
 	}
 	return nil
+}
+
+func (p *peer) CloseCh() chan struct{} {
+	return p.p2pPeer.CloseCh()
 }

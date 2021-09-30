@@ -19,29 +19,21 @@ package sub
 import (
 	"fmt"
 	"os"
+	"xfsgo"
 
 	"github.com/spf13/cobra"
 )
 
-const (
-	defaultP2PListenAddr = ":9001"
-	defaultRPCListenAddr = ":9002"
-)
-
 var (
 	cfgFile string
+	version bool
 	rootCmd = &cobra.Command{
-		Use: "xfsgo [flags] [command]",
+		Use: "xfsgo [flags] command [flags...]",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
+			if version {
+				showVersion()
+				return nil
 			}
-			return nil
-		},
-	}
-	getCommand = &cobra.Command{
-		Use: "get <command> [flags]",
-		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},
 	}
@@ -52,6 +44,10 @@ func Execute() {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func showVersion() {
+	fmt.Println(xfsgo.VersionString())
 }
 
 func usageTmpl() string {
@@ -72,9 +68,11 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 `
 }
 
+
 func init() {
 	mFlags := rootCmd.PersistentFlags()
-	mFlags.StringVarP(&cfgFile, "config", "C", "", "config file")
-	rootCmd.AddCommand(getCommand)
+	mFlags.StringVarP(&cfgFile, "config", "C", "", "Configuration file")
+	mFlags.BoolVarP(&version, "version", "v", false, "Show this version")
 	rootCmd.SetUsageTemplate(usageTmpl())
+	//rootCmd.SetHelpCommand()
 }

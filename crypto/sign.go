@@ -1,19 +1,3 @@
-// Copyright 2018 The xfsgo Authors
-// This file is part of the xfsgo library.
-//
-// The xfsgo library is free software: you can redistribute it and/or modify
-// it under the terms of the MIT Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The xfsgo library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// MIT Lesser General Public License for more details.
-//
-// You should have received a copy of the MIT Lesser General Public License
-// along with the xfsgo library. If not, see <https://mit-license.org/>.
-
 package crypto
 
 import (
@@ -25,8 +9,6 @@ import (
 	"errors"
 	"math/big"
 	"xfsgo/common"
-
-	"github.com/sirupsen/logrus"
 )
 
 func ECDSASign2Hex(hash []byte, prv *ecdsa.PrivateKey) (string, error) {
@@ -122,21 +104,6 @@ func VerifySignatureByPublic(data []byte, sig []byte, pub *ecdsa.PublicKey) bool
 		return false
 	}
 	s := new(big.Int).SetBytes(sBytes)
-	xBytes, err := common.ReadMixedBytes(sigBuf)
-	if err != nil {
-		return false
-	}
-	x := new(big.Int).SetBytes(xBytes)
-	yBytes, err := common.ReadMixedBytes(sigBuf)
-	if err != nil {
-		return false
-	}
-	y := new(big.Int).SetBytes(yBytes)
-
-	logrus.Infof("verify r: %x", r.Bytes())
-	logrus.Infof("verify s: %x", s.Bytes())
-	logrus.Infof("verify x: %x", x.Bytes())
-	logrus.Infof("verify y: %x", y.Bytes())
 	return ecdsa.Verify(pub, data, r, s)
 }
 

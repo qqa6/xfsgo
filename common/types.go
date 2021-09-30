@@ -1,4 +1,4 @@
-// Copyright 2018 The xfsgo Authors
+ // Copyright 2018 The xfsgo Authors
 // This file is part of the xfsgo library.
 //
 // The xfsgo library is free software: you can redistribute it and/or modify
@@ -35,6 +35,7 @@ type (
 
 var (
 	ZeroHash        = Bytes2Hash([]byte{})
+	HashZ = Hash{}
 	AddrCheckSumLen = 4
 )
 

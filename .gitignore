@@ -11,6 +11,7 @@ DISCARD
 KEYREGISTRY
 LOCK
 MANIFEST
+NODEKEY
 
 keys/
 target/
@@ -19,4 +20,4 @@ target/
 *.log
 *.yml
 !config.yml
-dbkey
+.vscode/

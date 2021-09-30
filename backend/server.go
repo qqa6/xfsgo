@@ -18,19 +18,16 @@ package backend
 
 import (
 	"xfsgo/node"
-
-	"github.com/sirupsen/logrus"
 )
 
 func StartNodeAndBackend(node *node.Node, backend *Backend) error {
-	logrus.Info("STARTING NODE SERVICES...")
+	//logrus.Info("start node service...")
 	if err := node.Start(); err != nil {
 		return err
 	}
-	logrus.Info("NODE SERVICE IS STARTED. STARTING DAEMON ...")
+	//logrus.Info("node service is started. start daemon backend service...")
 	if err := backend.Start(); err != nil {
 		return err
 	}
-	logrus.Info("DAEMON IS STARTED !!!")
 	return nil
 }

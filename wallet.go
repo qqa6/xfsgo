@@ -32,8 +32,8 @@ type Wallet struct {
 	mu          sync.RWMutex
 	cacheMu     sync.RWMutex
 	defaultAddr common.Address
-	GasPrice    *big.Int
-	GasLimit    *big.Int
+	gasPrice    *big.Int
+	gasLimit    *big.Int
 	cache       map[common.Address]*ecdsa.PrivateKey
 }
 
@@ -42,27 +42,27 @@ func NewWallet(storage *badger.Storage, gas, gasPrice *big.Int) *Wallet {
 	w := &Wallet{
 		db:       newKeyStoreDB(storage),
 		cache:    make(map[common.Address]*ecdsa.PrivateKey),
-		GasLimit: gas,
-		GasPrice: gasPrice,
+		gasLimit: gas,
+		gasPrice: gasPrice,
 	}
 	w.defaultAddr, _ = w.db.GetDefaultAddress()
 	return w
 }
 
 func (w *Wallet) SetGas(gas *big.Int) {
-	w.GasLimit = gas
+	w.gasLimit = gas
 }
 
 func (w *Wallet) GetGas() *big.Int {
-	return w.GasLimit
+	return w.gasLimit
 }
 
 func (w *Wallet) SetGasPrice(gasPrice *big.Int) {
-	w.GasPrice = gasPrice
+	w.gasPrice = gasPrice
 }
 
 func (w *Wallet) GetGasPrice() *big.Int {
-	return w.GasPrice
+	return w.gasPrice
 }
 
 // AddByRandom constructs a new Wallet with a random number and retuens the its address.

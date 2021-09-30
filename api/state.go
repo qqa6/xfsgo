@@ -25,8 +25,8 @@ import (
 )
 
 type StateAPIHandler struct {
-	StateDb *badger.Storage
-	// State *xfsgo.StateTree
+	StateDb    *badger.Storage
+	BlockChain *xfsgo.BlockChain
 }
 
 type GetStateObjArgs struct {
@@ -37,8 +37,10 @@ type GetStateObjArgs struct {
 func (state *StateAPIHandler) GetStateObj(args GetStateObjArgs, resp *StateObj) error {
 
 	if args.RootHash == "" {
-		return xfsgo.NewRPCError(-32601, "Root hash not found")
+		rootHash := state.BlockChain.CurrentBlock().StateRoot()
+		args.RootHash = rootHash.Hex()
 	}
+
 	if args.Address == "" {
 		return xfsgo.NewRPCError(-32601, "Address not found")
 	}

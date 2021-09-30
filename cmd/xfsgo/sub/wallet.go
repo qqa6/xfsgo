@@ -27,6 +27,9 @@ import (
 )
 
 var (
+	fromAddr      string
+	gasLimit      string
+	gasPrice      string
 	walletCommand = &cobra.Command{
 		Use:   "wallet",
 		Short: "get wallet info",
@@ -71,13 +74,13 @@ var (
 		RunE:  runWalletExport,
 	}
 	walletImportCommand = &cobra.Command{
-		Use:   "import <private_key>",
-		Short: "import wallet <privatekey>",
+		Use:   "import <key>",
+		Short: "import wallet <key>",
 		RunE:  runWalletImport,
 	}
 	walletTransferCommand = &cobra.Command{
-		Use:   "transfer [from] <to> <value>",
-		Short: "transfer <form> <to> <value>",
+		Use:   "transfer <address> <value>",
+		Short: "Send the transaction to the specified destination address",
 		RunE:  runWalletTransfer,
 	}
 	walletSetGasCommand = &cobra.Command{
@@ -93,7 +96,7 @@ var (
 )
 
 func runWalletTransfer(cmd *cobra.Command, args []string) error {
-	if len(args) != 3 {
+	if len(args) < 2 {
 		return cmd.Help()
 	}
 	config, err := parseClientConfig(cfgFile)
@@ -104,10 +107,19 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	result := make(map[string]interface{}, 1)
 	req := &transferFromArgs{
-		From:  args[0],
-		To:    args[1],
-		Value: args[2],
+		To:    args[0],
+		Value: args[1],
 	}
+	if fromAddr != "" {
+		req.From = fromAddr
+	}
+	if gasLimit != "" {
+		req.GasLimit = gasLimit
+	}
+	if gasPrice != "" {
+		req.GasPrice = gasPrice
+	}
+
 	err = cli.CallMethod(1, "Wallet.TransferFrom", &req, &result)
 	if err != nil {
 		fmt.Println(err)
@@ -286,7 +298,7 @@ func runWalletList() error {
 	fmt.Println()
 	for _, w := range walletAddress {
 
-		req := &getStateObjArgs{
+		req := &getAccountArgs{
 			RootHash: hash,
 			Address:  w.B58String(),
 		}
@@ -379,6 +391,10 @@ func init() {
 	walletCommand.AddCommand(walletExportCommand)
 	walletCommand.AddCommand(walletGetAddrDefCommand)
 	walletCommand.AddCommand(walletTransferCommand)
+	mFlags := walletTransferCommand.PersistentFlags()
+	mFlags.StringVarP(&fromAddr, "address", "f", "", "Set miner income address")
+	mFlags.StringVarP(&gasPrice, "gasprice", "", "", "Set expected gas unit price")
+	mFlags.StringVarP(&gasLimit, "gaslimit", "", "", "Set maximum gas purchase quantity")
 	walletCommand.AddCommand(walletSetAddrDefCommand)
 	walletCommand.AddCommand(walletSetGasCommand)
 	walletCommand.AddCommand(walletSetGasLimitCommand)

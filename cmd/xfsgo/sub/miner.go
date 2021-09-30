@@ -19,6 +19,7 @@ package sub
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 	"xfsgo"
 	"xfsgo/common"
 
@@ -26,6 +27,11 @@ import (
 )
 
 var (
+	workers  int
+	coinbase string
+	gasprice string
+	gaslimit string
+
 	minerCommand = &cobra.Command{
 		Use:   "miner",
 		Short: "miner serve info",
@@ -38,21 +44,21 @@ var (
 	}
 	minerStartCommand = &cobra.Command{
 		Use:   "start",
-		Short: "start miner",
+		Short: "Start mining service",
 		RunE:  runMinerStart,
 	}
 	minerStopCommand = &cobra.Command{
 		Use:   "stop",
-		Short: "stop miner",
+		Short: "Stop mining services",
 		RunE:  runMinerStop,
 	}
 	minerWorkersAddCommand = &cobra.Command{
-		Use:   "workeradd",
-		Short: "Miner supplemental thread",
+		Use:   "addworker [count]",
+		Short: "Add number of workers",
 		RunE:  WorkersAdd,
 	}
 	minerWorkersDownCommand = &cobra.Command{
-		Use:   "workerdown",
+		Use:   "delworker [count]",
 		Short: "Miners reduce threads",
 		RunE:  WorkersDown,
 	}
@@ -61,14 +67,20 @@ var (
 		Short: "Miner set gas price",
 		RunE:  MinSetGasPrice,
 	}
-	minerGetGasInfoCommand = &cobra.Command{
-		Use:   "getinfo",
-		Short: "Miner get gas info",
-		RunE:  GetGasInfo,
+	minerSetGasLimitCommand = &cobra.Command{
+		Use:   "setgaslimit <limit>",
+		Short: "Miner set gas limit",
+		RunE:  MinSetGasLimit,
+	}
+	minerGetStatusCommand = &cobra.Command{
+		Use:   "status",
+		Short: "Get current miner status",
+		RunE:  MinGetStatus,
 	}
 )
 
-func runMinerStart(_ *cobra.Command, _ []string) error {
+func runMinerStart(_ *cobra.Command, args []string) error {
+
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
@@ -77,6 +89,60 @@ func runMinerStart(_ *cobra.Command, _ []string) error {
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
 	if err = cli.CallMethod(1, "Miner.Start", nil, &res); err != nil {
 		return nil
+	}
+
+	// worker
+	if workers > 0 {
+		num, err := strconv.Atoi(args[0])
+		if err != nil {
+			return err
+		}
+		req := &MinWorkerArgs{
+			WorkerNum: num,
+		}
+
+		err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil
+		}
+	}
+	// coinbase
+	if coinbase != "" {
+		req := &MinSetCoinbaseArgs{
+			Coinbase: args[1],
+		}
+		err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil
+		}
+	}
+	// gasprice
+	if gasprice != "" {
+		gasPrice, _ := new(big.Int).SetString(args[2], 0)
+		bigGasPrice := common.NanoCoin2BaseCoin(gasPrice)
+		req := &MinSetGasPriceArgs{
+			GasPrice: bigGasPrice.String(),
+		}
+		err = cli.CallMethod(1, "Miner.MinSetGasPrice", &req, &res)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil
+		}
+	}
+	// gaslimit
+	if gaslimit != "" {
+		gasLimit, _ := new(big.Int).SetString(args[3], 0)
+		bigGasLimit := common.NanoCoin2BaseCoin(gasLimit)
+		req := &MinSetGasLimitArgs{
+			GasLimit: bigGasLimit.String(),
+		}
+		err = cli.CallMethod(1, "Miner.MinSetGasLimit", &req, &res)
+		if err != nil {
+			fmt.Println(err.Error())
+			return nil
+		}
 	}
 	fmt.Println("miner running...")
 	return nil
@@ -98,29 +164,57 @@ func runMinerStop(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func WorkersAdd(_ *cobra.Command, _ []string) error {
+func WorkersAdd(cmd *cobra.Command, args []string) error {
+
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	err = cli.CallMethod(1, "Miner.WorkersAdd", nil, &res)
+
+	req := &MinWorkerArgs{
+		WorkerNum: 1,
+	}
+
+	var num int
+	if len(args) > 0 {
+		num, err = strconv.Atoi(args[0])
+		if err != nil {
+			return err
+		}
+	}
+	req.WorkerNum = num
+
+	err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
 	}
+	fmt.Println(res)
 	return nil
 }
 
-func WorkersDown(_ *cobra.Command, _ []string) error {
+func WorkersDown(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		cmd.Help()
+		return nil
+	}
+
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	err = cli.CallMethod(1, "Miner.WorkersDown", nil, &res)
+	num, err := strconv.Atoi(args[0])
+	if err != nil {
+		return err
+	}
+	req := &MinWorkerArgs{
+		WorkerNum: num,
+	}
+	err = cli.CallMethod(1, "Miner.WorkersDown", &req, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -140,10 +234,10 @@ func MinSetGasPrice(cmd *cobra.Command, args []string) error {
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	gasPrice, _ := new(big.Int).SetString(args[0], 0)
-	r := common.NanoCoin2BaseCoin(gasPrice)
+	gasPrice, _ := new(big.Int).SetString(args[2], 0)
+	bigGasPrice := common.NanoCoin2BaseCoin(gasPrice)
 	req := &MinSetGasPriceArgs{
-		GasPrice: r.String(),
+		GasPrice: bigGasPrice.String(),
 	}
 	err = cli.CallMethod(1, "Miner.MinSetGasPrice", &req, &res)
 	if err != nil {
@@ -153,32 +247,78 @@ func MinSetGasPrice(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func GetGasInfo(_ *cobra.Command, _ []string) error {
+func MinSetGasLimit(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		cmd.Help()
+		return nil
+	}
+
+	config, err := parseClientConfig(cfgFile)
+	if err != nil {
+		return err
+	}
+	var res *string = nil
+	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	gasLimit, _ := new(big.Int).SetString(args[0], 0)
+	bigGasLimit := common.NanoCoin2BaseCoin(gasLimit)
+	req := &MinSetGasLimitArgs{
+		GasLimit: bigGasLimit.String(),
+	}
+	err = cli.CallMethod(1, "Miner.MinSetGasLimit", &req, &res)
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+	return nil
+}
+
+func MinGetStatus(_ *cobra.Command, _ []string) error {
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
 	}
 	res := make(map[string]interface{}, 1)
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	err = cli.CallMethod(1, "Miner.GetGasInfo", nil, &res)
+	err = cli.CallMethod(1, "Miner.MinGetStatus", nil, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
 	}
-	bs, err := common.MarshalIndent(res)
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(bs))
 
+	var statusStr string
+	if res["status"].(bool) {
+		statusStr = "Running"
+	} else {
+		statusStr = "Stop"
+	}
+	fmt.Printf("Status: %v\n", statusStr)
+	fmt.Printf("LastStarTime: %v\n", res["last_start_time"])
+	fmt.Printf("Workers: %v\n", res["workers"])
+	fmt.Printf("Coinbase: %v\n", res["coinbase"])
+
+	gasPrice2NewBig, _ := new(big.Int).SetString(res["gas_price"].(string), 0)
+	gasPrice2Big := common.NanoCoin2BaseCoin(gasPrice2NewBig)
+
+	gasLimit2NewBig, _ := new(big.Int).SetString(res["gas_limit"].(string), 0)
+	gasLimit2Big := common.NanoCoin2BaseCoin(gasLimit2NewBig)
+
+	fmt.Printf("GasPrice: %v (Nanox)\n", gasPrice2Big)
+	fmt.Printf("GasLimit: %v (Nanox)\n", gasLimit2Big)
+	fmt.Printf("HashRate: %v\n", res["hash_rate"])
 	return nil
 }
 func init() {
 	minerCommand.AddCommand(minerStartCommand)
+	mFlags := minerStartCommand.PersistentFlags()
+	mFlags.IntVarP(&workers, "workers", "", 0, "Set number of workers")
+	mFlags.StringVarP(&coinbase, "coinbase", "", "", "Set miner income address")
+	mFlags.StringVarP(&gasprice, "gasprice", "", "", "Set expected gas unit price")
+	mFlags.StringVarP(&gaslimit, "gaslimit", "", "", "Set maximum gas purchase quantity")
 	minerCommand.AddCommand(minerStopCommand)
 	minerCommand.AddCommand(minerWorkersAddCommand)
 	minerCommand.AddCommand(minerWorkersDownCommand)
 	minerCommand.AddCommand(minerSetGasPriceCommand)
-	minerCommand.AddCommand(minerGetGasInfoCommand)
+	minerCommand.AddCommand(minerSetGasLimitCommand)
+	minerCommand.AddCommand(minerGetStatusCommand)
 	rootCmd.AddCommand(minerCommand)
 }

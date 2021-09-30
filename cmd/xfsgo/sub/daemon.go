@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	"xfsgo"
@@ -38,6 +39,8 @@ var (
 	p2paddr        string
 	datadir        string
 	importsnapshot string
+	importchain    string
+	bootstrap      string
 	testnet        bool
 	netid          int
 	daemonCmd      = &cobra.Command{
@@ -71,6 +74,9 @@ func resetConfig(config *daemonConfig) {
 	}
 	if testnet {
 		config.backendParams.NetworkID = defaultTestNetworkId
+	}
+	if bootstrap != "" {
+		config.nodeConfig.P2PBootstraps = strings.Split(bootstrap, ",")
 	}
 }
 func runDaemon() error {
@@ -162,7 +168,9 @@ func init() {
 	mFlags.StringVarP(&rpcaddr, "rpcaddr", "r", "", "Set JSON-RPC Service listen address")
 	mFlags.StringVarP(&p2paddr, "p2paddr", "p", "", "Set P2P-Node listen address")
 	mFlags.StringVarP(&datadir, "datadir", "d", "", "Set Data directory")
-	mFlags.StringVarP(&importsnapshot, "importsnapshot", "i", "", "Imports data from the specified snapshot file")
+	mFlags.StringVarP(&importsnapshot, "importsnapshot", "", "", "Imports data from the specified snapshot file")
+	mFlags.StringVarP(&importchain, "importchain", "", "", "Import data from the specified chain file and start the service")
+	mFlags.StringVarP(&bootstrap, "bootstrap", "", "", "Specify boot node")
 	mFlags.BoolVarP(&testnet, "testnet", "t", false, "Enable test network")
 	mFlags.IntVarP(&netid, "netid", "n", 0, "Explicitly set network id")
 	rootCmd.AddCommand(daemonCmd)

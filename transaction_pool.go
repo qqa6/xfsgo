@@ -93,6 +93,7 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 	if from, err = tx.FromAddr(); err != nil {
 		return errors.New("from fields is invalid")
 	}
+
 	if !pool.currentState().HashAccount(from) {
 		return errors.New("account not enough balance")
 	}
@@ -108,11 +109,9 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 	if pool.gasLimit.Cmp(tx.GasLimit) < 0 {
 		return errors.New("exceeds block gas limit")
 	}
-
 	if tx.Value.Sign() <= 0 {
 		return errors.New("val < 0")
 	}
-
 	if pool.currentState().GetBalance(from).Cmp(tx.Cost()) < 0 {
 		return errors.New("val out")
 	}
@@ -282,6 +281,28 @@ func (pool *TxPool) GetTransactions() []*Transaction {
 		txs = append(txs, v)
 	}
 	return txs
+}
+
+func (pool *TxPool) GetTransaction(tranHash string) *Transaction {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+	pool.checkQueue()
+	pool.validatePool()
+	for _, v := range pool.pending {
+		txhash := v.Hash()
+		tx := txhash.Hex()
+		if tx == tranHash {
+			return v
+		}
+	}
+	return nil
+}
+
+func (pool *TxPool) ModifyTrans(gasLimit, gasPrice *big.Int, hash string) error {
+	tran := pool.GetTransaction(hash)
+	tran.GasLimit = gasLimit
+	tran.GasLimit = gasPrice
+	return pool.Add(tran)
 }
 
 func (pool *TxPool) GetTransactionsSize() int {

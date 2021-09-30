@@ -42,16 +42,16 @@ func (block BlockMap) MapMerge() map[string]interface{} {
 	return result
 }
 
-func Marshal(info BlockMap, sortKey []string, isIndent bool) (string, error) {
+func Marshal(info BlockMap, sortIndex []string, isIndent bool) (string, error) {
 
-	if len(info) != len(sortKey) {
+	if len(info) != len(sortIndex) {
 		return "", errors.New("inconsistent array length")
 	}
 
 	var jsonBuf strings.Builder
 	jsonBuf.WriteString("{")
-	for i := 0; i < len(sortKey); i++ {
-		k := sortKey[i]
+	for i := 0; i < len(sortIndex); i++ {
+		k := sortIndex[i]
 		jsonBuf.WriteString("\"" + k + "\":")
 		var content string
 		mydata := reflect.ValueOf(info).MapIndex(reflect.ValueOf(k))
@@ -66,7 +66,7 @@ func Marshal(info BlockMap, sortKey []string, isIndent bool) (string, error) {
 		default:
 			content = "null"
 		}
-		if i < len(sortKey)-1 {
+		if i < len(sortIndex)-1 {
 			jsonBuf.WriteString(content + ",")
 		} else {
 			jsonBuf.WriteString(content)
@@ -87,14 +87,14 @@ func Marshal(info BlockMap, sortKey []string, isIndent bool) (string, error) {
 
 }
 
-func Marshals(info []BlockMap, sortKey []string, isIndent bool) (string, error) {
+func Marshals(info []BlockMap, sortIndex []string, isIndent bool) (string, error) {
 
 	var jsonBuf bytes.Buffer
 	jsonBuf.WriteString("[")
 	for index, item := range info {
 		jsonBuf.WriteString("{")
-		for i := 0; i < len(sortKey); i++ {
-			k := sortKey[i]
+		for i := 0; i < len(sortIndex); i++ {
+			k := sortIndex[i]
 			jsonBuf.WriteString("\"" + k + "\":")
 			var content string
 			mydata := reflect.ValueOf(item).MapIndex(reflect.ValueOf(k))
@@ -108,7 +108,7 @@ func Marshals(info []BlockMap, sortKey []string, isIndent bool) (string, error) 
 			default:
 				content = "null"
 			}
-			if i < len(sortKey)-1 {
+			if i < len(sortIndex)-1 {
 				jsonBuf.WriteString(content + ",")
 			} else {
 				jsonBuf.WriteString(content)

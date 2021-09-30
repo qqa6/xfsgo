@@ -27,7 +27,7 @@ import (
 )
 
 type peer struct {
-	lock sync.RWMutex
+	lock    sync.RWMutex
 	p2pPeer p2p.Peer
 	version uint32
 	network uint32
@@ -65,13 +65,13 @@ func (p *peer) Height() uint64 {
 	defer p.lock.RUnlock()
 	return p.height
 }
-func (p *peer) SetHead(hash common.Hash)  {
+func (p *peer) SetHead(hash common.Hash) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	copy(p.head[:], hash[:])
 }
 
-func (p *peer) SetHeight(height uint64)  {
+func (p *peer) SetHeight(height uint64) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	p.height = height

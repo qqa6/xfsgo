@@ -21,8 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"go/token"
 	"io"
 	"io/ioutil"
@@ -31,6 +29,9 @@ import (
 	"strconv"
 	"strings"
 	"xfsgo/log"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -71,13 +72,13 @@ type jsonRPCRespErr struct {
 
 type RPCConfig struct {
 	ListenAddr string
-	Logger log.Logger
+	Logger     log.Logger
 }
 
 // RPCServer is an RPC server.
 type RPCServer struct {
-	logger log.Logger
-	config *RPCConfig
+	logger     log.Logger
+	config     *RPCConfig
 	ginEngine  *gin.Engine
 	upgrader   websocket.Upgrader
 	serviceMap map[string]*service

@@ -243,13 +243,13 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	}
 	parentStateRoot := parent.StateRoot()
 	stateTree := NewStateTree(bc.stateDB, parentStateRoot.Bytes())
-	rs, err := bc.ApplyTransactions(stateTree, header, txs)
+	_, rec, err := bc.ApplyTransactions(stateTree, header, txs)
 	if err != nil {
 		return err
 	}
 	AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
-	targetRsRoot := CalcReceiptRootHash(rs)
+	targetRsRoot := CalcReceiptRootHash(rec)
 	if !bytes.Equal(rsRoot.Bytes(), targetRsRoot.Bytes()) {
 		return fmt.Errorf("check receipt root err")
 	}
@@ -263,20 +263,20 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	return nil
 }
 
-func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) ([]*Receipt, error) {
-	receipts := make([]*Receipt, 0)
+func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) (*big.Int, []*Receipt, error) {
+	receipts := make([]*Receipt, 1)
 	totalUsedGas := big.NewInt(0)
-
 	for _, tx := range txs {
-		r, err := bc.applyTransaction(stateTree, totalUsedGas, header, tx)
+		rec, err := bc.applyTransaction(stateTree, header, tx)
 		if err != nil {
-			logrus.Errorf("something wrong to execute the transactions: %s", tx.Hash())
-			return nil, err
+			logrus.Errorf(" wrong to execute the transactions: %s", tx.Hash())
+			return nil, nil, err
 		}
-		logrus.Infof("excute the transactions successfully: %s, receipt: %d", tx.Hash(), r.Hash())
-		receipts = append(receipts, r)
+		logrus.Infof("excute the transactions successfully: %s, receipt: %d", tx.Hash(), rec.Hash())
+		totalUsedGas.Add(big.NewInt(0), rec.GasUsed)
+		receipts = append(receipts, rec)
 	}
-	return receipts, nil
+	return totalUsedGas, receipts, nil
 }
 
 func (bc *BlockChain) checkBlockHeaderSanity(header *BlockHeader, blockHash common.Hash) error {
@@ -319,59 +319,62 @@ func (bc *BlockChain) UseGas(gas, amount *big.Int) (*big.Int, error) {
 	return gas.Sub(gas, amount), nil
 }
 
-func (bc *BlockChain) applyTransaction(stateTree *StateTree, usedGas *big.Int, header *BlockHeader, tx *Transaction) (*Receipt, error) {
+func (bc *BlockChain) applyTransaction(stateTree *StateTree, header *BlockHeader, tx *Transaction) (*Receipt, error) {
 	if err := bc.checkTransactionSanity(tx); err != nil {
 		return nil, err
 	}
 	cb := stateTree.GetStateObj(header.Coinbase)
-
 	// Pre-pay gas / Buy gas of the coinbase account
 	cb.SetGasLimit(header.GasLimit)
 	mgas := tx.GasLimit
-	mgval := new(big.Int).Mul(mgas, tx.GasPrice)
+
+	txGasCount := new(big.Int).Mul(mgas, tx.GasPrice)
 
 	sender, err := tx.FromAddr()
 	if err != nil {
 		return nil, err
 	}
 	senderObj := stateTree.GetOrNewStateObj(sender) // get from Transaction state object
-	if senderObj.GetBalance().Cmp(mgval) < 0 {
-		return nil, fmt.Errorf("insufficient for gas (%x). Req %v, has %v", sender.Bytes()[:4], mgval, senderObj.GetBalance())
+	if senderObj.GetBalance().Cmp(txGasCount) < 0 {
+		return nil, fmt.Errorf("insufficient for gas (%x). Req %v, has %v", sender.Bytes()[:4], txGasCount, senderObj.GetBalance())
 	}
+
 	if err = cb.SubGas(mgas, tx.GasPrice); err != nil {
 		return nil, err
 	}
-	gas := new(big.Int)
-	gas.Add(gas, mgas) // user max gas
+
+	gas := new(big.Int).Set(txGasCount) // user max gas
 	initialGas := new(big.Int)
 	initialGas.Set(mgas)
-	senderObj.SubBalance(mgval)
+	senderObj.SubBalance(txGasCount) // Traders pre order gas
 
 	// IntrinsicGas
-	amount := bc.IntrinsicGas([]byte{})
-
-	if mgas.Cmp(amount) < 0 {
+	basicGas := bc.IntrinsicGas([]byte{}) // Basic service charge
+	if mgas.Cmp(basicGas) < 0 {
 		return nil, errors.New("out of gas")
 	}
 
-	surplus, err := bc.UseGas(gas, amount)
+	surplus, err := bc.UseGas(gas, basicGas) // Actual gas consumption
 	if err != nil {
 		return nil, err
 	}
+
 	senderObj.AddBalance(surplus)
-	cb.AddBalance(amount)
+	cb.AddBalance(basicGas)
 
 	stateTree.AddNonce(sender, 1)
 
 	if err = bc.callTransfer(stateTree, sender, tx.To, tx.Value); err != nil {
 		return nil, err
 	}
+
 	stateTree.UpdateAll()
+
 	receipt := &Receipt{
 		TxHash:  tx.Hash(),
 		Version: tx.Version,
 		Status:  uint32(1),
-		GasUsed: amount,
+		GasUsed: basicGas,
 	}
 	return receipt, nil
 }
@@ -404,6 +407,23 @@ func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
 		hashes = append(hashes, block.Hash())
 	}
 	return hashes
+}
+
+func (bc *BlockChain) GetBlockHashesFromHash(hash common.Hash, max uint64) (chain []common.Hash) {
+	block := bc.GetBlockByHash(hash)
+	if block == nil {
+		return
+	}
+	// XXX Could be optimised by using a different database which only holds hashes (i.e., linked list)
+	for i := uint64(0); i < max; i++ {
+		block = bc.GetBlockByHash(block.HashPrevBlock())
+		if block == nil {
+			break
+		}
+		chain = append(chain, block.Hash())
+	}
+
+	return
 }
 
 func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {

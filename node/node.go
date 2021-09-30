@@ -18,20 +18,16 @@ package node
 
 import (
 	"crypto/ecdsa"
-	"crypto/x509"
+	"errors"
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
 	"xfsgo"
 	"xfsgo/api"
-	"xfsgo/common"
-	"xfsgo/common/rawencode"
 	"xfsgo/crypto"
 	"xfsgo/miner"
 	"xfsgo/p2p"
 	"xfsgo/p2p/discover"
-	"xfsgo/p2p/nat"
 	"xfsgo/storage/badger"
 
 	"github.com/sirupsen/logrus"
@@ -54,10 +50,31 @@ type Config struct {
 	RPCConfig        *xfsgo.RPCConfig
 }
 
-const datadirPrivateKey = "NODEKEY"
+const nodedbKeyName = "/dbkey"
 
 // New creates a new P2P node, ready for protocol registration.
 func New(config *Config) (*Node, error) {
+	var key *ecdsa.PrivateKey
+	nodedbKeyDir := config.NodeDBPath + nodedbKeyName
+	NewNodeDBFile(config.NodeDBPath, nodedbKeyName)
+	EncodeKey, err := GetNodeDB(nodedbKeyDir)
+	if err != nil {
+		return nil, err
+	}
+	if EncodeKey != "" {
+		key, _ = crypto.B64StringDecodePrivateKey(EncodeKey)
+	} else {
+		key, _ = crypto.GenPrvKey()
+		str, err := crypto.PrivateKeyEncodeB64String(key)
+		if err != nil {
+			return nil, err
+		}
+		err = SetNodeDB(nodedbKeyDir, str)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	bootstraps := make([]*discover.Node, 0)
 	for _, nodeUri := range config.P2PBootstraps {
 		node, err := discover.ParseNode(nodeUri)
@@ -74,19 +91,15 @@ func New(config *Config) (*Node, error) {
 		}
 		staticNodes = append(staticNodes, node)
 	}
-	enc := new(rawencode.StdEncoder)
-	//logrus.Infof("logger level: %s", logrus.GetLevel())
 	p2pServer := p2p.NewServer(p2p.Config{
-		Encoder: enc,
-		Nat: nat.Any(),
 		ListenAddr:      config.P2PListenAddress,
-		Key:             nodeKeyByPath(config.NodeDBPath),
+		ProtocolVersion: config.ProtocolVersion,
+		Key:             key,
 		BootstrapNodes:  bootstraps,
 		StaticNodes:     staticNodes,
 		Discover:        true,
 		MaxPeers:        10,
 		NodeDBPath:      config.NodeDBPath,
-		Logger: logrus.StandardLogger(),
 	})
 	n := &Node{
 		config:    config,
@@ -94,6 +107,43 @@ func New(config *Config) (*Node, error) {
 	}
 	n.rpcServer = xfsgo.NewRPCServer(config.RPCConfig)
 	return n, nil
+}
+
+func NewNodeDBFile(filemkdir string, filename string) error {
+	nodedb := filemkdir + filename
+	if FileExist(nodedb) {
+		return errors.New("file already exists")
+	}
+	os.MkdirAll(filemkdir, os.ModePerm)
+	// if err != nil {
+	_, err := os.Create(nodedb)
+	return err
+	// }
+}
+
+func GetNodeDB(filename string) (string, error) {
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0600)
+	if err != nil {
+		return "", err
+	} else {
+		contentByte, err := ioutil.ReadAll(f)
+		return string(contentByte), err
+	}
+}
+
+func SetNodeDB(filename string, key string) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	} else {
+		_, err = f.Write([]byte(key))
+		return err
+	}
+}
+
+func FileExist(path string) bool {
+	_, err := os.Lstat(path)
+	return !os.IsNotExist(err)
 }
 
 // Start starts p2p networking and RPC services runs in a goroutine.
@@ -104,7 +154,7 @@ func (n *Node) Start() error {
 	}
 	go func() {
 		if err := n.rpcServer.Start(); err != nil {
-			logrus.Errorf("start rpc err: %s", err)
+			logrus.Warnf("START RPC ERR: %s", err)
 		}
 	}()
 	return nil
@@ -163,40 +213,4 @@ func (n *Node) RegisterBackend(
 
 func (n *Node) P2PServer() p2p.Server {
 	return n.p2pServer
-}
-
-func nodeKeyByPath(filepath string) *ecdsa.PrivateKey {
-	if filepath == "" {
-		k, err := crypto.GenPrvKey()
-		if err != nil {
-			logrus.Errorf("gen private key err: %s", k)
-		}
-		return k
-	}
-	keyfile := path.Join(filepath, datadirPrivateKey)
-	if file,err := os.OpenFile(keyfile, os.O_RDWR,0666); err == nil {
-		defer common.Safeclose(file.Close)
-		if der, err := ioutil.ReadAll(file); err == nil {
-			if key, err := x509.ParseECPrivateKey(der); err == nil {
-				return key
-			}
-		}
-		return nil
-	}
-	k, err := crypto.GenPrvKey()
-	if err != nil {
-		return nil
-	}
-	if der, err := x509.MarshalECPrivateKey(k); err == nil {
-		if err := os.MkdirAll(filepath, 0700); err != nil {
-			logrus.Errorf("Failed to persist node key: %v", err)
-			return k
-		}
-		if err := ioutil.WriteFile(keyfile, der, 0600); err != nil {
-			logrus.Errorf("Failed to write node key: %v", err)
-			return k
-		}
-		return k
-	}
-	return k
 }

@@ -15,7 +15,8 @@ rpcserver:
   # By default, it will be bound to the local loopback address: 127.0.0.1:9001
   # if need to map outside network you can set [ip]:<port>
   # which port bound support http/s、websocket（ws）protocols
-  listen: "127.0.0.1:9001"
+
+  listen: "0.0.0.0:9001"
 
 p2pnode:
   # address of node in p2p network to listen services of p2p network.
@@ -37,6 +38,7 @@ miner:
   # ,which will affect the HASH RATE cause an address represents a node joined in to mine at least
   # by default,a private key will be created by a random number in your local wallet when the xfs blockchain starts for the first time. 
   # you can check your wallet list after the daemon is executed.
+
   coinbase: ""
   # number of thread executed
   # that will be limited by your mining machine configuration
@@ -62,4 +64,4 @@ storage:
   nodesdir: ""
 
 logger:
-  level: "DEBUG"
+  level: "INFO"

@@ -18,8 +18,8 @@ package sub
 
 import (
 	"fmt"
+	"math"
 	"xfsgo"
-	"xfsgo/common"
 
 	"github.com/spf13/cobra"
 )
@@ -50,22 +50,32 @@ func getStateObj(cmd *cobra.Command, args []string) error {
 	}
 
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	result := make(map[string]interface{}, 1)
+	balance := make(map[string]interface{}, 1)
 	req := &getStateObjArgs{
 		RootHash: args[0],
 		Address:  args[1],
 	}
-	err = cli.CallMethod(1, "State.GetStateObj", &req, &result)
+	err = cli.CallMethod(1, "State.GetStateObj", &req, &balance)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	bs, err := common.MarshalIndent(result)
-	if err != nil {
-		fmt.Println(err)
-		return err
+
+	var t uint64
+	if balance["balance"] != nil {
+		t = uint64(balance["balance"].(float64) * math.Pow10(0))
 	}
-	fmt.Println(string(bs))
+
+	var nonce uint64
+	if balance["nonce"].(float64) != float64(0) {
+		nonce = uint64(balance["nonce"].(float64) * math.Pow10(0))
+	}
+
+	fmt.Print("address                                 balance          nonce")
+	fmt.Println()
+	fmt.Printf("%-40v", balance["address"])
+	fmt.Printf("%-17v", t)
+	fmt.Printf("%-d\n", nonce)
 	return nil
 
 }

@@ -19,7 +19,6 @@ package xfsgo
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"xfsgo/avlmerkle"
 	"xfsgo/common"
@@ -41,7 +40,6 @@ type StateObj struct {
 	address    common.Address //hash of address of the account
 	balance    *big.Int
 	nonce      uint64
-	gasPool    *big.Int
 }
 
 func (so *StateObj) Decode(data []byte) error {
@@ -83,7 +81,6 @@ func NewStateObj(address common.Address, tree *avlmerkle.Tree) *StateObj {
 	obj := &StateObj{
 		address:    address,
 		merkleTree: tree,
-		gasPool:    new(big.Int),
 	}
 	return obj
 }
@@ -129,23 +126,6 @@ func (so *StateObj) GetBalance() *big.Int {
 
 func (so *StateObj) GetAddress() common.Address {
 	return so.address
-}
-
-func (so *StateObj) SetGasLimit(gasLimit *big.Int) {
-	so.gasPool = new(big.Int).Set(gasLimit)
-}
-
-func (so *StateObj) SubGas(gas, price *big.Int) error {
-	if so.gasPool.Cmp(gas) < 0 {
-		return fmt.Errorf("GasLimit error. Max %s, transaction would take it to %s", so.gasPool, gas)
-	}
-
-	so.gasPool.Sub(so.gasPool, gas)
-
-	rGas := new(big.Int).Set(gas)
-	rGas.Mul(rGas, price)
-
-	return nil
 }
 
 func (so *StateObj) SetNonce(nonce uint64) {

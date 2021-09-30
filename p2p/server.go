@@ -1,31 +1,24 @@
 package p2p
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"errors"
 	"net"
 	"sync"
 	"time"
-	"xfsgo/log"
 	"xfsgo/p2p/discover"
+	"xfsgo/p2p/log"
 	"xfsgo/p2p/nat"
 )
 
 const (
-	flagInbound = 1
+	flagInbound  = 1
 	flagOutbound = 1 << 1
-	flagStatic = 1 << 2
-	flagDynamic = 1 << 3
+	flagStatic   = 1 << 2
+	flagDynamic  = 1 << 3
 )
 
-
 type Server interface {
-	Node() *discover.Node
-	NodeId() discover.NodeId
-	Peers() []Peer
-	AddPeer(node *discover.Node)
-	RemovePeer(node discover.NodeId)
 	Bind(p Protocol)
 	Start() error
 	Stop()
@@ -37,50 +30,44 @@ type Server interface {
 // You should set them before starting the Server. Fields may not be
 // modified while the server is running.
 type server struct {
-	nodeId discover.NodeId
-	node *discover.Node
-	config Config
-	mu     sync.Mutex
+	config  Config
+	mu      sync.Mutex
 	running bool
 	//protocols contains the protocols supported by the server.
 	//Matching protocols are launched for each peer.
 	protocols []Protocol
-	close chan struct{}
-	addpeer chan *peerConn
-	addstatic chan *discover.Node
-	rmstatic chan discover.NodeId
-	delpeer chan Peer
-	peers map[discover.NodeId]Peer
-	table *discover.Table
-	logger log.Logger
+
+	addpeer    chan *peerConn
+	delpeer    chan Peer
+	table      *discover.Table
+	logger     log.Logger
 	lastLookup time.Time
+	natm       nat.Listener
+	quit       chan struct{}
 }
 
 // Config Background network service configuration
 type Config struct {
-	Nat nat.Mapper
+	ProtocolVersion uint8
 	ListenAddr      string
 	Key             *ecdsa.PrivateKey
-	Discover bool
-	NodeDBPath string
+	Discover        bool
+	NodeDBPath      string
 	StaticNodes     []*discover.Node
-	BootstrapNodes []*discover.Node
-	MaxPeers int
-	Logger log.Logger
-	Encoder encoder
+	BootstrapNodes  []*discover.Node
+	MaxPeers        int
+	Logger          log.Logger
 }
 
 // NewServer Creates background service object
 func NewServer(config Config) Server {
 	srv := &server{
-		config:  config,
+		config: config,
 		logger: config.Logger,
 	}
-	if srv.logger == nil {
+	if config.Logger == nil {
 		srv.logger = log.DefaultLogger()
 	}
-	currentKey := srv.config.Key
-	srv.nodeId = discover.PubKey2NodeId(currentKey.PublicKey)
 	return srv
 }
 
@@ -95,25 +82,10 @@ func (srv *server) Bind(p Protocol) {
 
 // Stop background network function
 func (srv *server) Stop() {
-	close(srv.close)
-	srv.table.Close()
-}
-
-type udpcnn interface {
-	LocalAddr() net.Addr
-}
-
-func (srv *server) listenUDP() (*discover.Table, udpcnn, error ) {
-	addr, err := net.ResolveUDPAddr("udp", srv.config.ListenAddr)
-	if err != nil {
-		return nil, nil, err
-	}
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		return nil, nil, err
-	}
-	table, _ := discover.NewUDP(srv.config.Key, conn, srv.config.NodeDBPath, srv.config.Nat)
-	return table, conn, nil
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	srv.running = false
+	close(srv.quit)
 }
 
 // Start start running the server.
@@ -127,19 +99,16 @@ func (srv *server) Start() error {
 	srv.running = true
 	// Peer to peer session entity
 	srv.addpeer = make(chan *peerConn)
-	srv.addstatic = make(chan *discover.Node)
-	srv.rmstatic = make(chan discover.NodeId)
 	srv.delpeer = make(chan Peer)
-	srv.close = make(chan struct{})
+	srv.quit = make(chan struct{})
+	srv.natm = &nat.DefaultListener{}
 	var err error
-	var uconn udpcnn = nil
 	// launch node discovery and UDP listener
 	if srv.config.Discover {
-		srv.table, uconn, err = srv.listenUDP()
+		srv.table, err = discover.ListenUDP(srv.config.Key, srv.config.ListenAddr, srv.config.NodeDBPath, srv.natm)
 		if err != nil {
 			return err
 		}
-
 	}
 	dynPeers := srv.config.MaxPeers / 2
 	if !srv.config.Discover {
@@ -147,8 +116,7 @@ func (srv *server) Start() error {
 	}
 	dialer := newDialState(srv.config.StaticNodes, srv.table, dynPeers)
 	// launch TCP listener to accept connection
-	realaddr := uconn.LocalAddr().(*net.UDPAddr)
-	if err = srv.listenAndServe(realaddr.Port); err != nil {
+	if err = srv.listenAndServe(); err != nil {
 		return err
 	}
 
@@ -158,7 +126,7 @@ func (srv *server) Start() error {
 }
 
 func (srv *server) run(dialer *dialstate) {
-	srv.peers = make(map[discover.NodeId]Peer)
+	peers := make(map[discover.NodeId]Peer)
 	tasks := make([]task, 0)
 	pendingTasks := make([]task, 0)
 	taskdone := make(chan task)
@@ -191,27 +159,22 @@ func (srv *server) run(dialer *dialstate) {
 			pendingTasks = pt[:len(pt)-start]
 		}
 	}
+
+running:
 	for {
 		now := time.Now()
-		nt := dialer.newTasks(len(pendingTasks)+len(tasks), srv.peers, now)
+		nt := dialer.newTasks(len(pendingTasks)+len(tasks), peers, now)
 		// schedule tasks
 		scheduleTasks(nt)
 		select {
-		case n := <-srv.addstatic:
-			dialer.addStatic(n)
-		case n := <-srv.rmstatic:
-			dialer.removeStatic(n)
-			for k, v := range srv.peers {
-				if bytes.Equal(k[:], n[:]) {
-					v.Close()
-				}
-			}
-			delete(srv.peers, n)
+		case <-srv.quit:
+			srv.logger.Infof("quit: spinning down")
+			break running
 		// add peer
 		case c := <-srv.addpeer:
-			p := newPeer(c, srv.protocols, srv.config.Encoder)
-			srv.peers[c.id] = p
-			srv.logger.Infof("Join peer id: %s", c.id)
+			p := newPeer(c, srv.protocols)
+			peers[c.id] = p
+			srv.logger.Infof("save peer id to peers: %s", c.id)
 			go srv.runPeer(p)
 		// task is done
 		case t := <-taskdone:
@@ -219,8 +182,7 @@ func (srv *server) run(dialer *dialstate) {
 			delTask(t)
 		// delete peer
 		case p := <-srv.delpeer:
-			pId := p.ID()
-			delete(srv.peers, pId)
+			delete(peers, p.ID())
 		}
 	}
 }
@@ -230,28 +192,22 @@ func (srv *server) runPeer(peer Peer) {
 	srv.delpeer <- peer
 }
 
-func (srv *server) listenAndServe(realPort int) error {
-	addr, err := net.ResolveTCPAddr("tcp", srv.config.ListenAddr)
-	addr.Port = realPort
-	ln, err := net.ListenTCP("tcp", addr)
-	laddr := ln.Addr().(*net.TCPAddr)
+func (srv *server) listenAndServe() error {
+	addr := srv.config.ListenAddr
+	ln, err := net.Listen("tcp", addr)
+	srv.natm, _ = nat.GetListener(addr, ln)
+	// fmt.Printf("natmIP:%v Port:%v\n", srv.natm.ExternalAddress().IP, srv.natm.ExternalAddress().Port)
 	if err != nil {
-		srv.logger.Errorf("P2P listen and serve on %s err: %v", laddr, err)
+		srv.logger.Errorf("p2p server listen and serve on %s err: %v", addr, err)
 		return err
 	}
-	srv.logger.Infof("P2P listen and serve on %s", laddr)
-
-	srv.node = discover.NewNode(addr.IP, uint16(addr.Port), uint16(addr.Port), srv.nodeId)
-	srv.logger.Infof("P2P server node id: %s", srv.nodeId)
+	srv.logger.Infof("p2p server listen and serve on %s", addr)
+	currentKey := srv.config.Key
+	nId := discover.PubKey2NodeId(currentKey.PublicKey)
+	//tcpAddr,_ := net.ResolveTCPAddr("", addr)
+	//n := discover.NewNode(tcpAddr.IP, uint16(tcpAddr.Port), uint16(tcpAddr.Port),nId)
+	srv.logger.Infof("p2p server node id: xfsnode://%s?id=%s", srv.config.ListenAddr, nId)
 	go srv.listenLoop(ln)
-	if !laddr.IP.IsLoopback() && srv.config.Nat != nil {
-		//srv.loopWG.Add(1)
-		go func() {
-			srv.logger.Debugf("nat mapping \"xlibp2p server\" port: %d", laddr.Port)
-			nat.Map(srv.config.Nat, srv.close, "tcp", laddr.Port, laddr.Port, "xlibp2p server")
-			//srv.loopWG.Done()
-		}()
-	}
 	return nil
 }
 
@@ -274,41 +230,18 @@ func (srv *server) listenLoop(ln net.Listener) {
 	}
 }
 
-func (srv *server) AddPeer(node *discover.Node) {
-	srv.addstatic <- node
-}
-
-func (srv *server) Peers() []Peer {
-	tmp := make([]Peer, 0)
-	for _, v := range srv.peers {
-		tmp = append(tmp, v)
-	}
-	return tmp
-}
-
-func (srv *server) RemovePeer(nId discover.NodeId) {
-	srv.rmstatic <- nId
-}
-
-func (srv *server) NodeId() discover.NodeId {
-	return srv.nodeId
-}
-
-func (srv *server) Node() *discover.Node {
-	return srv.node
-}
-
 func (srv *server) newPeerConn(rw net.Conn, flag int, dst *discover.NodeId) *peerConn {
 	pubKey := srv.config.Key.PublicKey
 	mId := discover.PubKey2NodeId(pubKey)
+	// fmt.Printf("ProtocolVersion:%v\n", srv.config.ProtocolVersion)
 	c := &peerConn{
-		logger: srv.logger,
+		logger:  srv.logger,
 		self:    mId,
-		flag: flag,
+		flag:    flag,
 		server:  srv,
 		key:     srv.config.Key,
 		rw:      rw,
-		version: version1,
+		version: srv.config.ProtocolVersion,
 	}
 	if dst != nil {
 		c.id = *dst

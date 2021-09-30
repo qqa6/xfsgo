@@ -19,10 +19,9 @@ type Logger interface {
 	Writer() *io.PipeWriter
 	Panic(args ...interface{})
 	WithFields(fields logrus.Fields) *logrus.Entry
-
 }
 
 func DefaultLogger() Logger {
-	logrus.SetLevel(logrus.InfoLevel)
+	logrus.SetLevel(logrus.DebugLevel)
 	return logrus.StandardLogger()
 }

@@ -13,7 +13,6 @@ import (
 	"xfsgo/crypto"
 )
 
-
 const nodeIdLen int = 64
 
 type NodeId [nodeIdLen]byte
@@ -49,19 +48,20 @@ func PubKey2NodeId(pub ecdsa.PublicKey) NodeId {
 	copy(id[:], pHashBytes)
 	return id
 }
+
 type Node struct {
-	IP net.IP
-	TCP,UDP uint16
-	ID NodeId
-	Hash common.Hash
+	IP       net.IP
+	TCP, UDP uint16
+	ID       NodeId
+	Hash     common.Hash
 }
 
 func NewNode(ip net.IP, tcpPort, udpPort uint16, id NodeId) *Node {
-	return newNode(ip,tcpPort,udpPort,id)
+	return newNode(ip, tcpPort, udpPort, id)
 }
 func newNode(ip net.IP, tcpPort, udpPort uint16, id NodeId) *Node {
-	n :=  &Node{
-		IP: ip,
+	n := &Node{
+		IP:  ip,
 		TCP: tcpPort,
 		UDP: udpPort,
 		ID:  id,
@@ -93,8 +93,8 @@ func (n *Node) String() string {
 
 func ParseNode(rawurl string) (*Node, error) {
 	var (
-		id NodeId
-		ip net.IP
+		id               NodeId
+		ip               net.IP
 		tcpPort, udpPort uint64
 	)
 	u, err := url.Parse(rawurl)
@@ -129,8 +129,6 @@ func ParseNode(rawurl string) (*Node, error) {
 	return newNode(ip, uint16(tcpPort), uint16(udpPort), id), nil
 }
 
-
-
 // recoverNodeID computes the public key used to sign the
 // given hash from the signature.
 func recoverNodeID(buf []byte) (NodeId, error) {
@@ -138,6 +136,7 @@ func recoverNodeID(buf []byte) (NodeId, error) {
 	copy(id[:], buf)
 	return id, nil
 }
+
 var lzcount = [256]int{
 	8, 7, 6, 6, 5, 5, 5, 5,
 	4, 4, 4, 4, 4, 4, 4, 4,
@@ -172,6 +171,7 @@ var lzcount = [256]int{
 	0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0,
 }
+
 // logdist returns the logarithmic distance between a and b, log2(a ^ b).
 func logdist(a, b []byte) int {
 	lz := 0

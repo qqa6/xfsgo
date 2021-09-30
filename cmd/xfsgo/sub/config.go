@@ -27,6 +27,8 @@ import (
 	"xfsgo/common"
 	"xfsgo/node"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/spf13/viper"
 )
 
@@ -42,7 +44,6 @@ const (
 	defaultNodeRPCListenAddr = "127.0.0.1:9001"
 	defaultNodeP2PListenAddr = "127.0.0.1:9002"
 	defaultNetworkId         = uint32(1)
-	defaultTestNetworkId     = uint32(2)
 	defaultProtocolVersion   = uint32(1)
 	defaultLoggerLevel   = "INFO"
 )
@@ -96,49 +97,45 @@ func parseConfigLoggerParams(v *viper.Viper) loggerParams {
 	return params
 }
 
-func setupDataDir(params *storageParams, datadir string) {
-	if datadir != "" && params.dataDir != datadir {
-		np := new(storageParams)
-		np.dataDir = datadir
-		*params = *np
-	}
-	if params.chainDir == "" {
-		params.chainDir = path.Join(
-			params.dataDir, defaultChainDir)
-	}
-	if params.stateDir == "" {
-		params.stateDir = path.Join(
-			params.dataDir, defaultStateDir)
-	}
-	if params.keysDir == "" {
-		params.keysDir = path.Join(
-			params.dataDir, defaultKeysDir)
-	}
-	if params.extraDir == "" {
-		params.extraDir = path.Join(
-			params.dataDir, defaultExtraDir)
-	}
-	if params.nodesDir == "" {
-		params.nodesDir = path.Join(
-			params.dataDir, defaultNodesDir)
-	}
-}
-
 func parseConfigStorageParams(v *viper.Viper) storageParams {
-	params := storageParams{}
-	params.dataDir = v.GetString("storage.datadir")
-	params.chainDir = v.GetString("storage.chaindir")
-	params.stateDir = v.GetString("storage.statedir")
-	params.keysDir = v.GetString("storage.keysdir")
-	params.extraDir = v.GetString("storage.extradir")
-	params.nodesDir = v.GetString("storage.nodesdir")
-	if params.dataDir == "" {
+	storageParams := storageParams{}
+	storageParams.dataDir = v.GetString("storage.datadir")
+	storageParams.chainDir = v.GetString("storage.chaindir")
+	storageParams.stateDir = v.GetString("storage.statedir")
+	storageParams.keysDir = v.GetString("storage.keysdir")
+	storageParams.extraDir = v.GetString("storage.extradir")
+	storageParams.nodesDir = v.GetString("storage.nodesdir")
+	if storageParams.dataDir == "" {
 		home := os.Getenv("HOME")
-		params.dataDir = path.Join(
+		storageParams.dataDir = path.Join(
 			home, defaultStorageDir)
 	}
-	setupDataDir(&params, params.dataDir)
-	return params
+	if storageParams.chainDir == "" {
+		storageParams.chainDir = path.Join(
+			storageParams.dataDir, defaultChainDir)
+	}
+	if storageParams.stateDir == "" {
+		storageParams.stateDir = path.Join(
+			storageParams.dataDir, defaultStateDir)
+	}
+	if storageParams.keysDir == "" {
+		storageParams.keysDir = path.Join(
+			storageParams.dataDir, defaultKeysDir)
+	}
+	if storageParams.extraDir == "" {
+		storageParams.extraDir = path.Join(
+			storageParams.dataDir, defaultExtraDir)
+	}
+	if storageParams.nodesDir == "" {
+		storageParams.nodesDir = path.Join(
+			storageParams.dataDir, defaultNodesDir)
+	}
+	logrus.Infof("chainDir: %s", storageParams.chainDir)
+	logrus.Infof("stateDir: %s", storageParams.stateDir)
+	logrus.Infof("keysDir: %s", storageParams.keysDir)
+	logrus.Infof("extraDir: %s", storageParams.extraDir)
+	logrus.Infof("nodesDir: %s", storageParams.nodesDir)
+	return storageParams
 }
 func defaultBootstrapNodes(netid uint32) []string {
 	// hardcoded bootstrap nodes

@@ -18,37 +18,7 @@ package common
 
 import (
 	"testing"
-	"time"
 )
 
 func TestStrB58ToAddress(t *testing.T) {
-
-	//var timeout = time.NewTimer(0)
-	//defer timeout.Stop()
-	//<-timeout.C
-
-	timeout := time.After(5 * time.Second)
-	out:
-	for {
-		select {
-			case <-timeout:
-				t.Logf("time out")
-				break out
-		}
-	}
-}
-
-func TestIsZero(t *testing.T) {
-	timeout := time.NewTimer(0) // timer to dump a non-responsive active peer
-	<-timeout.C                 // timeout channel should be initially empty
-	defer timeout.Stop()
-	timeout.Reset(5 * time.Second)
-	out:
-	for {
-		select {
-		case <-timeout.C:
-			t.Logf("time out")
-			break out
-		}
-	}
 }

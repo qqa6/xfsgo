@@ -21,12 +21,11 @@ const (
 	maxFindnodeFailures = 5
 )
 
-
 type Table struct {
-	mu   sync.Mutex        // protects buckets, their content, and nursery
-	buckets [nBuckets]*bucket // index of known nodes by distance
-	nursery []*Node           // bootstrap nodes
-	db      *nodeDB           // database of known nodes
+	mu        sync.Mutex        // protects buckets, their content, and nursery
+	buckets   [nBuckets]*bucket // index of known nodes by distance
+	nursery   []*Node           // bootstrap nodes
+	db        *nodeDB           // database of known nodes
 	bondmu    sync.Mutex
 	bonding   map[NodeId]*bondproc
 	bondslots chan struct{} // limits total number of active bonding processes
@@ -135,7 +134,7 @@ func randUint(max uint32) uint32 {
 		return 0
 	}
 	var b [4]byte
-	_,err := rand.Read(b[:])
+	_, err := rand.Read(b[:])
 	if err != nil {
 		panic(err)
 	}
@@ -172,10 +171,10 @@ func (tab *Table) Bootstrap(nodes []*Node) {
 // identifier.
 func (tab *Table) Lookup(targetID NodeId) []*Node {
 	var (
-		target = crypto.ByteHash256(targetID[:])
-		asked = make(map[NodeId]bool)
-		seen = make(map[NodeId]bool)
-		replyCh = make(chan []*Node, alpha)
+		target         = crypto.ByteHash256(targetID[:])
+		asked          = make(map[NodeId]bool)
+		seen           = make(map[NodeId]bool)
+		replyCh        = make(chan []*Node, alpha)
 		pendingQueries = 0
 	)
 	// don't query further if we hit ourself.
@@ -211,7 +210,7 @@ func (tab *Table) Lookup(targetID NodeId) []*Node {
 					if err != nil {
 						// Bump the failure counter to detect and evacuate non-bonded entries
 						fails := tab.db.findFails(n.ID) + 1
-						if err = tab.db.updateFindFails(n.ID, fails); err !=nil {
+						if err = tab.db.updateFindFails(n.ID, fails); err != nil {
 							return
 						}
 						//tab.Logger.Infof("Bumping failures for %x: %d", n.ID[:8], fails)
@@ -285,7 +284,7 @@ func (tab *Table) refresh() {
 		// Pick a batch of previously know seeds to lookup with
 		seeds := tab.db.querySeeds(10)
 		//for _, seed := range seeds {
-			//tab.Logger.Debugln("refresh seeding network with", seed)
+		//tab.Logger.Debugln("refresh seeding network with", seed)
 		//}
 		nodes := append(tab.nursery, seeds...)
 		// Bond with all the seed nodes (will pingpong only if failed recently)
@@ -388,7 +387,7 @@ func (tab *Table) bond(pinged bool, id NodeId, addr *net.UDPAddr, tcpPort uint16
 		result = w.err
 		if result == nil {
 			node = w.n
-		}else {
+		} else {
 			//tab.Logger.Warnf("bond result err", result)
 		}
 	}

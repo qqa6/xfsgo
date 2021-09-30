@@ -17,32 +17,21 @@
 package sub
 
 import (
-	"io/ioutil"
+	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-	"xfsgo"
 	"xfsgo/backend"
-	"xfsgo/log"
 	"xfsgo/node"
 	"xfsgo/storage/badger"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	rpcaddr        string
-	p2paddr        string
-	datadir        string
-	importsnapshot string
-	testnet        bool
-	netid          int
-	daemonCmd      = &cobra.Command{
+	daemonCmd = &cobra.Command{
 		Use:   "daemon [flags]",
-		Short: "Start a xfsgo daemon process",
+		Short: "background services",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDaemon()
 		},
@@ -54,51 +43,22 @@ func safeclose(fn func() error) {
 		panic(err)
 	}
 }
-
-func resetConfig(config *daemonConfig) {
-	if datadir != "" {
-		setupDataDir(&config.storageParams, datadir)
-		config.nodeConfig.NodeDBPath = config.storageParams.nodesDir
-	}
-	if rpcaddr != "" {
-		config.nodeConfig.RPCConfig.ListenAddr = rpcaddr
-	}
-	if p2paddr != "" {
-		config.nodeConfig.P2PListenAddress = p2paddr
-	}
-	if netid != 0 {
-		config.backendParams.NetworkID = uint32(netid)
-	}
-	if testnet {
-		config.backendParams.NetworkID = defaultTestNetworkId
-	}
-}
 func runDaemon() error {
 	var (
 		err   error            = nil
 		stack *node.Node       = nil
 		back  *backend.Backend = nil
 	)
-	config, err := parseDaemonConfig(cfgFile) // default config
+	config, err := parseDaemonConfig(cfgFile)
 	if err != nil {
 		return err
 	}
-	resetConfig(&config) // input config
-	loglevel, err := logrus.ParseLevel(config.loggerParams.level)
+	loglevel,err := logrus.ParseLevel(config.loggerParams.level)
 	if err != nil {
 		return err
 	}
-	//logrus.Infof("lavel: %s", loglevel)
-	logrus.SetFormatter(&logrus.TextFormatter{
-		DisableColors:   true,
-		TimestampFormat: time.RFC3339,
-		FullTimestamp:   true,
-	})
-	logrus.SetFormatter(&log.Formatter{})
 	logrus.SetLevel(loglevel)
-	nodeConf := &config.nodeConfig
-	nodeConf.RPCConfig.Logger = logrus.StandardLogger()
-	if stack, err = node.New(nodeConf); err != nil {
+	if stack, err = node.New(&config.nodeConfig); err != nil {
 		return err
 	}
 	chainDb := badger.New(config.storageParams.chainDir)
@@ -123,27 +83,6 @@ func runDaemon() error {
 	if err = backend.StartNodeAndBackend(stack, back); err != nil {
 		return err
 	}
-
-	if importsnapshot != "" {
-		data, err := ioutil.ReadFile(importsnapshot)
-		if err != nil {
-			return err
-		}
-		config, err := parseClientConfig(cfgFile)
-		if err != nil {
-			return err
-		}
-		req := &GetBlocksArgs{
-			Blocks: string(data),
-		}
-		cli := xfsgo.NewClient(config.rpcClientApiHost)
-		var result string
-		err = cli.CallMethod(1, "Chain.ImportBlock", req, &result)
-		if err != nil {
-			return err
-		}
-	}
-
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 out:
@@ -158,12 +97,5 @@ out:
 }
 
 func init() {
-	mFlags := daemonCmd.PersistentFlags()
-	mFlags.StringVarP(&rpcaddr, "rpcaddr", "r", "", "Set JSON-RPC Service listen address")
-	mFlags.StringVarP(&p2paddr, "p2paddr", "p", "", "Set P2P-Node listen address")
-	mFlags.StringVarP(&datadir, "datadir", "d", "", "Set Data directory")
-	mFlags.StringVarP(&importsnapshot, "importsnapshot", "i", "", "Imports data from the specified snapshot file")
-	mFlags.BoolVarP(&testnet, "testnet", "t", false, "Enable test network")
-	mFlags.IntVarP(&netid, "netid", "n", 0, "Explicitly set network id")
 	rootCmd.AddCommand(daemonCmd)
 }

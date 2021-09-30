@@ -1,3 +1,19 @@
+// Copyright 2018 The xfsgo Authors
+// This file is part of the xfsgo library.
+//
+// The xfsgo library is free software: you can redistribute it and/or modify
+// it under the terms of the MIT Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The xfsgo library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MIT Lesser General Public License for more details.
+//
+// You should have received a copy of the MIT Lesser General Public License
+// along with the xfsgo library. If not, see <https://mit-license.org/>.
+
 package p2p
 
 import (
@@ -8,6 +24,7 @@ import (
 )
 
 const headerLen = 6
+
 //MessageReader interface defines type of message and reading methods,
 //messageReader implements this interface.
 type MessageReader interface {
@@ -114,7 +131,7 @@ func (m *helloRequestMsg) unmarshal(data []byte) bool {
 		return false
 	}
 	cLen := binary.LittleEndian.Uint32(data[2:headerLen])
-	body := data[headerLen: headerLen + cLen]
+	body := data[headerLen : headerLen+cLen]
 	copy(m.id[:], body[:len(m.id)])
 	copy(m.receiveId[:], body[len(m.id):])
 	return true
@@ -147,7 +164,7 @@ func (m *helloReRequestMsg) unmarshal(data []byte) bool {
 		return false
 	}
 	cLen := binary.LittleEndian.Uint32(data[2:headerLen])
-	body := data[headerLen: headerLen + cLen]
+	body := data[headerLen : headerLen+cLen]
 	copy(m.id[:], body[:len(m.id)])
 	copy(m.receiveId[:], body[len(m.id):])
 	return true

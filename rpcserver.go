@@ -21,16 +21,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"go/token"
 	"io"
 	"io/ioutil"
-	"net"
 	"reflect"
 	"strconv"
 	"strings"
-	"xfsgo/log"
+	"xfsgo/p2p/log"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -38,7 +38,7 @@ const (
 )
 
 var (
-	//parseError          = NewRPCError(-32700, "parse error")
+	parseError          = NewRPCError(-32700, "parse error")
 	invalidRequestError = NewRPCError(-32600, "invalid request")
 	methodNotFoundError = NewRPCError(-32601, "method not found")
 	//invalidParamsError = NewRPCError(-32602, "invalid params")
@@ -71,13 +71,12 @@ type jsonRPCRespErr struct {
 
 type RPCConfig struct {
 	ListenAddr string
-	Logger log.Logger
 }
 
 // RPCServer is an RPC server.
 type RPCServer struct {
-	logger log.Logger
-	config *RPCConfig
+	logger     log.Logger
+	config     *RPCConfig
 	ginEngine  *gin.Engine
 	upgrader   websocket.Upgrader
 	serviceMap map[string]*service
@@ -94,7 +93,7 @@ func ginlogger(log log.Logger) gin.HandlerFunc {
 //// NewRPCServer creates a new server instance with given configuration options.
 func NewRPCServer(config *RPCConfig) *RPCServer {
 	server := &RPCServer{
-		logger:     config.Logger,
+		logger:     log.DefaultLogger(),
 		config:     config,
 		serviceMap: make(map[string]*service),
 		upgrader: websocket.Upgrader{
@@ -102,13 +101,12 @@ func NewRPCServer(config *RPCConfig) *RPCServer {
 			WriteBufferSize: 1024,
 		},
 	}
-	if server.logger == nil {
-		server.logger = log.DefaultLogger()
-	}
-	gin.DefaultWriter = server.logger.Writer()
+
+	logger := log.DefaultLogger()
+	gin.DefaultWriter = logger.Writer()
 	gin.SetMode("release")
 	server.ginEngine = gin.New()
-	server.ginEngine.Use(ginlogger(server.logger))
+	server.ginEngine.Use(ginlogger(logger))
 	server.ginEngine.Use(gin.Recovery())
 	return server
 }
@@ -412,11 +410,6 @@ func (server *RPCServer) Start() error {
 		}
 		c.Abort()
 	})
-
-	ln, err := net.Listen("tcp", server.config.ListenAddr)
-	if err != nil {
-		return fmt.Errorf("rpc server listen err: %s", err)
-	}
-	server.logger.Infof("RPC Service listen on: %s", ln.Addr())
-	return server.ginEngine.RunListener(ln)
+	server.logger.Infof("start rpc server runing: %s", server.config.ListenAddr)
+	return server.ginEngine.Run(server.config.ListenAddr)
 }

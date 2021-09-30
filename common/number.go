@@ -1,8 +1,6 @@
 package common
 
-import (
-	"encoding/json"
-)
+import "encoding/json"
 
 func Uint64s(t json.Number) (uint64, error) {
 	number, err := t.Int64()

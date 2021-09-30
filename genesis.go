@@ -33,7 +33,7 @@ var (
 	maxTarget = new(big.Int).Lsh(big0xff, ((32-4)*8)+6)
 )
 
-// WriteGenesisBlock constructs the genesis block for the blockchain and stores it in the hd.
+// WriteGenesisBlock constructs the genesis blcok for the blockchain and stores it in the hd.
 func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Block, error) {
 	contents, err := ioutil.ReadAll(reader)
 	if err != nil {
@@ -54,14 +54,14 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 	if err = json.Unmarshal(contents, &genesis); err != nil {
 		return nil, err
 	}
-	chaindb := newChainDB(chainDB)
+
 	stateTree := NewStateTree(stateDB, nil)
-	//logrus.Debugf("initialize genesis account count: %d", len(genesis.Accounts))
+	// logrus.Debugf("initialize genesis account count: %d", len(genesis.Accounts))
 	for addr, a := range genesis.Accounts {
 		address := common.B58ToAddress([]byte(addr))
 		balance := common.ParseString2BigInt(a.Balance)
 		stateTree.AddBalance(address, balance)
-		//logrus.Debugf("initialize genesis account: %s, balance: %d", address, balance)
+		// logrus.Debugf("initialize genesis account: %s, balance: %d", address, balance)
 	}
 	stateTree.UpdateAll()
 	timestamp := common.ParseString2BigInt(genesis.Timestamp)
@@ -76,25 +76,22 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 		HashPrevBlock: HashPrevBlock,
 		Timestamp:     timestamp.Uint64(),
 		Coinbase:      coinbase,
-		GasUsed:       new(big.Int),
-		GasLimit:      common.GenesisGasLimit,
 		Bits:          genesis.Bits,
 		StateRoot:     rootHash,
 	}, nil, nil)
-	if old := chaindb.GetBlockByHash(block.Hash()); old != nil {
-		logrus.WithField("hash", old.HashHex()).Infof("Genesis Block")
-		//logrus.Infof("get genesis block hash %s", old.HashHex())
+	chain := newChainDB(chainDB)
+	if old := chain.GetBlockByHash(block.Hash()); old != nil {
+		logrus.Infof("get genesis block hash: %s", old.HashHex())
 		return old, nil
 	}
-	logrus.WithField("hash", block.HashHex()).Infof("Write genesis block")
-	//logrus.Infof("write genesis block hash: %s", block.HashHex())
+	logrus.Infof("write genesis block hash: %s", block.HashHex())
 	if err = stateTree.Commit(); err != nil {
 		return nil, err
 	}
-	if err = chaindb.WriteBlock(block); err != nil {
+	if err = chain.WriteBlock(block); err != nil {
 		return nil, err
 	}
-	if err = chaindb.WriteHead(block); err != nil {
+	if err = chain.WriteHead(block); err != nil {
 		return nil, err
 	}
 	return block, nil

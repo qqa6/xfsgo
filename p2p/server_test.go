@@ -1,3 +1,19 @@
+// Copyright 2018 The xfsgo Authors
+// This file is part of the xfsgo library.
+//
+// The xfsgo library is free software: you can redistribute it and/or modify
+// it under the terms of the MIT Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The xfsgo library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MIT Lesser General Public License for more details.
+//
+// You should have received a copy of the MIT Lesser General Public License
+// along with the xfsgo library. If not, see <https://mit-license.org/>.
+
 package p2p
 
 import (
@@ -31,11 +47,13 @@ func TestServer_Start(t *testing.T) {
 	logger.SetLevel(logrus.DebugLevel)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
+		ProtocolVersion: version1,
 		ListenAddr:      "127.0.0.1:9092",
 		Key:             key,
 		Discover:        true,
 		NodeDBPath:      "./d1",
 		MaxPeers:        0,
+		Logger:          logger,
 	})
 	s.Bind(newTestProto(t))
 	if err := s.Start(); err != nil {
@@ -50,12 +68,14 @@ func TestServer_Start2(t *testing.T) {
 	bootAddress := parseBootAddress(XQ)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
+		ProtocolVersion: version1,
 		ListenAddr:      "127.0.0.1:9093",
 		Key:             key,
 		Discover:        true,
 		BootstrapNodes:  bootAddress,
 		NodeDBPath:      "./d2",
 		MaxPeers:        10,
+		Logger:          logger,
 	})
 	s.Bind(newTestProto(t))
 	if err := s.Start(); err != nil {
@@ -69,12 +89,14 @@ func TestServer_Start3(t *testing.T) {
 	bootAddress := parseBootAddress(XQ)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
+		ProtocolVersion: version1,
 		ListenAddr:      "127.0.0.1:9094",
 		Key:             key,
 		Discover:        true,
 		BootstrapNodes:  bootAddress,
 		NodeDBPath:      "./d3",
 		MaxPeers:        10,
+		Logger:          logger,
 	})
 	s.Bind(newTestProto(t))
 	if err := s.Start(); err != nil {
@@ -86,6 +108,7 @@ func TestServer_Start4(t *testing.T) {
 	bootAddress := parseBootAddress(XQ)
 	key, _ := crypto.GenPrvKey()
 	s := NewServer(Config{
+		ProtocolVersion: version1,
 		ListenAddr:      "127.0.0.1:9095",
 		Key:             key,
 		Discover:        true,

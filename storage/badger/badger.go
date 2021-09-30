@@ -17,15 +17,14 @@
 package badger
 
 import (
-	"bytes"
-	"encoding/binary"
 	"github.com/dgraph-io/badger/v3"
-	"os"
+	"github.com/sirupsen/logrus"
+	"io/ioutil"
+	"log"
 )
 
 type Storage struct {
 	db *badger.DB
-	version uint32
 }
 
 type loggingLevel int
@@ -37,21 +36,33 @@ const (
 	ERROR
 )
 
-var versionKey = []byte("version")
-
 type defaultLog struct {
+	*log.Logger
+	level loggingLevel
 }
 
 func (l *defaultLog) Errorf(f string, v ...interface{}) {
+	if l.level <= ERROR {
+		l.Printf("ERROR: "+f, v...)
+	}
 }
 
 func (l *defaultLog) Warningf(f string, v ...interface{}) {
+	if l.level <= WARNING {
+		l.Printf("WARNING: "+f, v...)
+	}
 }
 
 func (l *defaultLog) Infof(f string, v ...interface{}) {
+	if l.level <= INFO {
+		l.Printf("INFO: "+f, v...)
+	}
 }
 
 func (l *defaultLog) Debugf(f string, v ...interface{}) {
+	if l.level <= DEBUG {
+		l.Printf("DEBUG: "+f, v...)
+	}
 }
 
 type StorageWriteBatch struct {
@@ -80,45 +91,24 @@ func (b *StorageWriteBatch) Destroy() {
 func (b *StorageWriteBatch) Delete(key []byte) error {
 	return b.batch.Delete(key)
 }
-func New(pathname string) *Storage {
-	storage,err := NewByVersion(pathname, 0)
-	if err != nil {
-		panic(err)
+
+func defaultLogger(level loggingLevel) *defaultLog {
+	return &defaultLog{
+		Logger: log.New(ioutil.Discard, "badger ", log.LstdFlags),
+		level:  level,
 	}
-	return storage
 }
-func NewByVersion(pathname string, version uint32) (*Storage, error) {
-	storage := &Storage{
-		version: version,
-	}
+
+func New(pathname string) *Storage {
+	storage := &Storage{}
 	opts := badger.DefaultOptions(pathname)
-	opts.Logger = &defaultLog{}
+	opts.Logger = logrus.StandardLogger()
 	var err error = nil
 	storage.db, err = badger.Open(opts)
 	if err != nil {
 		panic(err)
 	}
-	var currentVer [4]byte
-	binary.LittleEndian.PutUint32(currentVer[:], version)
-	gotVersion, _ := storage.GetData(versionKey)
-	if gotVersion == nil {
-		if err := storage.SetData(versionKey, currentVer[:]); err != nil {
-			if err := storage.Close(); err != nil {
-				panic(err)
-			}
-			return nil, err
-		}
-	} else if bytes.Compare(gotVersion, currentVer[:]) != 0 {
-		if err := storage.Close(); err != nil {
-			panic(err)
-		}
-		err := os.RemoveAll(pathname)
-		if err != nil {
-			return nil, err
-		}
-		return NewByVersion(pathname, version)
-	}
-	return storage, nil
+	return storage
 }
 
 func (storage *Storage) Set(key string, val []byte) error {
@@ -342,8 +332,4 @@ func (storage *Storage) NewIterator() Iterator {
 		it: mIt,
 		txn: mTxn,
 	}
-}
-
-func (storage *Storage) GetVersion() uint32 {
-	return storage.version
 }

@@ -17,9 +17,9 @@
 package sub
 
 import (
+	"encoding/json"
 	"fmt"
 	"xfsgo"
-	"xfsgo/common"
 
 	"github.com/spf13/cobra"
 )
@@ -55,18 +55,18 @@ func runTxPoolList() error {
 		return err
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	result := make([]xfsgo.Transaction, 1)
-	err = cli.CallMethod(1, "TxPool.GetPending", nil, &result)
+	tran := make([]xfsgo.Transaction, 1)
+	err = cli.CallMethod(1, "TxPool.GetPending", nil, &tran)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	bs, err := common.MarshalIndent(result)
+	str, err := json.Marshal(tran)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	fmt.Println(string(bs))
+	fmt.Println(string(str))
 	return nil
 }
 

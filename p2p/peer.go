@@ -7,12 +7,13 @@ import (
 	"time"
 	"xfsgo/log"
 	"xfsgo/p2p/discover"
+
+	"github.com/sirupsen/logrus"
 )
 
 const pingloopinterval = 1
 const aliveloopinterval = 10
 const alivemaxinterval = 30
-
 
 type encoder interface {
 	Encode(obj interface{}) ([]byte, error)
@@ -39,20 +40,20 @@ type peer struct {
 	ps       []Protocol
 	quit     chan struct{}
 	psCh     chan MessageReader
-	encoder encoder
-	logger log.Logger
+	encoder  encoder
+	logger   log.Logger
 }
 
 // create peer [Peer to peer connection session,Network protocol]
 func newPeer(conn *peerConn, ps []Protocol, en encoder) Peer {
 	p := &peer{
-		conn:  conn,
-		id:    conn.id,
-		rw:    conn.rw,
-		logger: conn.logger,
-		ps:    ps,
-		close: make(chan struct{}),
-		psCh:  make(chan MessageReader),
+		conn:    conn,
+		id:      conn.id,
+		rw:      conn.rw,
+		logger:  conn.logger,
+		ps:      ps,
+		close:   make(chan struct{}),
+		psCh:    make(chan MessageReader),
 		encoder: en,
 	}
 	now := time.Now()
@@ -68,8 +69,9 @@ func (p *peer) CloseCh() chan struct{} {
 	return p.close
 }
 func (p *peer) Is(flag int) bool {
-	return p.conn.flag & flag != 0
+	return p.conn.flag&flag != 0
 }
+
 // Read heartbeat message
 func (p *peer) readLoop() {
 	for {
@@ -199,5 +201,10 @@ loop:
 }
 
 func (p *peer) Close() {
+	_, ok := <-p.close
+	if !ok {
+		logrus.Infof("%s Closed", p.id)
+		return
+	}
 	close(p.close)
 }

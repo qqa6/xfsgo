@@ -46,10 +46,10 @@ type Config struct {
 // Miner creates blocks with transactions in tx pool and searches for proof-of-work values.
 type Miner struct {
 	*Config
-	mu sync.Mutex
-	sync.Mutex
-	started bool
-	quit    chan struct{}
+	mu          sync.Mutex
+	newBlockMux sync.Mutex
+	started     bool
+	quit        chan struct{}
 	// runningWorkers   []chan struct{}
 	updateNumWorkers chan uint32
 	numWorkers       uint32
@@ -274,14 +274,16 @@ out:
 		stateTree := xfsgo.NewStateTree(m.stateDb, lastStateRoot.Bytes())
 		startTime := time.Now()
 
+		m.newBlockMux.Lock()
 		block, err := m.mimeBlockWithParent(stateTree, lastBlock, m.Coinbase, txs, quit, ticker)
+		m.newBlockMux.Unlock()
 		if err != nil {
 			continue out
 		}
 		timeused := time.Now().Sub(startTime)
 		hash := block.Hash()
 		timeused.Seconds()
-		logrus.Infof("Sussessfully sealed new block, height=%d, hash=0x%x...%x, used=%fs, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], timeused.Seconds(),num)
+		logrus.Infof("Sussessfully sealed new block, height=%d, hash=0x%x...%x, used=%fs, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], timeused.Seconds(), num)
 		if err = stateTree.Commit(); err != nil {
 			continue out
 		}

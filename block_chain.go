@@ -406,6 +406,23 @@ func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
 	return hashes
 }
 
+func (bc *BlockChain) GetBlockHashesFromHash(hash common.Hash, max uint64) (chain []common.Hash) {
+	block := bc.GetBlockByHash(hash)
+	if block == nil {
+		return
+	}
+	// XXX Could be optimised by using a different database which only holds hashes (i.e., linked list)
+	for i := uint64(0); i < max; i++ {
+		block = bc.GetBlockByHash(block.HashPrevBlock())
+		if block == nil {
+			break
+		}
+		chain = append(chain, block.Hash())
+	}
+
+	return
+}
+
 func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
 	head := bc.currentBlock.Height()
 	if count > head {

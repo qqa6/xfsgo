@@ -18,6 +18,7 @@ package common
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"github.com/sirupsen/logrus"
 	"math"
@@ -67,4 +68,18 @@ func Safeclose(fn func() error) {
 	if err := fn(); err != nil {
 		logrus.Error(err)
 	}
+}
+
+
+func Objcopy(src interface{}, dst interface{}) error {
+	if src == nil {
+		return nil
+	}
+	var err error
+	bs, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(bs, dst)
+	return err
 }

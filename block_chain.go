@@ -98,11 +98,6 @@ func (bc *BlockChain) getBlockByNumber(num uint64) *Block {
 	return bc.chainDB.GetBlockByNumber(num)
 }
 
-func (bc *BlockChain) GetBlockHeaderByNumber(num uint64) (*BlockHeader, common.Hash) {
-	data := bc.chainDB.GetBlockByNumber(num)
-	return data.Header, data.Hash()
-}
-
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) *Block {
 	return bc.chainDB.GetBlockByHash(hash)
 }
@@ -111,10 +106,6 @@ func (bc *BlockChain) GetReceiptByHash(hash common.Hash) *Receipt {
 	return bc.extraDB.GetReceipt(hash)
 }
 
-func (bc *BlockChain) GetBlockHeaderByHash(hash common.Hash) (*BlockHeader, common.Hash) {
-	data := bc.chainDB.GetBlockByHash(hash)
-	return data.Header, data.Hash()
-}
 
 func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) []*Block {
 	var blocks = make([]*Block, n)
@@ -425,16 +416,17 @@ func (bc *BlockChain) GetBlockHashesFromHash(hash common.Hash, max uint64) (chai
 
 	return
 }
-
-func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
+func (bc *BlockChain) GetBlocks(from uint64, count uint64) []*Block {
 	head := bc.currentBlock.Height()
-	if count > head {
-		return nil
+	if from+count > head {
+		count = head
 	}
-
 	hashes := make([]*Block, 0)
 	for h := uint64(0); from+h <= count; h++ {
 		block := bc.GetBlockByNumber(from + h)
+		if block == nil {
+			break
+		}
 		hashes = append(hashes, block)
 	}
 	return hashes

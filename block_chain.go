@@ -428,6 +428,10 @@ func (bc *BlockChain) GetBlockHashesFromHash(hash common.Hash, max uint64) (chai
 
 func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
 	head := bc.currentBlock.Height()
+
+	if count > bc.currentBlock.Height() {
+		count = bc.currentBlock.Height()
+	}
 	if count > head {
 		return nil
 	}

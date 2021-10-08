@@ -269,7 +269,7 @@ func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeade
 	for _, tx := range txs {
 		rec, err := bc.applyTransaction(stateTree, header, tx)
 		if err != nil {
-			logrus.Errorf(" wrong to execute the transactions: %s", tx.Hash())
+			logrus.Errorf("wrong to execute the transactions: %s err:%v", tx.Hash(), err.Error())
 			return nil, nil, err
 		}
 		logrus.Infof("excute the transactions successfully: %s, receipt: %d", tx.Hash(), rec.Hash())

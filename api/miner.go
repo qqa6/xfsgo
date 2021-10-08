@@ -121,7 +121,7 @@ func (handler *MinerAPIHandler) MinSetGasLimit(args MinSetGasLimitArgs, resp *st
 	if GasLimitBigInt.Uint64() == uint64(0) {
 		GasLimitBigInt = common.MinGasLimit
 	}
-	handler.Miner.SetGasLimit(common.BaseCoin2Nano(float64(GasLimitBigInt.Uint64())))
+	handler.Miner.SetGasLimit(GasLimitBigInt)
 	return nil
 }
 
@@ -134,7 +134,7 @@ func (handler *MinerAPIHandler) MinSetGasPrice(args MinSetGasPriceArgs, resp *st
 	if GasPriceBigInt.Uint64() == uint64(0) {
 		GasPriceBigInt = common.MinGasLimit
 	}
-	handler.Miner.SetGasPrice(common.BaseCoin2Nano(float64(GasPriceBigInt.Uint64())))
+	handler.Miner.SetGasPrice(GasPriceBigInt)
 	return nil
 }
 

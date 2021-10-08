@@ -140,7 +140,7 @@ func getBlockNum(cmd *cobra.Command, args []string) error {
 		From:  FormStr,
 		Count: CountStr,
 	}
-	err = cli.CallMethod(1, "Chain.GetBlockSection", &req, &receipt)
+	err = cli.CallMethod(1, "Chain.GetBlockByNumber", &req, &receipt)
 	if err != nil {
 		fmt.Println(err)
 		return nil

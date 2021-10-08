@@ -18,10 +18,8 @@ package sub
 
 import (
 	"fmt"
-	"math/big"
 	"strconv"
 	"xfsgo"
-	"xfsgo/common"
 
 	"github.com/spf13/cobra"
 )
@@ -120,10 +118,8 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 	}
 	// gasprice
 	if gasprice != "" {
-		gasPrice, _ := new(big.Int).SetString(args[2], 0)
-		bigGasPrice := common.NanoCoin2BaseCoin(gasPrice)
 		req := &MinSetGasPriceArgs{
-			GasPrice: bigGasPrice.String(),
+			GasPrice: args[2],
 		}
 		err = cli.CallMethod(1, "Miner.MinSetGasPrice", &req, &res)
 		if err != nil {
@@ -133,10 +129,8 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 	}
 	// gaslimit
 	if gaslimit != "" {
-		gasLimit, _ := new(big.Int).SetString(args[3], 0)
-		bigGasLimit := common.NanoCoin2BaseCoin(gasLimit)
 		req := &MinSetGasLimitArgs{
-			GasLimit: bigGasLimit.String(),
+			GasLimit: args[3],
 		}
 		err = cli.CallMethod(1, "Miner.MinSetGasLimit", &req, &res)
 		if err != nil {
@@ -234,10 +228,8 @@ func MinSetGasPrice(cmd *cobra.Command, args []string) error {
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	gasPrice, _ := new(big.Int).SetString(args[2], 0)
-	bigGasPrice := common.NanoCoin2BaseCoin(gasPrice)
 	req := &MinSetGasPriceArgs{
-		GasPrice: bigGasPrice.String(),
+		GasPrice: args[2],
 	}
 	err = cli.CallMethod(1, "Miner.MinSetGasPrice", &req, &res)
 	if err != nil {
@@ -259,10 +251,8 @@ func MinSetGasLimit(cmd *cobra.Command, args []string) error {
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	gasLimit, _ := new(big.Int).SetString(args[0], 0)
-	bigGasLimit := common.NanoCoin2BaseCoin(gasLimit)
 	req := &MinSetGasLimitArgs{
-		GasLimit: bigGasLimit.String(),
+		GasLimit: args[0],
 	}
 	err = cli.CallMethod(1, "Miner.MinSetGasLimit", &req, &res)
 	if err != nil {
@@ -296,14 +286,8 @@ func MinGetStatus(_ *cobra.Command, _ []string) error {
 	fmt.Printf("Workers: %v\n", res["workers"])
 	fmt.Printf("Coinbase: %v\n", res["coinbase"])
 
-	gasPrice2NewBig, _ := new(big.Int).SetString(res["gas_price"].(string), 0)
-	gasPrice2Big := common.NanoCoin2BaseCoin(gasPrice2NewBig)
-
-	gasLimit2NewBig, _ := new(big.Int).SetString(res["gas_limit"].(string), 0)
-	gasLimit2Big := common.NanoCoin2BaseCoin(gasLimit2NewBig)
-
-	fmt.Printf("GasPrice: %v (Nanox)\n", gasPrice2Big)
-	fmt.Printf("GasLimit: %v (Nanox)\n", gasLimit2Big)
+	fmt.Printf("GasPrice: %v (Atto)\n", res["gas_price"].(string))
+	fmt.Printf("GasLimit: %v (Atto)\n", res["gas_limit"].(string))
 	fmt.Printf("HashRate: %v\n", res["hash_rate"])
 	return nil
 }

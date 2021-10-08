@@ -63,10 +63,8 @@ func (tx *TxPoolHandler) ModifyTrans(args TranGasArgs, resp *string) error {
 	}
 	var gasLimit, gasPrice *big.Int
 	gasLimit = common.ParseString2BigInt(args.GasLimit)
-	gasLimit = common.NanoCoin2BaseCoin(gasLimit)
 
 	gasPrice = common.ParseString2BigInt(args.GasPrice)
-	gasPrice = common.NanoCoin2BaseCoin(gasPrice)
 
 	if err := tx.TxPool.ModifyTrans(gasLimit, gasPrice, args.Hash); err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)

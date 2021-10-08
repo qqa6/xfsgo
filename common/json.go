@@ -36,13 +36,10 @@ func (block BlockMap) MapMerge() map[string]interface{} {
 	result["nonce"] = blockheader["nonce"]
 	result["coinbase"] = blockheader["coinbase"]
 
-	gasNano := BaseCoin2Nano(blockheader["gas_limit"].(float64))
-	gasUesdNano := BaseCoin2Nano(blockheader["gas_used"].(float64))
-	gas := Atto2BaseCoin(gasNano)
-	gasUsed := Atto2BaseCoin(gasUesdNano)
-
-	result["gas_limit"] = gas.String() + " (Nanox)"
-	result["gas_used"] = gasUsed.String() + " (Nanox)"
+	gas := blockheader["gas_limit"].(float64)
+	gasUesd := blockheader["gas_used"].(float64)
+	result["gas_limit"] = gas
+	result["gas_used"] = gasUesd
 	return result
 }
 

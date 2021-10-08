@@ -345,10 +345,8 @@ func SetGasPrice(cmd *cobra.Command, args []string) error {
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	gasPrice, _ := new(big.Int).SetString(args[0], 0)
-	r := common.NanoCoin2BaseCoin(gasPrice)
 	req := &SetGasPriceArgs{
-		GasPrice: r.String(),
+		GasPrice: args[0],
 	}
 	err = cli.CallMethod(1, "Wallet.SetGasPrice", &req, &res)
 	if err != nil {
@@ -370,10 +368,8 @@ func SetGas(cmd *cobra.Command, args []string) error {
 	}
 	var res *string = nil
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	gasLimit, _ := new(big.Int).SetString(args[0], 0)
-	r := common.NanoCoin2BaseCoin(gasLimit)
 	req := &GasLimitArgs{
-		Gas: r.String(),
+		Gas: args[0],
 	}
 	err = cli.CallMethod(1, "Wallet.SetGasLimit", &req, &res)
 	if err != nil {

@@ -213,10 +213,10 @@ func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, 
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
 	if tx.GasLimit.String() != "" {
-		tx.GasLimit.Set(common.NanoCoin2BaseCoin(tx.GasLimit))
+		tx.GasLimit.Set(tx.GasLimit)
 	}
 	if tx.GasPrice.String() != "" {
-		tx.GasPrice.Set(common.NanoCoin2BaseCoin(tx.GasLimit))
+		tx.GasPrice.Set(tx.GasLimit)
 	}
 
 	err = handler.TxPendingPool.Add(tx)
@@ -255,14 +255,12 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 
 	if args.GasLimit != "" {
 		GasLimit = common.ParseString2BigInt(args.GasLimit)
-		GasLimit = common.NanoCoin2Atto(GasLimit)
 	} else {
 		GasLimit = handler.Wallet.GetGas()
 	}
 
 	if args.GasPrice != "" {
 		GasPrice = common.ParseString2BigInt(args.GasPrice)
-		GasPrice = common.NanoCoin2Atto(GasPrice)
 	} else {
 		GasPrice = handler.Wallet.GetGasPrice()
 	}
@@ -295,7 +293,7 @@ func (handler *WalletHandler) SetGasLimit(args SetGasLimitArgs, resp *string) er
 	if GasLimitBigInt.Uint64() == uint64(0) {
 		GasLimitBigInt = common.DefaultGasPrice
 	}
-	handler.Wallet.SetGas(common.BaseCoin2Nano(float64(GasLimitBigInt.Uint64())))
+	handler.Wallet.SetGas(GasLimitBigInt)
 	return nil
 }
 
@@ -308,6 +306,6 @@ func (handler *WalletHandler) SetGasPrice(args SetGasPriceArgs, resp *string) er
 	if GasPriceBigInt.Uint64() == uint64(0) {
 		GasPriceBigInt = common.DefaultGasPrice
 	}
-	handler.Wallet.SetGasPrice(common.BaseCoin2Nano(float64(GasPriceBigInt.Uint64())))
+	handler.Wallet.SetGasPrice(GasPriceBigInt)
 	return nil
 }

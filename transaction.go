@@ -91,15 +91,10 @@ func (t *Transaction) SignHash() common.Hash {
 }
 
 func (t *Transaction) Cost() *big.Int {
-	price := common.NanoCoin2BaseCoin(t.GasPrice)
-	limit := common.NanoCoin2BaseCoin(t.GasLimit)
-	totalGas := new(big.Int).Mul(price, limit)
-	costNano, _ := new(big.Float).SetString(totalGas.String())
-	contNanoFa, _ := costNano.Float64()
-
-	res := new(big.Int).SetUint64(0)
-	res.Add(common.BaseCoin2Nano(contNanoFa), t.Value)
-	return res
+	i := big.NewInt(0)
+	i.Mul(t.GasLimit, t.GasPrice)
+	i.Add(i, t.Value)
+	return i
 }
 
 func (t *Transaction) SignWithPrivateKey(key *ecdsa.PrivateKey) error {
@@ -116,7 +111,6 @@ func (t *Transaction) SignWithPrivateKey(key *ecdsa.PrivateKey) error {
 	return nil
 }
 
-//
 func (t *Transaction) VerifySignature() bool {
 	hash := t.SignHash()
 	logrus.Infof("verify sign hash: %s", hash.Hex())

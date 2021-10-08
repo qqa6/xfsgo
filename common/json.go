@@ -16,7 +16,11 @@ type BlockMap map[string]interface{}
 func (block BlockMap) MapMerge() map[string]interface{} {
 
 	result := make(map[string]interface{}, 1)
-	blockheader := block["header"].(map[string]interface{})
+	blockheader := block
+	_, ok := block["header"].(map[string]interface{})
+	if ok {
+		blockheader = block["header"].(map[string]interface{})
+	}
 
 	result["version"] = blockheader["version"]
 	result["height"] = blockheader["height"]

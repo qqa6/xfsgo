@@ -255,14 +255,14 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 
 	if args.GasLimit != "" {
 		GasLimit = common.ParseString2BigInt(args.GasLimit)
-		GasLimit = common.NanoCoin2BaseCoin(GasLimit)
+		GasLimit = common.NanoCoin2Atto(GasLimit)
 	} else {
 		GasLimit = handler.Wallet.GetGas()
 	}
 
 	if args.GasPrice != "" {
 		GasPrice = common.ParseString2BigInt(args.GasPrice)
-		GasPrice = common.NanoCoin2BaseCoin(GasPrice)
+		GasPrice = common.NanoCoin2Atto(GasPrice)
 	} else {
 		GasPrice = handler.Wallet.GetGasPrice()
 	}

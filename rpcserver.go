@@ -274,6 +274,7 @@ func (server *RPCServer) parseJsonRPCObj(jsonObjMap map[string]interface{}, obj 
 	if err != nil {
 		return NewRPCError(-32600, err.Error())
 	}
+
 	obj.id = &id
 	version, ok := jsonObjMap["jsonrpc"].(string)
 	if !ok || version != "2.0" {
@@ -306,6 +307,14 @@ func (server *RPCServer) jsonRPCCall(data []byte, rpcId **int, w io.Writer) erro
 	if err != nil {
 		return err
 	}
+
+	_, ok := rpcObj.params.(map[string]interface{})
+	if ok {
+		if len(rpcObj.params.(map[string]interface{})) == 0 {
+			rpcObj.params = nil
+		}
+	}
+
 	rec, err := s.callMethod(t, rpcObj.params)
 	if err != nil {
 		return err

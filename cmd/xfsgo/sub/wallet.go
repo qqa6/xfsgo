@@ -281,7 +281,7 @@ func runWalletList() error {
 		fmt.Println(err)
 		return err
 	}
-	hash := block["header"].(map[string]interface{})["state_root"].(string)
+	hash := block["state_root"].(string)
 
 	// wallet list
 	walletAddress := make([]common.Address, 0)

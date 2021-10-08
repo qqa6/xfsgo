@@ -67,3 +67,4 @@ type GetBlocks []*GetBlockByNumberBlock
 type GetBlockChains []*xfsgo.Block
 type transactions []*xfsgo.Transaction
 type TransferObjs []*TransferObj
+type BlockHeaders []*GetBlockByNumberBlockHeader

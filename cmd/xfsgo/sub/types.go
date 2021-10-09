@@ -53,8 +53,8 @@ type setWalletAddrDefArgs struct {
 	Address string `json:"address"`
 }
 
-type transferFromArgs struct {
-	From     string `json:"form"`
+type sendTransactionArgs struct {
+	From     string `json:"from"`
 	To       string `json:"to"`
 	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`

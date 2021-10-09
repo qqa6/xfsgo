@@ -43,7 +43,7 @@ func (block BlocksMap) MapMerge() map[string]interface{} {
 	return result
 }
 
-func Marshal(info BlocksMap, sortIndex []string, isIndent bool) (string, error) {
+func Marshal(info map[string]interface{}, sortIndex []string, isIndent bool) (string, error) {
 
 	if len(info) != len(sortIndex) {
 		return "", errors.New("inconsistent array length")

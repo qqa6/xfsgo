@@ -131,21 +131,17 @@ func getBlockByNum(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	var receipt []common.BlocksMap
+	var result common.BlocksMap
 	req := &getBlockByNumArgs{
 		Number: args[0],
 	}
-	err = cli.CallMethod(1, "Chain.GetBlockByNumber", &req, &receipt)
+	err = cli.CallMethod(1, "Chain.GetBlockByNumber", &req, &result)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	var jsons []common.BlocksMap
-	for _, item := range receipt {
-		jsons = append(jsons, item.MapMerge())
-	}
 	sortIndex := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
-	bs, err := common.Marshals(jsons, sortIndex, true)
+	bs, err := common.Marshal(result, sortIndex, true)
 	if err != nil {
 		fmt.Println(err)
 		return nil

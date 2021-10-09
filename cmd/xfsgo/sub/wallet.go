@@ -107,11 +107,12 @@ func sendTransaction(cmd *cobra.Command, args []string) error {
 	}
 
 	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	result := make(map[string]interface{}, 1)
-	req := &transferFromArgs{
+	var result string
+	req := &sendTransactionArgs{
 		To:    args[0],
 		Value: args[1],
 	}
+
 	if fromAddr != "" {
 		req.From = fromAddr
 	}
@@ -122,17 +123,12 @@ func sendTransaction(cmd *cobra.Command, args []string) error {
 		req.GasPrice = gasPrice
 	}
 
-	err = cli.CallMethod(1, "Wallet.SendTransaction", &req, &result)
+	err = cli.CallMethod(1, "Wallet.SendTransaction", req, &result)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
-	bs, err := common.MarshalIndent(result)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	fmt.Printf("%v\n", string(bs))
+	fmt.Println(result)
 	return nil
 }
 

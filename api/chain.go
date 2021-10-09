@@ -34,7 +34,6 @@ type ChainAPIHandler struct {
 
 type GetBlockByIdArgs struct {
 	Number string `json:"number"`
-	Counts string `json:"count"`
 }
 
 type GetBlockByHashArgs struct {
@@ -62,7 +61,7 @@ type GetReceiptByHashArgs struct {
 
 type GetBlockHeaderByNumberArgs struct {
 	Number string `json:"number"`
-	Count  string `json:"count"`
+	//Count  string `json:"count"`
 }
 
 type GetBlockHeaderByHashArgs struct {
@@ -81,190 +80,115 @@ type GetBlocksArgs struct {
 type ProgressBarArgs struct {
 	Number int `json:"number"`
 }
-
-func (receiver *ChainAPIHandler) GetBlockByNumber(args GetBlockByIdArgs, resp *GetBlocks) error {
-	var number *big.Int
-	var count *big.Int
-	if args.Number == "" {
-		number = big.NewInt(0)
-	} else {
-		number, _ = new(big.Int).SetString(args.Number, 0)
+func (handler *ChainAPIHandler) GetBlockByNumber(args GetBlockByIdArgs, resp **BlockResp) error {
+	var (
+		number = int64(0)
+		err error
+	)
+	if number, err = strconv.ParseInt(args.Number,10, 64); err != nil {
+		return err
 	}
-
-	if args.Counts == "" {
-		b := receiver.BlockChain.GetHead()
-		count = new(big.Int).SetUint64(b.Height())
-	} else {
-		count, _ = new(big.Int).SetString(args.Counts, 0)
-	}
-
-	data := receiver.BlockChain.GetBlockSection(number.Uint64(), count.Uint64())
-	GetBlockByNumberBlock := make([]*GetBlockByNumberBlock, 0)
-
-	if len(data) == 0 {
-		*resp = GetBlockByNumberBlock
-		return nil
-	}
-	for _, v := range data {
-		blockHeader := NewBlockByNumBlockHeader(v.Header, v.Hash())
-		blocks := NewBlockByNumberBlock(v, blockHeader)
-		GetBlockByNumberBlock = append(GetBlockByNumberBlock, blocks)
-	}
-	*resp = GetBlockByNumberBlock
-
-	return nil
+	gotBlock := handler.BlockChain.GetBlockByNumber(uint64(number))
+	return coverBlock2Resp(gotBlock, &*resp)
 }
 
-func (receiver *ChainAPIHandler) Head(_ EmptyArgs, head *GetBlockByNumberBlockHeader) error {
-	b := receiver.BlockChain.GetHead()
-	header := NewBlockByNumBlockHeader(b.Header, b.Hash())
-	*head = *header
-	return nil
+func (handler *ChainAPIHandler) Head(_ EmptyArgs, resp **BlockHeaderResp) error {
+	gotBlock := handler.BlockChain.GetHead()
+	return coverBlockHeader2Resp(gotBlock, &*resp)
 }
 
-func (receiver *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNumberArgs, resp *BlockHeaders) error {
-	var number *big.Int
-	var count *big.Int
-	if args.Number == "" {
-		number = big.NewInt(0)
-	} else {
-		number, _ = new(big.Int).SetString(args.Number, 0)
+func (handler *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNumberArgs, resp **BlockHeaderResp) error {
+	var (
+		number = int64(0)
+		err error
+	)
+	if number, err = strconv.ParseInt(args.Number,10, 64); err != nil {
+		return err
 	}
-
-	if args.Count == "" {
-		b := receiver.BlockChain.GetHead()
-		count = new(big.Int).SetUint64(b.Height())
-	} else {
-		count, _ = new(big.Int).SetString(args.Count, 0)
-	}
-
-	data := receiver.BlockChain.GetBlockSection(number.Uint64(), count.Uint64())
-	blockHeaders := make([]*GetBlockByNumberBlockHeader, 0)
-
-	if len(data) == 0 {
-		*resp = blockHeaders
-		return nil
-	}
-	for _, v := range data {
-		blockHeader := NewBlockByNumBlockHeader(v.Header, v.Hash())
-		blockHeaders = append(blockHeaders, blockHeader)
-	}
-	*resp = blockHeaders
-
-	return nil
+	gotBlock := handler.BlockChain.GetBlockByNumber(uint64(number))
+	return coverBlockHeader2Resp(gotBlock, &*resp)
 }
 
-func (receiver *ChainAPIHandler) GetBlockHeaderByHash(args GetBlockHeaderByHashArgs, blockHeader *GetBlockByNumberBlockHeader) error {
+func (handler *ChainAPIHandler) GetBlockHeaderByHash(args GetBlockHeaderByHashArgs, resp **BlockHeaderResp) error {
 	if args.Hash == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
-	data, Hash := receiver.BlockChain.GetBlockHeaderByHash(common.Hex2Hash(args.Hash))
-	result := NewBlockByNumBlockHeader(data, Hash)
-	*blockHeader = *result
-	return nil
+	goBlock := handler.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
+	return coverBlockHeader2Resp(goBlock, &*resp)
 }
 
-func (receiver *ChainAPIHandler) GetBlockByHash(args GetBlockByHashArgs, resp *GetBlockByNumberBlock) error {
+func (handler *ChainAPIHandler) GetBlockByHash(args GetBlockByHashArgs, resp **BlockResp) error {
 	if args.Hash == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
-	b := receiver.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
-	header := NewBlockByNumBlockHeader(b.Header, b.Hash())
-	result := NewBlockByNumberBlock(b, header)
-	*resp = *result
-	return nil
+	gotBlock := handler.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
+	return coverBlock2Resp(gotBlock, &*resp)
 
 }
 
-func (receiver *ChainAPIHandler) GetTxbyBlockNum(args GetTxbyBlockNumArgs, resp *TransferObjs) error {
-	if args.Number == "" {
-		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+func (handler *ChainAPIHandler) GetTxsByBlockNum(args GetTxbyBlockNumArgs, resp *TransactionsResp) error {
+	var (
+		number = int64(0)
+		err error
+	)
+	if number, err = strconv.ParseInt(args.Number,10, 64); err != nil {
+		return err
 	}
-
-	blockHeight, ok := new(big.Int).SetString(args.Number, 0)
-
-	if !ok {
-		return xfsgo.NewRPCError(-1006, "string to big.Int error")
+	blk := handler.BlockChain.GetBlockByNumber(uint64(number))
+	if blk == nil {
+		return xfsgo.NewRPCError(-1006, "Not found block")
 	}
-
-	b := receiver.BlockChain.GetBlockByNumber(blockHeight.Uint64())
-	result := make([]*TransferObj, 1)
-	for _, item := range b.Transactions {
-		TranObj := NewTransferObj(item)
-		result = append(result, TranObj)
+	txs := make([]*TransactionResp, 0)
+	for _, item := range blk.Transactions {
+		var txres = new(TransactionResp)
+		if err := coverTx2Resp(item, &txres); err != nil {
+			return err
+		}
+		txs = append(txs, txres)
 	}
-	*resp = result
+	*resp = txs
 	return nil
 }
 
-func (receiver *ChainAPIHandler) GetTxbyBlockHash(args GetTxbyBlockHashArgs, resp *TransferObjs) error {
+func (handler *ChainAPIHandler) GetTxsByBlockHash(args GetTxbyBlockHashArgs, resp *TransactionsResp) error {
 	if args.Hash == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
-	b := receiver.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
-	result := make([]*TransferObj, 1)
-	for _, item := range b.Transactions {
-		TranObj := NewTransferObj(item)
-		result = append(result, TranObj)
+	blk := handler.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
+	if blk == nil {
+		return xfsgo.NewRPCError(-1006, "Not found block")
 	}
-	*resp = result
+	txs := make([]*TransactionResp, 0)
+	for _, item := range blk.Transactions {
+		var txres = new(TransactionResp)
+		if err := coverTx2Resp(item, &txres); err != nil {
+			return err
+		}
+		txs = append(txs, txres)
+	}
+	*resp = txs
 	return nil
 }
 
-func (receiver *ChainAPIHandler) GetReceiptByHash(args GetReceiptByHashArgs, resp *xfsgo.Receipt) error {
+func (handler *ChainAPIHandler) GetReceiptByHash(args GetReceiptByHashArgs, resp *xfsgo.Receipt) error {
 	if args.Hash == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
-	data := receiver.BlockChain.GetReceiptByHash(common.Hex2Hash(args.Hash))
+	data := handler.BlockChain.GetReceiptByHash(common.Hex2Hash(args.Hash))
 	*resp = *data
 	return nil
 }
 
-func (receiver *ChainAPIHandler) GetTransaction(args GetTransactionArgs, resp *TransferObj) error {
+func (handler *ChainAPIHandler) GetTransaction(args GetTransactionArgs, resp **TransactionResp) error {
 	if args.Hash == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
 	ID := common.Hex2Hash(args.Hash)
-	data := receiver.BlockChain.GetTransaction(ID)
-	result := NewTransferObj(data)
-	*resp = *result
-	return nil
+	data := handler.BlockChain.GetTransaction(ID)
+	return coverTx2Resp(data, &*resp)
 }
 
-// func (receiver *ChainAPIHandler) GetBlockSection(args GetBlockSectionArgs, resp *GetBlocks) error {
-// 	if args.Count == "" && args.From == "" {
-// 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
-// 	}
-
-// 	numbersForm, ok := new(big.Int).SetString(args.From, 0)
-// 	if !ok {
-// 		return xfsgo.NewRPCError(-1006, "string to big.Int error")
-// 	}
-// 	numbersCount, ok := new(big.Int).SetString(args.Count, 0)
-// 	if !ok {
-// 		return xfsgo.NewRPCError(-1006, "string to big.Int error")
-// 	}
-// 	if numbersCount.Uint64() == uint64(0) {
-// 		b := receiver.BlockChain.GetHead()
-// 		numbersCount.SetUint64(b.Height())
-// 	}
-// 	data := receiver.BlockChain.GetBlockSection(numbersForm.Uint64(), numbersCount.Uint64())
-// 	GetBlockByNumberBlock := make([]*GetBlockByNumberBlock, 0)
-
-// 	if len(data) == 0 {
-// 		*resp = GetBlockByNumberBlock
-// 		return nil
-// 	}
-// 	for _, v := range data {
-// 		blockHeader := NewBlockByNumBlockHeader(v.Header, v.Hash())
-// 		blocks := NewBlockByNumberBlock(v, blockHeader)
-// 		GetBlockByNumberBlock = append(GetBlockByNumberBlock, blocks)
-// 	}
-// 	*resp = GetBlockByNumberBlock
-// 	return nil
-// }
-
-func (receiver *ChainAPIHandler) ExportBlock(args GetBlockSectionArgs, resp *string) error {
+func (handler *ChainAPIHandler) ExportBlock(args GetBlockSectionArgs, resp *string) error {
 	numbersForm, ok := new(big.Int).SetString(args.From, 0)
 	if !ok {
 		return xfsgo.NewRPCError(-1006, "string to big.Int error")
@@ -275,19 +199,15 @@ func (receiver *ChainAPIHandler) ExportBlock(args GetBlockSectionArgs, resp *str
 	}
 
 	if numbersCount.Uint64() == uint64(0) {
-		b := receiver.BlockChain.GetHead()
+		b := handler.BlockChain.GetHead()
 		numbersCount.SetUint64(b.Height())
 	}
 
 	if numbersForm.Uint64() >= numbersCount.Uint64() { // Export all
-		b := receiver.BlockChain.GetHead()
-		header := NewBlockByNumBlockHeader(b.Header, b.Hash())
-		result := NewBlockByNumberBlock(b, header)
-		numbersCount.SetUint64(result.Header.Height) // Get the maximum height of the current block
+		b := handler.BlockChain.GetHead()
+		numbersCount.SetUint64(b.Header.Height)
 	}
-
-	data := receiver.BlockChain.GetBlockSection(numbersForm.Uint64(), numbersCount.Uint64())
-
+	data := handler.BlockChain.GetBlocks(numbersForm.Uint64(), numbersCount.Uint64())
 	encodeByte, err := json.Marshal(data)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
@@ -303,7 +223,7 @@ func (receiver *ChainAPIHandler) ExportBlock(args GetBlockSectionArgs, resp *str
 
 }
 
-func (receiver *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) error {
+func (handler *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) error {
 	if args.Blocks == "" {
 		return xfsgo.NewRPCError(-1006, "to Blocks file path not be empty")
 	}
@@ -315,10 +235,10 @@ func (receiver *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) e
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	receiver.number = len(blockChain) - 1
+	handler.number = len(blockChain) - 1
 
 	for _, item := range blockChain {
-		if err := receiver.BlockChain.InsertChain(item); err != nil {
+		if err := handler.BlockChain.InsertChain(item); err != nil {
 			continue
 		}
 	}
@@ -326,10 +246,10 @@ func (receiver *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) e
 	return nil
 }
 
-func (receiver *ChainAPIHandler) ProgressBar(_ EmptyArgs, resp *string) error {
-	b := receiver.BlockChain.GetHead()
+func (handler *ChainAPIHandler) ProgressBar(_ EmptyArgs, resp *string) error {
+	b := handler.BlockChain.GetHead()
 	height := strconv.FormatInt(int64(b.Header.Height), 10)
-	total := strconv.Itoa(receiver.number)
+	total := strconv.Itoa(handler.number)
 	result := height + "/" + total + "(total)"
 	*resp = result
 	return nil

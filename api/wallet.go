@@ -153,53 +153,7 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 	*resp = addr.B58String()
 	return nil
 }
-
-// func (handler *WalletHandler) Transfer(args TransferArgs, resp *TransferObj) error {
-// 	if args.To == "" {
-// 		return xfsgo.NewRPCError(-1006, "to addr not be empty")
-// 	}
-// 	if args.Value == "" {
-// 		return xfsgo.NewRPCError(-1006, "value not be empty")
-// 	}
-// formAddr, err := handler.Wallet.GetKeyByAddress(handler.Wallet.GetDefault())
-// if err != nil {
-// 	return err
-// }
-// var GasLimit, GasPrice *big.Int
-
-// if args.GasLimit != "" {
-// 	GasLimit = common.ParseString2BigInt(args.GasLimit)
-// 	GasLimit = common.Atto2BaseCoin(GasLimit)
-// } else {
-// 	GasLimit = handler.Wallet.GasLimit
-// }
-
-// if args.GasPrice != "" {
-// 	GasPrice = common.ParseString2BigInt(args.GasPrice)
-// 	GasPrice = common.Atto2BaseCoin(GasPrice)
-// } else {
-// 	GasPrice = handler.Wallet.GasPrice
-// }
-
-// toAddr := common.B58ToAddress([]byte(args.To))
-// value := common.ParseString2BigInt(args.Value)
-
-// tx := xfsgo.NewTransaction(toAddr, GasLimit, GasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
-// tx.Nonce = handler.BlockChain.GetNonce(handler.Wallet.GetDefault())
-
-// 	if err = tx.SignWithPrivateKey(formAddr); err != nil {
-// 		return xfsgo.NewRPCErrorCause(-1006, err)
-// 	}
-// 	if err = handler.TxPendingPool.Add(tx); err != nil {
-// 		return xfsgo.NewRPCErrorCause(-1006, err)
-// 	}
-
-// 	result := NewTransferObj(tx)
-// 	*resp = *result
-// 	return nil
-// }
-
-func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, resp *TransferObj) error {
+func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, _ *TransactionResp) error {
 	if args.Data == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
@@ -223,12 +177,12 @@ func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, 
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	result := NewTransferObj(tx)
-	*resp = *result
+	//result := NewTransferObj(tx)
+	//*resp = *result
 
 	return nil
 }
-func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *TransferObj) error {
+func (handler *WalletHandler) TransferFrom(args TransferFromArgs, _ *TransactionResp) error {
 	if args.To == "" {
 		return xfsgo.NewRPCError(-1006, "to addr not be empty")
 	}
@@ -279,8 +233,8 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 		return xfsgo.NewRPCErrorCause(-1006, err)
 	}
 
-	result := NewTransferObj(tx)
-	*resp = *result
+	//result := NewTransferObj(tx)
+	//*resp = *result
 	return nil
 }
 

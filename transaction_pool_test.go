@@ -61,7 +61,7 @@ func TestTxPool_Add(t *testing.T) {
 	}()
 	txPoll := NewTxPool(func() *StateTree {
 		return st
-	}, eventBus)
+	},nil, eventBus)
 
 	key1, err := crypto.B64StringDecodePrivateKey(coinbasePrivateKey)
 	assert.Error(t, err)

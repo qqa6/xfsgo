@@ -24,7 +24,14 @@ import (
 
 type EmptyArgs = interface{}
 
-type GetBlockByNumberBlockHeader struct {
+type StateObj struct {
+	Address string `json:"address"`
+	Balance string `json:"balance"`
+	Nonce   uint64 `json:"nonce"`
+}
+
+
+type BlockHeaderResp struct {
 	Height        uint64         `json:"height"`
 	Version       uint32         `json:"version"`
 	HashPrevBlock common.Hash    `json:"hash_prev_block"`
@@ -34,7 +41,6 @@ type GetBlockByNumberBlockHeader struct {
 	StateRoot        common.Hash `json:"state_root"`
 	TransactionsRoot common.Hash `json:"transactions_root"`
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
-
 	GasLimit *big.Int `json:"gas_limit"`
 	GasUsed  *big.Int `json:"gas_used"`
 	// pow
@@ -43,28 +49,79 @@ type GetBlockByNumberBlockHeader struct {
 	Hash  common.Hash `json:"hash"`
 }
 
-type StateObj struct {
-	Address string `json:"address"`
-	Balance string `json:"balance"`
-	Nonce   uint64 `json:"nonce"`
-}
-
-type GetBlockByNumberBlock struct {
-	Header       *GetBlockByNumberBlockHeader `json:"header"`
+type BlockResp struct {
+	Height        uint64         `json:"height"`
+	Version       uint32         `json:"version"`
+	HashPrevBlock common.Hash    `json:"hash_prev_block"`
+	Timestamp     uint64         `json:"timestamp"`
+	Coinbase      common.Address `json:"coinbase"`
+	// merkle tree root hash
+	StateRoot        common.Hash `json:"state_root"`
+	TransactionsRoot common.Hash `json:"transactions_root"`
+	ReceiptsRoot     common.Hash `json:"receipts_root"`
+	GasLimit *big.Int `json:"gas_limit"`
+	GasUsed  *big.Int `json:"gas_used"`
+	// pow
+	Bits  uint32      `json:"bits"`
+	Nonce uint64      `json:"nonce"`
+	Hash  common.Hash `json:"hash"`
 	Transactions []*xfsgo.Transaction         `json:"transactions"`
 	Receipts     []*xfsgo.Receipt             `json:"receipts"`
 }
 
-type TransferObj struct {
+type TransactionResp struct {
+	Version   uint32         `json:"version"`
 	To        common.Address `json:"to"`
+	GasPrice  *big.Int       `json:"gas_price"`
+	GasLimit  *big.Int       `json:"gas_limit"`
 	Nonce     uint64         `json:"nonce"`
 	Value     *big.Int       `json:"value"`
 	Signature []byte         `json:"signature"`
-	Hash      common.Hash    `json:"hash"`
+	Hash  common.Hash `json:"hash"`
 }
 
-type GetBlocks []*GetBlockByNumberBlock
 type GetBlockChains []*xfsgo.Block
 type transactions []*xfsgo.Transaction
-type TransferObjs []*TransferObj
-type BlockHeaders []*GetBlockByNumberBlockHeader
+type TransactionsResp []*TransactionResp
+
+func coverBlock2Resp(block *xfsgo.Block, dst **BlockResp) error {
+	if block == nil {
+		return nil
+	}
+	result := new(BlockResp)
+	if err := common.Objcopy(block.Header, result); err != nil {
+		return err
+	}
+	if err := common.Objcopy(block, result); err != nil {
+		return err
+	}
+	result.Hash = block.Hash()
+	*dst = *&result
+	return nil
+}
+
+func coverBlockHeader2Resp(block *xfsgo.Block, dst **BlockHeaderResp) error {
+	if block == nil {
+		return nil
+	}
+	result := new(BlockHeaderResp)
+	if err := common.Objcopy(block.Header, result); err != nil {
+		return err
+	}
+	result.Hash = block.Hash()
+	*dst = *&result
+	return nil
+}
+
+func coverTx2Resp(tx *xfsgo.Transaction, dst **TransactionResp) error {
+	if tx == nil {
+		return nil
+	}
+	result := new(TransactionResp)
+	if err := common.Objcopy(tx, result); err != nil {
+		return err
+	}
+	result.Hash = tx.Hash()
+	*dst = *&result
+	return nil
+}

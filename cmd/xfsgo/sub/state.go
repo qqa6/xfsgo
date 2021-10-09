@@ -52,7 +52,7 @@ func GetAccount(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	result := make(map[string]interface{}, 1)
 	req := &getAccountArgs{
 		RootHash: rootHash,

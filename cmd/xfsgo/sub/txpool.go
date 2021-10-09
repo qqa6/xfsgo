@@ -65,7 +65,7 @@ func GetPending() error {
 		return err
 	}
 	txPending := make([]*xfsgo.Transaction, 1)
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "TxPool.GetPending", nil, &txPending)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func runTxPoolCount() error {
 		fmt.Println(err)
 		return err
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var txPoolCount int
 	err = cli.CallMethod(1, "TxPool.GetPendingSize", nil, &txPoolCount)
 	if err != nil {
@@ -106,7 +106,7 @@ func GetTransaction(cmd *cobra.Command, args []string) error {
 	}
 	res := make(map[string]interface{}, 1)
 	hash := args[0]
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "TxPool.GetTranByHash", &hash, &res)
 	if err != nil {
 		return err
@@ -130,7 +130,7 @@ func ModifyTranGas(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res string
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &TranGasArgs{
 		GasLimit: args[0],
 		GasPrice: args[1],

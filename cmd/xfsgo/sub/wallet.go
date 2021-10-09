@@ -106,7 +106,7 @@ func sendTransaction(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var result string
 	req := &sendTransactionArgs{
 		To:    args[0],
@@ -137,7 +137,7 @@ func walletNew() error {
 	if err != nil {
 		return err
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var addr *string = nil
 	err = cli.CallMethod(1, "Wallet.Create", nil, &addr)
 	if err != nil {
@@ -157,7 +157,7 @@ func walletDel(cmd *cobra.Command, args []string) error {
 	addrq := &getWalletByAddressArgs{
 		Address: addr,
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var r *interface{} = nil
 	err = cli.CallMethod(1, "Wallet.Del", addrq, &r)
 	if err != nil {
@@ -177,7 +177,7 @@ func runWalletExport(cmd *cobra.Command, args []string) error {
 	addrq := &getWalletByAddressArgs{
 		Address: addr,
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var r *string = nil
 	err = cli.CallMethod(1, "Wallet.ExportByAddress", addrq, &r)
 	if err != nil {
@@ -198,7 +198,7 @@ func runWalletImport(cmd *cobra.Command, args []string) error {
 	importrq := &walletImportArgs{
 		Key: addr,
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var r *string = nil
 	err = cli.CallMethod(1, "Wallet.ImportByPrivateKey", importrq, &r)
 	if err != nil {
@@ -214,7 +214,7 @@ func setWalletAddrDef(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	addr := args[0]
 
 	walletAddress := make([]common.Address, 0)
@@ -247,7 +247,7 @@ func getWalletAddrDef() error {
 	if err != nil {
 		return err
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var defStr *string = nil
 	err = cli.CallMethod(1, "Wallet.GetDefaultAddress", nil, &defStr)
 	if err != nil {
@@ -265,7 +265,7 @@ func getWalletList() error {
 	}
 	//Get wallet default address
 	var defAddr common.Address
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "Wallet.GetDefaultAddress", nil, &defAddr)
 	if err != nil {
 		fmt.Println(err)
@@ -341,7 +341,7 @@ func SetGasPrice(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &SetGasPriceArgs{
 		GasPrice: args[0],
 	}
@@ -364,7 +364,7 @@ func SetGas(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &GasLimitArgs{
 		Gas: args[0],
 	}

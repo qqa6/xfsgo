@@ -84,7 +84,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	if err = cli.CallMethod(1, "Miner.Start", nil, &res); err != nil {
 		return nil
 	}
@@ -148,7 +148,7 @@ func runMinerStop(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "Miner.Stop", nil, &res)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -165,7 +165,7 @@ func addWorker(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 
 	req := &MinWorkerArgs{
 		WorkerNum: 1,
@@ -200,7 +200,7 @@ func delWorker(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	num, err := strconv.Atoi(args[0])
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func MinSetGasPrice(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &MinSetGasPriceArgs{
 		GasPrice: args[2],
 	}
@@ -250,7 +250,7 @@ func MinSetGasLimit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &MinSetGasLimitArgs{
 		GasLimit: args[0],
 	}
@@ -268,7 +268,7 @@ func MinGetStatus(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	res := make(map[string]interface{}, 1)
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "Miner.MinGetStatus", nil, &res)
 	if err != nil {
 		fmt.Println(err.Error())

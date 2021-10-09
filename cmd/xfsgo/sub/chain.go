@@ -98,7 +98,7 @@ func getHead() error {
 		fmt.Println(err)
 		return nil
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var block common.BlocksMap
 	err = cli.CallMethod(1, "Chain.Head", nil, &block)
 	if err != nil {
@@ -130,7 +130,7 @@ func getBlockByNum(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var result common.BlocksMap
 	req := &getBlockByNumArgs{
 		Number: args[0],
@@ -161,7 +161,7 @@ func getBlockByHash(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var block common.BlocksMap
 	req := &getBlockByHashArgs{
 		Hash: args[0],
@@ -195,7 +195,7 @@ func getTxsByBlockNum(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	result := make([]map[string]interface{}, 1)
 	req := &getTxsByBlockNumArgs{
 		Number: args[0],
@@ -221,7 +221,7 @@ func getTxsByBlockHash(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	result := make([]map[string]interface{}, 1)
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := getTxsByBlockHashArgs{
 		Hash: args[0],
 	}
@@ -245,7 +245,7 @@ func getReceiptByTxHash(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	result := make(map[string]interface{}, 1)
 	req := &getReceiptByHashArgs{
 		Hash: args[0],
@@ -274,7 +274,7 @@ func getTransaction(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	result := make(map[string]interface{}, 1)
 	req := &getTransactionArgs{
 		Hash: args[0],
@@ -313,7 +313,7 @@ func getTransaction(cmd *cobra.Command, args []string) error {
 // 	req := &GetBlocksArgs{
 // 		Blocks: string(data),
 // 	}
-// 	cli := xfsgo.NewClient(config.rpcClientApiHost)
+// 	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 // 	var result string
 // 	err = cli.CallMethod(1, "Chain.ImportBlock", req, &result)
 // 	if err != nil {
@@ -349,7 +349,7 @@ func exportBlocks(cmd *cobra.Command, args []string) error {
 		From:  Form,
 		Count: Count,
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var result string
 	err = cli.CallMethod(1, "Chain.ExportBlocks", req, &result)
 	if err != nil {
@@ -372,7 +372,7 @@ func exportProgressBar(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var result string
 	err = cli.CallMethod(1, "Chain.ProgressBar", nil, &result)
 	if err != nil {

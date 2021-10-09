@@ -19,12 +19,15 @@ package xfsgo
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 )
 
 type Client struct {
 	hostUrl string
+	timeOut string
 }
 
 type jsonRPCReq struct {
@@ -41,15 +44,21 @@ type jsonRPCResp struct {
 	ID      int         `json:"id"`
 }
 
-func NewClient(url string) *Client {
+func NewClient(url, timeOut string) *Client {
 	return &Client{
 		hostUrl: url,
+		timeOut: timeOut,
 	}
 }
 
 // CallMethod executes a JSON-RPC call with the given psrameters,which is important to the rpc server.
 func (cli *Client) CallMethod(id int, methodname string, params interface{}, out interface{}) error {
 	client := resty.New()
+	outTime, err := strconv.Atoi(cli.timeOut)
+	if err != nil {
+		return err
+	}
+	client = client.SetTimeout(time.Duration(time.Second * time.Duration(outTime)))
 	req := &jsonRPCReq{
 		JsonRPC: "2.0",
 		ID:      id,

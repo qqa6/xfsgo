@@ -32,7 +32,7 @@ type ChainAPIHandler struct {
 	number        int
 }
 
-type GetBlockByIdArgs struct {
+type GetBlockByNumArgs struct {
 	Number string `json:"number"`
 }
 
@@ -40,7 +40,7 @@ type GetBlockByHashArgs struct {
 	Hash string `json:"hash"`
 }
 
-type GetTxbyBlockNumArgs struct {
+type GetTxsByBlockNumArgs struct {
 	Number string `json:"number"`
 }
 type GetTxbyBlockHashArgs struct {
@@ -68,7 +68,7 @@ type GetBlockHeaderByHashArgs struct {
 	Hash string `json:"hash"`
 }
 
-type GetBlockSectionArgs struct {
+type GetBlocksByRangeArgs struct {
 	From  string `json:"from"`
 	Count string `json:"count"`
 }
@@ -80,33 +80,34 @@ type GetBlocksArgs struct {
 type ProgressBarArgs struct {
 	Number int `json:"number"`
 }
-func (handler *ChainAPIHandler) GetBlockByNumber(args GetBlockByIdArgs, resp **BlockResp) error {
+
+func (handler *ChainAPIHandler) GetBlockByNumber(args GetBlockByNumArgs, resp **BlockResp) error {
 	var (
 		number = int64(0)
-		err error
+		err    error
 	)
-	if number, err = strconv.ParseInt(args.Number,10, 64); err != nil {
+	if number, err = strconv.ParseInt(args.Number, 10, 64); err != nil {
 		return err
 	}
 	gotBlock := handler.BlockChain.GetBlockByNumber(uint64(number))
-	return coverBlock2Resp(gotBlock, &*resp)
+	return coverBlock2Resp(gotBlock, resp)
 }
 
 func (handler *ChainAPIHandler) Head(_ EmptyArgs, resp **BlockHeaderResp) error {
 	gotBlock := handler.BlockChain.GetHead()
-	return coverBlockHeader2Resp(gotBlock, &*resp)
+	return coverBlockHeader2Resp(gotBlock, resp)
 }
 
 func (handler *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNumberArgs, resp **BlockHeaderResp) error {
 	var (
 		number = int64(0)
-		err error
+		err    error
 	)
-	if number, err = strconv.ParseInt(args.Number,10, 64); err != nil {
+	if number, err = strconv.ParseInt(args.Number, 10, 64); err != nil {
 		return err
 	}
 	gotBlock := handler.BlockChain.GetBlockByNumber(uint64(number))
-	return coverBlockHeader2Resp(gotBlock, &*resp)
+	return coverBlockHeader2Resp(gotBlock, resp)
 }
 
 func (handler *ChainAPIHandler) GetBlockHeaderByHash(args GetBlockHeaderByHashArgs, resp **BlockHeaderResp) error {
@@ -114,7 +115,7 @@ func (handler *ChainAPIHandler) GetBlockHeaderByHash(args GetBlockHeaderByHashAr
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
 	goBlock := handler.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
-	return coverBlockHeader2Resp(goBlock, &*resp)
+	return coverBlockHeader2Resp(goBlock, resp)
 }
 
 func (handler *ChainAPIHandler) GetBlockByHash(args GetBlockByHashArgs, resp **BlockResp) error {
@@ -122,16 +123,16 @@ func (handler *ChainAPIHandler) GetBlockByHash(args GetBlockByHashArgs, resp **B
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
 	gotBlock := handler.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
-	return coverBlock2Resp(gotBlock, &*resp)
+	return coverBlock2Resp(gotBlock, resp)
 
 }
 
-func (handler *ChainAPIHandler) GetTxsByBlockNum(args GetTxbyBlockNumArgs, resp *TransactionsResp) error {
+func (handler *ChainAPIHandler) GetTxsByBlockNum(args GetTxsByBlockNumArgs, resp *TransactionsResp) error {
 	var (
 		number = int64(0)
-		err error
+		err    error
 	)
-	if number, err = strconv.ParseInt(args.Number,10, 64); err != nil {
+	if number, err = strconv.ParseInt(args.Number, 10, 64); err != nil {
 		return err
 	}
 	blk := handler.BlockChain.GetBlockByNumber(uint64(number))
@@ -185,17 +186,31 @@ func (handler *ChainAPIHandler) GetTransaction(args GetTransactionArgs, resp **T
 	}
 	ID := common.Hex2Hash(args.Hash)
 	data := handler.BlockChain.GetTransaction(ID)
-	return coverTx2Resp(data, &*resp)
+	return coverTx2Resp(data, resp)
 }
 
-func (handler *ChainAPIHandler) ExportBlock(args GetBlockSectionArgs, resp *string) error {
-	numbersForm, ok := new(big.Int).SetString(args.From, 0)
-	if !ok {
-		return xfsgo.NewRPCError(-1006, "string to big.Int error")
+func (handler *ChainAPIHandler) ExportBlocks(args GetBlocksByRangeArgs, resp *string) error {
+
+	var numbersForm, numbersCount *big.Int
+	var ok bool
+
+	if args.From == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	} else {
+		numbersForm, ok = new(big.Int).SetString(args.From, 0)
+		if !ok {
+			return xfsgo.NewRPCError(-1006, "string to big.Int error")
+		}
 	}
-	numbersCount, ok := new(big.Int).SetString(args.Count, 0)
-	if !ok {
-		return xfsgo.NewRPCError(-1006, "string to big.Int error")
+
+	if args.Count == "" {
+		blockHeight := handler.BlockChain.CurrentBlock().Height()
+		numbersCount = new(big.Int).SetUint64(blockHeight)
+	} else {
+		numbersCount, ok = new(big.Int).SetString(args.Count, 0)
+		if !ok {
+			return xfsgo.NewRPCError(-1006, "string to big.Int error")
+		}
 	}
 
 	if numbersCount.Uint64() == uint64(0) {

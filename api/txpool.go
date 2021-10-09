@@ -26,11 +26,11 @@ type TxPoolHandler struct {
 	TxPool *xfsgo.TxPool
 }
 
-type TranArgs struct {
+type GetTranByHashArgs struct {
 	Hash string `json:"hash"`
 }
 
-type TranGasArgs struct {
+type ModTranGasArgs struct {
 	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`
 	Hash     string `json:"hash"`
@@ -48,7 +48,7 @@ func (tx *TxPoolHandler) GetPendingSize(_ EmptyArgs, resp *int) error {
 	return nil
 }
 
-func (tx *TxPoolHandler) GetTran(args TranArgs, resp *xfsgo.Transaction) error {
+func (tx *TxPoolHandler) GetTranByHash(args GetTranByHashArgs, resp *xfsgo.Transaction) error {
 	if args.Hash == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
@@ -57,7 +57,7 @@ func (tx *TxPoolHandler) GetTran(args TranArgs, resp *xfsgo.Transaction) error {
 	return nil
 }
 
-func (tx *TxPoolHandler) ModifyTrans(args TranGasArgs, resp *string) error {
+func (tx *TxPoolHandler) ModifyTranGas(args ModTranGasArgs, resp *string) error {
 	if args.GasLimit == "" || args.GasPrice == "" || args.Hash == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
@@ -66,7 +66,7 @@ func (tx *TxPoolHandler) ModifyTrans(args TranGasArgs, resp *string) error {
 
 	gasPrice = common.ParseString2BigInt(args.GasPrice)
 
-	if err := tx.TxPool.ModifyTrans(gasLimit, gasPrice, args.Hash); err != nil {
+	if err := tx.TxPool.ModifyTranGas(gasLimit, gasPrice, args.Hash); err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
 	return nil

@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-type BlockMap map[string]interface{}
+type BlocksMap map[string]interface{}
 
-func (block BlockMap) MapMerge() map[string]interface{} {
+func (block BlocksMap) MapMerge() map[string]interface{} {
 
 	result := make(map[string]interface{}, 1)
 	blockheader := block
@@ -43,7 +43,7 @@ func (block BlockMap) MapMerge() map[string]interface{} {
 	return result
 }
 
-func Marshal(info BlockMap, sortIndex []string, isIndent bool) (string, error) {
+func Marshal(info BlocksMap, sortIndex []string, isIndent bool) (string, error) {
 
 	if len(info) != len(sortIndex) {
 		return "", errors.New("inconsistent array length")
@@ -88,7 +88,7 @@ func Marshal(info BlockMap, sortIndex []string, isIndent bool) (string, error) {
 
 }
 
-func Marshals(info []BlockMap, sortIndex []string, isIndent bool) (string, error) {
+func Marshals(info []BlocksMap, sortIndex []string, isIndent bool) (string, error) {
 
 	var jsonBuf bytes.Buffer
 	jsonBuf.WriteString("[")

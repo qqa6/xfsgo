@@ -37,7 +37,7 @@ type SendRawTransactionArgs struct {
 	Data string `json:"data"`
 }
 
-type GetWalletByAddressArgs struct {
+type WalletByAddressArgs struct {
 	Address string `json:"address"`
 }
 
@@ -49,15 +49,15 @@ type SetDefaultAddrArgs struct {
 	Address string `json:"address"`
 }
 
-type TransferArgs struct {
-	To       string `json:"to"`
-	GasLimit string `json:"gas_limit"`
-	GasPrice string `json:"gas_price"`
-	Value    string `json:"value"`
-}
+// type TransferArgs struct {
+// 	To       string `json:"to"`
+// 	GasLimit string `json:"gas_limit"`
+// 	GasPrice string `json:"gas_price"`
+// 	Value    string `json:"value"`
+// }
 
-type TransferFromArgs struct {
-	From     string `json:"form"`
+type SendTransactionArgs struct {
+	From     string `json:"from"`
 	To       string `json:"to"`
 	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`
@@ -81,7 +81,7 @@ func (handler *WalletHandler) Create(_ EmptyArgs, resp *string) error {
 	return nil
 }
 
-func (handler *WalletHandler) Del(args GetWalletByAddressArgs, resp *interface{}) error {
+func (handler *WalletHandler) Del(args WalletByAddressArgs, resp *interface{}) error {
 	addr := common.StrB58ToAddress(args.Address)
 	err := handler.Wallet.Remove(addr)
 	if err != nil {
@@ -124,7 +124,7 @@ func (handler *WalletHandler) SetDefaultAddress(args SetDefaultAddrArgs, resp *s
 
 }
 
-func (handler *WalletHandler) ExportByAddress(args GetWalletByAddressArgs, resp *string) error {
+func (handler *WalletHandler) ExportByAddress(args WalletByAddressArgs, resp *string) error {
 	if args.Address == "" {
 		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
 	}
@@ -153,6 +153,7 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 	*resp = addr.B58String()
 	return nil
 }
+
 func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, _ *TransactionResp) error {
 	if args.Data == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
@@ -182,21 +183,26 @@ func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, 
 
 	return nil
 }
-func (handler *WalletHandler) TransferFrom(args TransferFromArgs, _ *TransactionResp) error {
+
+func (handler *WalletHandler) SendTransaction(args SendTransactionArgs, resp *string) error {
+
+	// Judgment target address cannot be empty
 	if args.To == "" {
 		return xfsgo.NewRPCError(-1006, "to addr not be empty")
 	}
+	// Judge that the transfer amount cannot be blank
 	if args.Value == "" {
 		return xfsgo.NewRPCError(-1006, "value not be empty")
 	}
 
+	// Get the wallet address of the initiating transaction
 	var fromAddr common.Address
 	if args.From != "" {
 		fromAddr = common.B58ToAddress([]byte(args.From))
 	} else {
 		fromAddr = handler.Wallet.GetDefault()
 	}
-
+	// Take out the private key according to the wallet address of the initiating transaction
 	privateKey, err := handler.Wallet.GetKeyByAddress(fromAddr)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-1006, err)
@@ -205,8 +211,8 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, _ *Transaction
 	toAddr := common.B58ToAddress([]byte(args.To))
 	value := common.ParseString2BigInt(args.Value)
 
+	// Set the gas price and gas limit of this transaction
 	var GasLimit, GasPrice *big.Int
-
 	if args.GasLimit != "" {
 		GasLimit = common.ParseString2BigInt(args.GasLimit)
 	} else {
@@ -233,8 +239,8 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, _ *Transaction
 		return xfsgo.NewRPCErrorCause(-1006, err)
 	}
 
-	//result := NewTransferObj(tx)
-	//*resp = *result
+	result := tx.Hash()
+	*resp = result.Hex()
 	return nil
 }
 

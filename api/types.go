@@ -24,12 +24,11 @@ import (
 
 type EmptyArgs = interface{}
 
-type StateObj struct {
+type StateObjResp struct {
 	Address string `json:"address"`
 	Balance string `json:"balance"`
 	Nonce   uint64 `json:"nonce"`
 }
-
 
 type BlockHeaderResp struct {
 	Height        uint64         `json:"height"`
@@ -41,8 +40,8 @@ type BlockHeaderResp struct {
 	StateRoot        common.Hash `json:"state_root"`
 	TransactionsRoot common.Hash `json:"transactions_root"`
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
-	GasLimit *big.Int `json:"gas_limit"`
-	GasUsed  *big.Int `json:"gas_used"`
+	GasLimit         *big.Int    `json:"gas_limit"`
+	GasUsed          *big.Int    `json:"gas_used"`
 	// pow
 	Bits  uint32      `json:"bits"`
 	Nonce uint64      `json:"nonce"`
@@ -59,14 +58,14 @@ type BlockResp struct {
 	StateRoot        common.Hash `json:"state_root"`
 	TransactionsRoot common.Hash `json:"transactions_root"`
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
-	GasLimit *big.Int `json:"gas_limit"`
-	GasUsed  *big.Int `json:"gas_used"`
+	GasLimit         *big.Int    `json:"gas_limit"`
+	GasUsed          *big.Int    `json:"gas_used"`
 	// pow
-	Bits  uint32      `json:"bits"`
-	Nonce uint64      `json:"nonce"`
-	Hash  common.Hash `json:"hash"`
-	Transactions []*xfsgo.Transaction         `json:"transactions"`
-	Receipts     []*xfsgo.Receipt             `json:"receipts"`
+	Bits         uint32               `json:"bits"`
+	Nonce        uint64               `json:"nonce"`
+	Hash         common.Hash          `json:"hash"`
+	Transactions []*xfsgo.Transaction `json:"transactions"`
+	Receipts     []*xfsgo.Receipt     `json:"receipts"`
 }
 
 type TransactionResp struct {
@@ -77,7 +76,17 @@ type TransactionResp struct {
 	Nonce     uint64         `json:"nonce"`
 	Value     *big.Int       `json:"value"`
 	Signature []byte         `json:"signature"`
-	Hash  common.Hash `json:"hash"`
+	Hash      common.Hash    `json:"hash"`
+}
+
+type MinStatusResp struct {
+	Status        bool   `json:"status"`
+	LastStartTime string `json:"last_start_time"`
+	Workers       int    `json:"workers"`
+	Coinbase      string `json:"coinbase"`
+	GasPrice      string `json:"gas_price"`
+	GasLimit      string `json:"gas_limit"`
+	HashRate      int    `json:"hash_rate"`
 }
 
 type GetBlockChains []*xfsgo.Block
@@ -96,7 +105,7 @@ func coverBlock2Resp(block *xfsgo.Block, dst **BlockResp) error {
 		return err
 	}
 	result.Hash = block.Hash()
-	*dst = *&result
+	*dst = result
 	return nil
 }
 
@@ -109,7 +118,7 @@ func coverBlockHeader2Resp(block *xfsgo.Block, dst **BlockHeaderResp) error {
 		return err
 	}
 	result.Hash = block.Hash()
-	*dst = *&result
+	*dst = result
 	return nil
 }
 
@@ -122,6 +131,6 @@ func coverTx2Resp(tx *xfsgo.Transaction, dst **TransactionResp) error {
 		return err
 	}
 	result.Hash = tx.Hash()
-	*dst = *&result
+	*dst = result
 	return nil
 }

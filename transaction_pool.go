@@ -298,7 +298,7 @@ func (pool *TxPool) GetTransaction(tranHash string) *Transaction {
 	return nil
 }
 
-func (pool *TxPool) ModifyTrans(gasLimit, gasPrice *big.Int, hash string) error {
+func (pool *TxPool) ModifyTranGas(gasLimit, gasPrice *big.Int, hash string) error {
 	tran := pool.GetTransaction(hash)
 	tran.GasLimit = gasLimit
 	tran.GasLimit = gasPrice

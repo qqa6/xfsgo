@@ -264,10 +264,7 @@ func (handler *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) er
 }
 
 func (handler *ChainAPIHandler) ProgressBar(_ EmptyArgs, resp *string) error {
-	b := handler.BlockChain.GetHead()
-	height := strconv.FormatInt(int64(b.Header.Height), 10)
 	total := strconv.Itoa(handler.number)
-	result := height + "/" + total + "(total)"
-	*resp = result
+	*resp = total
 	return nil
 }

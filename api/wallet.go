@@ -154,7 +154,7 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 	return nil
 }
 
-func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, _ *TransactionResp) error {
+func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, resp *string) error {
 	if args.Data == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
@@ -178,8 +178,9 @@ func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, 
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	//result := NewTransferObj(tx)
-	//*resp = *result
+
+	result := tx.Hash()
+	*resp = result.Hex()
 
 	return nil
 }

@@ -140,8 +140,8 @@ func getBlockByNum(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return nil
 	}
-	sortIndex := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
-	bs, err := common.Marshal(result, sortIndex, true)
+	// sortIndex := []string{"version", "height", "hash_prev_block", "hash", "timestamp", "state_root", "transactions_root", "receipts_root", "bits", "nonce", "coinbase", "gas_limit", "gas_used"}
+	bs, err := common.MarshalIndent(result)
 	if err != nil {
 		fmt.Println(err)
 		return nil

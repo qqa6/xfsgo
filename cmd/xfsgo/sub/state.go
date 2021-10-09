@@ -58,7 +58,7 @@ func GetAccount(cmd *cobra.Command, args []string) error {
 		RootHash: rootHash,
 		Address:  address,
 	}
-	err = cli.CallMethod(1, "State.GetStateObj", &req, &result)
+	err = cli.CallMethod(1, "State.GetAccount", &req, &result)
 	if err != nil {
 		fmt.Println(err)
 		return err

@@ -41,20 +41,20 @@ var (
 		Use:   "list",
 		Short: "get wallet address list",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWalletList()
+			return getWalletList()
 		},
 	}
 	walletNewCommand = &cobra.Command{
 		Use:   "new",
 		Short: "Create wallet address",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWalletNew()
+			return walletNew()
 		},
 	}
 	walletDelCommand = &cobra.Command{
 		Use:   "del <address>",
 		Short: "Delete wallet <address>",
-		RunE:  runWalletDel,
+		RunE:  walletDel,
 	}
 	walletSetAddrDefCommand = &cobra.Command{
 		Use:   "setdef <address>",
@@ -81,7 +81,7 @@ var (
 	walletTransferCommand = &cobra.Command{
 		Use:   "transfer <address> <value>",
 		Short: "Send the transaction to the specified destination address",
-		RunE:  runWalletTransfer,
+		RunE:  sendTransaction,
 	}
 	walletSetGasCommand = &cobra.Command{
 		Use:   "setgasprice <price>",
@@ -95,10 +95,12 @@ var (
 	}
 )
 
-func runWalletTransfer(cmd *cobra.Command, args []string) error {
+func sendTransaction(cmd *cobra.Command, args []string) error {
+
 	if len(args) < 2 {
 		return cmd.Help()
 	}
+
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
@@ -120,7 +122,7 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 		req.GasPrice = gasPrice
 	}
 
-	err = cli.CallMethod(1, "Wallet.TransferFrom", &req, &result)
+	err = cli.CallMethod(1, "Wallet.SendTransaction", &req, &result)
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -131,11 +133,10 @@ func runWalletTransfer(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	fmt.Printf("%v\n", string(bs))
-
 	return nil
 }
 
-func runWalletNew() error {
+func walletNew() error {
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
@@ -151,7 +152,7 @@ func runWalletNew() error {
 	return nil
 }
 
-func runWalletDel(cmd *cobra.Command, args []string) error {
+func walletDel(cmd *cobra.Command, args []string) error {
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
@@ -261,7 +262,7 @@ func getWalletAddrDef() error {
 	return nil
 }
 
-func runWalletList() error {
+func getWalletList() error {
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
@@ -302,7 +303,7 @@ func runWalletList() error {
 			RootHash: hash,
 			Address:  w.B58String(),
 		}
-		err = cli.CallMethod(1, "State.GetStateObj", &req, &balance)
+		err = cli.CallMethod(1, "State.GetAccount", &req, &balance)
 		if err != nil {
 			fmt.Println(err)
 			return err

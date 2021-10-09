@@ -50,15 +50,15 @@ var (
 		Short: "Stop mining services",
 		RunE:  runMinerStop,
 	}
-	minerWorkersAddCommand = &cobra.Command{
+	minerAddWorkerCommand = &cobra.Command{
 		Use:   "addworker [count]",
 		Short: "Add number of workers",
-		RunE:  WorkersAdd,
+		RunE:  addWorker,
 	}
-	minerWorkersDownCommand = &cobra.Command{
+	minerDelWorkerCommand = &cobra.Command{
 		Use:   "delworker [count]",
 		Short: "Miners reduce threads",
-		RunE:  WorkersDown,
+		RunE:  delWorker,
 	}
 	minerSetGasPriceCommand = &cobra.Command{
 		Use:   "setgasprice <price>",
@@ -99,7 +99,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 			WorkerNum: num,
 		}
 
-		err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+		err = cli.CallMethod(1, "Miner.AddWorker", &req, &res)
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
@@ -110,7 +110,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 		req := &MinSetCoinbaseArgs{
 			Coinbase: args[1],
 		}
-		err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+		err = cli.CallMethod(1, "Miner.AddWorker", &req, &res)
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
@@ -158,7 +158,7 @@ func runMinerStop(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func WorkersAdd(cmd *cobra.Command, args []string) error {
+func addWorker(cmd *cobra.Command, args []string) error {
 
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
@@ -180,7 +180,7 @@ func WorkersAdd(cmd *cobra.Command, args []string) error {
 	}
 	req.WorkerNum = num
 
-	err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+	err = cli.CallMethod(1, "Miner.AddWorker", &req, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -189,7 +189,7 @@ func WorkersAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func WorkersDown(cmd *cobra.Command, args []string) error {
+func delWorker(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		cmd.Help()
 		return nil
@@ -208,7 +208,7 @@ func WorkersDown(cmd *cobra.Command, args []string) error {
 	req := &MinWorkerArgs{
 		WorkerNum: num,
 	}
-	err = cli.CallMethod(1, "Miner.WorkersDown", &req, &res)
+	err = cli.CallMethod(1, "Miner.DelWorker", &req, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -299,8 +299,8 @@ func init() {
 	mFlags.StringVarP(&gasprice, "gasprice", "", "", "Set expected gas unit price")
 	mFlags.StringVarP(&gaslimit, "gaslimit", "", "", "Set maximum gas purchase quantity")
 	minerCommand.AddCommand(minerStopCommand)
-	minerCommand.AddCommand(minerWorkersAddCommand)
-	minerCommand.AddCommand(minerWorkersDownCommand)
+	minerCommand.AddCommand(minerAddWorkerCommand)
+	minerCommand.AddCommand(minerDelWorkerCommand)
 	minerCommand.AddCommand(minerSetGasPriceCommand)
 	minerCommand.AddCommand(minerSetGasLimitCommand)
 	minerCommand.AddCommand(minerGetStatusCommand)

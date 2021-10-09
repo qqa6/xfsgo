@@ -26,7 +26,7 @@ import (
 
 func TestBlockExtradb(t *testing.T) {
 
-	opts := badger.DefaultOptions("./cmd/d0/extra")
+	opts := badger.DefaultOptions("./cmd/xfsgo/d0/extra")
 	db, err := badger.Open(opts)
 	if err != nil {
 		log.Fatal(err)
@@ -40,7 +40,7 @@ func TestBlockExtradb(t *testing.T) {
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
 			k := item.Key()
-			fmt.Printf("key=%s\n", k)
+			fmt.Printf("key=%v\n", string(k))
 		}
 		return nil
 	})

@@ -169,6 +169,9 @@ func (bc *BlockChain) WriteBlock(block *Block) error {
 	if err := bc.extraDB.WriteBlockTransaction(block); err != nil {
 		return err
 	}
+	if err := bc.extraDB.WriteReceipts(block.Receipts); err != nil {
+		return err
+	}
 	if err := bc.extraDB.WriteBlockReceipts(block); err != nil {
 		return err
 	}
@@ -237,6 +240,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 	if err != nil {
 		return err
 	}
+	block.Receipts = rec
 	AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
 	targetRsRoot := CalcReceiptRootHash(rec)
@@ -254,7 +258,7 @@ func (bc *BlockChain) InsertChain(block *Block) error {
 }
 
 func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) (*big.Int, []*Receipt, error) {
-	receipts := make([]*Receipt, 1)
+	receipts := make([]*Receipt, 0)
 	totalUsedGas := big.NewInt(0)
 	for _, tx := range txs {
 		rec, err := bc.applyTransaction(stateTree, header, tx)
@@ -263,8 +267,10 @@ func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeade
 			return nil, nil, err
 		}
 		logrus.Infof("excute the transactions successfully: %s, receipt: %d", tx.Hash(), rec.Hash())
-		totalUsedGas.Add(big.NewInt(0), rec.GasUsed)
-		receipts = append(receipts, rec)
+		if rec != nil {
+			totalUsedGas.Add(big.NewInt(0), rec.GasUsed)
+			receipts = append(receipts, rec)
+		}
 	}
 	return totalUsedGas, receipts, nil
 }

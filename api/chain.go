@@ -176,7 +176,9 @@ func (handler *ChainAPIHandler) GetReceiptByHash(args GetReceiptByHashArgs, resp
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
 	data := handler.BlockChain.GetReceiptByHash(common.Hex2Hash(args.Hash))
-	*resp = *data
+	if data != nil {
+		*resp = *data
+	}
 	return nil
 }
 

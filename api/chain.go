@@ -81,6 +81,24 @@ type ProgressBarArgs struct {
 	Number int `json:"number"`
 }
 
+type GetBlockTxCountByHashArgs struct {
+	Hash string `json:"hash"`
+}
+
+type GetBlockTxCountByNumArgs struct {
+	Number string `json:"number"`
+}
+
+type GetBlockTxByHashAndIndexArgs struct {
+	Hash  string `json:"hash"`
+	Index int    `json:"index"`
+}
+
+type GetBlockTxByNumAndIndexArgs struct {
+	Number string `json:"number"`
+	Index  int    `json:"index"`
+}
+
 func (handler *ChainAPIHandler) GetBlockByNumber(args GetBlockByNumArgs, resp **BlockResp) error {
 	var (
 		number = int64(0)
@@ -266,5 +284,65 @@ func (handler *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) er
 func (handler *ChainAPIHandler) ProgressBar(_ EmptyArgs, resp *string) error {
 	total := strconv.Itoa(handler.number)
 	*resp = total
+	return nil
+}
+
+func (handler *ChainAPIHandler) GetBlockTxCountByHash(args GetBlockTxCountByHashArgs, resp *int) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	gotBlock := handler.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
+	result := len(gotBlock.Transactions)
+	*resp = result
+	return nil
+}
+
+func (handler *ChainAPIHandler) GetBlockTxCountByNum(args GetBlockTxCountByNumArgs, resp *int) error {
+	if args.Number == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	number, ok := new(big.Int).SetString(args.Number, 0)
+	if !ok {
+		return xfsgo.NewRPCError(-1006, "number to big.Int Error")
+	}
+	gotBlock := handler.BlockChain.GetBlockByNumber(number.Uint64())
+	result := len(gotBlock.Transactions)
+	*resp = result
+	return nil
+}
+
+func (handler *ChainAPIHandler) GetBlockTxByHashAndIndex(args GetBlockTxByHashAndIndexArgs, resp *xfsgo.Transaction) error {
+	if args.Hash == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	gotBlock := handler.BlockChain.GetBlockByHash(common.Hex2Hash(args.Hash))
+	maxTxNumber := len(gotBlock.Transactions)
+	if args.Index > maxTxNumber {
+		return xfsgo.NewRPCError(-1006, "Block not found, the index transaction")
+	}
+	tx := gotBlock.Transactions[args.Index]
+	if tx != nil {
+		*resp = *tx
+	}
+	return nil
+}
+
+func (handler *ChainAPIHandler) GetBlockTxByNumAndIndex(args GetBlockTxByNumAndIndexArgs, resp *xfsgo.Transaction) error {
+	if args.Number == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	number, ok := new(big.Int).SetString(args.Number, 0)
+	if !ok {
+		return xfsgo.NewRPCError(-1006, "number to big.Int Error")
+	}
+	gotBlock := handler.BlockChain.GetBlockByNumber(number.Uint64())
+	maxTxNumber := len(gotBlock.Transactions)
+	if args.Index > maxTxNumber {
+		return xfsgo.NewRPCError(-1006, "Block not found, the index transaction")
+	}
+	tx := gotBlock.Transactions[args.Index]
+	if tx != nil {
+		*resp = *tx
+	}
 	return nil
 }

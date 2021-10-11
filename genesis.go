@@ -41,7 +41,7 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 	}
 	// Genesis specifies the header fields, state of a genesis block. It also defines accounts
 	var genesis struct {
-		Version       int32  `json:"version"`
+		Version       uint32 `json:"version"`
 		HashPrevBlock string `json:"hash_prev_block"`
 		Timestamp     string `json:"timestamp"`
 		Coinbase      string `json:"coinbase"`

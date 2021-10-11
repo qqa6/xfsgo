@@ -8,7 +8,7 @@ rpclient:
   apihost: "http://127.0.0.1:9001"
   # timeout of RPC request
   # default: 30s
-  timeout: "30s"
+  timeout: "30"
 
 rpcserver:
   # Listening address for JSON-RPC server

@@ -17,7 +17,6 @@
 package sub
 
 import (
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"xfsgo"
@@ -309,14 +308,9 @@ func getWalletList() error {
 		balanceStr := balance["balance"].(string)
 		if balanceStr == "" {
 			bal = new(big.Int).SetUint64(0)
+		} else {
+			bal, _ = new(big.Int).SetString(balanceStr, 0)
 		}
-
-		bs, err := hex.DecodeString(balanceStr)
-		if err != nil {
-			return err
-		}
-
-		bal = new(big.Int).SetBytes(bs)
 		fto := common.Atto2BaseCoin(bal)
 		toFloat := new(big.Float).SetUint64(fto.Uint64())
 		fmt.Printf("%-35v", w.B58String())

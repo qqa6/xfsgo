@@ -40,3 +40,7 @@ type GasPriceChanged struct {
 type NewMinedBlockEvent struct {
 	Block *Block
 }
+
+type NewBlockEvent struct {
+	Block *Block
+}

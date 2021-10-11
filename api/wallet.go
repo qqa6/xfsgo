@@ -154,7 +154,7 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 	return nil
 }
 
-func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, resp *string) error {
+func (handler *WalletHandler) SendRawTransaction(args SendRawTransactionArgs, resp *string) error {
 	if args.Data == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
@@ -162,16 +162,52 @@ func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, 
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	var tx *xfsgo.Transaction
-	err = json.Unmarshal(databytes, &tx)
+
+	var gasPrice, gasLimit *big.Int
+	gasLimit = handler.Wallet.GetGas()
+	gasPrice = handler.Wallet.GetGasPrice()
+	encodeList := make(map[string]interface{})
+
+	err = json.Unmarshal(databytes, &encodeList)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	if tx.GasLimit.String() != "" {
-		tx.GasLimit.Set(tx.GasLimit)
+
+	if _, ok := encodeList["value"].(string); !ok {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
-	if tx.GasPrice.String() != "" {
-		tx.GasPrice.Set(tx.GasLimit)
+
+	if _, ok := encodeList["from"].(string); !ok {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	if _, ok := encodeList["to"].(string); !ok {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+
+	if val, ok := encodeList["gas_limit"].(string); ok {
+		gasLimit, _ = new(big.Int).SetString(val, 0)
+	}
+	if val, ok := encodeList["gas_price"].(string); ok {
+		gasPrice, _ = new(big.Int).SetString(val, 0)
+	}
+
+	fromAddr := common.B58ToAddress([]byte(encodeList["from"].(string)))
+	toAddr := common.B58ToAddress([]byte(encodeList["to"].(string)))
+	value := common.ParseString2BigInt(encodeList["value"].(string))
+
+	// Take out the private key according to the wallet address of the initiating transaction
+	privateKey, err := handler.Wallet.GetKeyByAddress(fromAddr)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-1006, err)
+	}
+
+	logrus.Debugf("transaction obj: gasPrice=%v, gasLimit=%v, From=%v, to=%v val:%v", gasPrice, gasLimit, fromAddr.B58String(), toAddr.B58String(), value)
+
+	tx := xfsgo.NewTransaction(toAddr, gasLimit, gasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
+	tx.Nonce = handler.BlockChain.GetNonce(fromAddr)
+	err = tx.SignWithPrivateKey(privateKey)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-1006, err)
 	}
 
 	err = handler.TxPendingPool.Add(tx)

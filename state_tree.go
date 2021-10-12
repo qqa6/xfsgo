@@ -41,6 +41,7 @@ type StateObj struct {
 	address    common.Address //hash of address of the account
 	balance    *big.Int
 	nonce      uint64
+	Extra      []byte
 	gasPool    *big.Int
 }
 

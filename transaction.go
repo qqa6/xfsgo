@@ -36,6 +36,7 @@ type Transaction struct {
 	To        common.Address `json:"to"`
 	GasPrice  *big.Int       `json:"gas_price"`
 	GasLimit  *big.Int       `json:"gas_limit"`
+	Data      []byte         `json:"data"`
 	Nonce     uint64         `json:"nonce"`
 	Value     *big.Int       `json:"value"`
 	Signature []byte         `json:"signature"`

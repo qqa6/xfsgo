@@ -1,6 +1,7 @@
 package sub
 
 import (
+	"encoding/json"
 	"fmt"
 	"xfsgo"
 
@@ -42,13 +43,19 @@ func getPeers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	res := make([]string, 1)
+	res := make([]string, 0)
 	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "Net.GetPeers", nil, &res)
 	if err != nil {
 		return err
 	}
-	fmt.Println(res)
+	if len(res) > 1 {
+		bs, err := json.Marshal(res)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(bs))
+	}
 	return nil
 }
 

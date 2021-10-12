@@ -106,6 +106,10 @@ type getBlocksByRangeArgs struct {
 	Count string `json:"count"`
 }
 
-type DelPeerArgs struct {
+type delPeerArgs struct {
 	Id string `json:"id"`
+}
+
+type getTranByHashArgs struct {
+	Hash string `json:"hash"`
 }

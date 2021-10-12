@@ -41,7 +41,7 @@ var (
 	}
 	getGetTranCommand = &cobra.Command{
 		Use:   "gettx <transaction_hash>",
-		Short: "get transaction pool pending queue",
+		Short: "get transaction pool pending by transaction hash",
 		RunE:  GetTransaction,
 	}
 	getTxpoolCountCommand = &cobra.Command{
@@ -104,8 +104,12 @@ func GetTransaction(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return err
 	}
+	fmt.Printf(args[0])
 	res := make(map[string]interface{}, 1)
-	hash := args[0]
+	hash := &getTranByHashArgs{
+		Hash: args[0],
+	}
+
 	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "TxPool.GetTranByHash", &hash, &res)
 	if err != nil {

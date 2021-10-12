@@ -1,7 +1,6 @@
 package sub
 
 import (
-	"encoding/json"
 	"fmt"
 	"xfsgo"
 
@@ -49,18 +48,11 @@ func getPeers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(res) > 1 {
-		bs, err := json.Marshal(res)
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(bs))
-	}
+	fmt.Println(res)
 	return nil
 }
 
 func addPeer(cmd *cobra.Command, args []string) error {
-	// fmt.Printf("niho")
 	if len(args) < 1 {
 		return cmd.Help()
 	}
@@ -90,7 +82,7 @@ func delPeer(cmd *cobra.Command, args []string) error {
 	}
 	var res string
 	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
-	req := &DelPeerArgs{
+	req := &delPeerArgs{
 		Id: args[0],
 	}
 	err = cli.CallMethod(1, "Net.DelPeer", &req, &res)

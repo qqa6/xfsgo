@@ -115,11 +115,14 @@ func GetTransaction(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if res == nil {
+		return nil
+	}
 	bs, err := common.MarshalIndent(res)
 	if err != nil {
 		return err
 	}
-	fmt.Println(bs)
+	fmt.Println(string(bs))
 
 	return nil
 }

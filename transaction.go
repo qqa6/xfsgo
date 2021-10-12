@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/big"
+	"time"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
 	"xfsgo/common/rawencode"
@@ -39,17 +40,19 @@ type Transaction struct {
 	Data      []byte         `json:"data"`
 	Nonce     uint64         `json:"nonce"`
 	Value     *big.Int       `json:"value"`
+	Time      uint64         `json:"time"`
 	Signature []byte         `json:"signature"`
 }
 
 func NewTransaction(to common.Address, gasLimit, gasPrice *big.Int, value *big.Int) *Transaction {
-
+	time := time.Now().Unix()
 	result := &Transaction{
 		Version:  version0,
 		To:       to,
 		GasLimit: gasLimit,
 		GasPrice: gasPrice,
 		Value:    value,
+		Time:     uint64(time),
 	}
 	return result
 }

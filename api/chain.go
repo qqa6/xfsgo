@@ -163,6 +163,7 @@ func (handler *ChainAPIHandler) GetTxsByBlockNum(args GetTxsByBlockNumArgs, resp
 		if err := coverTx2Resp(item, &txres); err != nil {
 			return err
 		}
+
 		txs = append(txs, txres)
 	}
 	*resp = txs

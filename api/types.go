@@ -61,22 +61,23 @@ type BlockResp struct {
 	GasLimit         *big.Int    `json:"gas_limit"`
 	GasUsed          *big.Int    `json:"gas_used"`
 	// pow
-	Bits         uint32               `json:"bits"`
-	Nonce        uint64               `json:"nonce"`
-	Hash         common.Hash          `json:"hash"`
-	Transactions []*xfsgo.Transaction `json:"transactions"`
-	Receipts     []*xfsgo.Receipt     `json:"receipts"`
+	Bits         uint32           `json:"bits"`
+	Nonce        uint64           `json:"nonce"`
+	Hash         common.Hash      `json:"hash"`
+	Transactions TransactionsResp `json:"transactions"`
+	Receipts     []*xfsgo.Receipt `json:"receipts"`
 }
 
 type TransactionResp struct {
-	Version   uint32         `json:"version"`
-	To        common.Address `json:"to"`
-	GasPrice  *big.Int       `json:"gas_price"`
-	GasLimit  *big.Int       `json:"gas_limit"`
-	Nonce     uint64         `json:"nonce"`
-	Value     *big.Int       `json:"value"`
-	Signature []byte         `json:"signature"`
-	Hash      common.Hash    `json:"hash"`
+	Version  uint32         `json:"version"`
+	To       common.Address `json:"to"`
+	GasPrice *big.Int       `json:"gas_price"`
+	GasLimit *big.Int       `json:"gas_limit"`
+	Nonce    uint64         `json:"nonce"`
+	Value    *big.Int       `json:"value"`
+	Time     uint64         `json:"time"`
+	From     string         `json:"from"`
+	Hash     common.Hash    `json:"hash"`
 }
 
 type MinStatusResp struct {
@@ -105,6 +106,15 @@ func coverBlock2Resp(block *xfsgo.Block, dst **BlockResp) error {
 		return err
 	}
 	result.Hash = block.Hash()
+	txs := make([]*TransactionResp, 0)
+	for _, item := range block.Transactions {
+		var txres = new(TransactionResp)
+		if err := coverTx2Resp(item, &txres); err != nil {
+			return err
+		}
+		txs = append(txs, txres)
+	}
+	result.Transactions = txs
 	*dst = result
 	return nil
 }
@@ -131,6 +141,11 @@ func coverTx2Resp(tx *xfsgo.Transaction, dst **TransactionResp) error {
 		return err
 	}
 	result.Hash = tx.Hash()
+	from, err := tx.FromAddr()
+	if err != nil {
+		return err
+	}
+	result.From = from.B58String()
 	*dst = result
 	return nil
 }

@@ -371,6 +371,7 @@ func (bc *BlockChain) applyTransaction(stateTree *StateTree, header *BlockHeader
 		Version: tx.Version,
 		Status:  uint32(1),
 		GasUsed: basicGas,
+		Time:    uint64(time.Now().Unix()),
 	}
 	return receipt, nil
 }

@@ -53,7 +53,9 @@ func (tx *TxPoolHandler) GetTranByHash(args GetTranByHashArgs, resp *xfsgo.Trans
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
 	tranObj := tx.TxPool.GetTransaction(args.Hash)
-	*resp = *tranObj
+	if tranObj != nil {
+		*resp = *tranObj
+	}
 	return nil
 }
 

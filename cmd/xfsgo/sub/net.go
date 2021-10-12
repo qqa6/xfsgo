@@ -53,6 +53,7 @@ func getPeers(cmd *cobra.Command, args []string) error {
 }
 
 func addPeer(cmd *cobra.Command, args []string) error {
+	// fmt.Printf("niho")
 	if len(args) < 1 {
 		return cmd.Help()
 	}
@@ -60,7 +61,7 @@ func addPeer(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	res := make([]string, 1)
+	var res string
 	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &AddPeerArgs{
 		Url: args[0],
@@ -80,7 +81,7 @@ func delPeer(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	res := make([]string, 1)
+	var res string
 	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &DelPeerArgs{
 		Id: args[0],
@@ -108,9 +109,9 @@ func getNodeId(cmd *cobra.Command, args []string) error {
 }
 
 func init() {
+	rootCmd.AddCommand(netCommand)
 	netCommand.AddCommand(getPeersCommand)
 	netCommand.AddCommand(addPeerCommand)
 	netCommand.AddCommand(delPeerCommand)
 	netCommand.AddCommand(getNodeIdCommand)
-	rootCmd.AddCommand(netCommand)
 }

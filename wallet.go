@@ -18,14 +18,14 @@ package xfsgo
 
 import (
 	"crypto/ecdsa"
-	"crypto/x509"
+	"fmt"
 	"math/big"
 	"sync"
 	"xfsgo/common"
 	"xfsgo/crypto"
 	"xfsgo/storage/badger"
 )
-
+const keyversion = uint8(1)
 // Wallet represents a software wallet that has a default address derived from private key.
 type Wallet struct {
 	db          *keyStoreDB
@@ -156,13 +156,16 @@ func (w *Wallet) Export(address common.Address) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return x509.MarshalECPrivateKey(key)
+	return crypto.EncodePrivateKey(keyversion,key), nil
 }
 
 func (w *Wallet) Import(der []byte) (common.Address, error) {
-	pKey, err := x509.ParseECPrivateKey(der)
+	kv, pKey, err := crypto.DecodePrivateKey(der)
 	if err != nil {
 		return noneAddress, err
+	}
+	if kv != keyversion {
+		return noneAddress, fmt.Errorf("unknown private key version %d", keyversion)
 	}
 	return w.AddWallet(pKey)
 }

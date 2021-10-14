@@ -265,9 +265,11 @@ out:
 		}
 		hash := perBlock.UpdateNonce(nonce)
 		if bytes.Compare(hash.Bytes(), targetHash) <= 0 {
-			lashBlock := m.chain.CurrentBlock()
-			lastHeight := lashBlock.Height()
+			lastBlock := m.chain.CurrentBlock()
+			lastHeight := lastBlock.Height()
 			currentBlockHeight := perBlock.Height()
+			newTd := new(big.Int).SetBytes(hash[:])
+			perBlock.Td = new(big.Int).Add(newTd, lastBlock.Td)
 			if lastHeight >= currentBlockHeight {
 				break out
 			}
@@ -297,9 +299,9 @@ out:
 		stateTree := xfsgo.NewStateTree(m.stateDb, lastStateRoot.Bytes())
 		startTime := time.Now()
 
-		m.newBlockMux.Lock()
+		// m.newBlockMux.Lock()
 		block, err := m.mimeBlockWithParent(stateTree, lastBlock, m.Coinbase, txs, quit, ticker)
-		m.newBlockMux.Unlock()
+		// m.newBlockMux.Unlock()
 		if err != nil {
 			continue out
 		}
@@ -310,7 +312,7 @@ out:
 		if err = stateTree.Commit(); err != nil {
 			continue out
 		}
-		if err = m.chain.WriteBlock(block); err != nil {
+		if _, err = m.chain.WriteBlockWithState(block); err != nil {
 			continue out
 		}
 		//sr := block.StateRoot()

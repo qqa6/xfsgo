@@ -278,7 +278,7 @@ func (receiver *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) e
 	receiver.number = len(blockChain) - 1
 
 	for _, item := range blockChain {
-		if err := receiver.BlockChain.InsertChain(item); err != nil {
+		if _, err := receiver.BlockChain.InsertChain(item); err != nil {
 			continue
 		}
 	}

@@ -24,8 +24,6 @@ import (
 	"sync"
 	"time"
 	"xfsgo/common"
-	"xfsgo/common/rawencode"
-	"xfsgo/lru"
 	"xfsgo/storage/badger"
 
 	"github.com/sirupsen/logrus"
@@ -47,6 +45,20 @@ const (
 // The BlockChain also helps in returning blocks required from any chain included
 // in the database as well as blocks that represents the canonical chain.
 
+const (
+	// maxOrphanBlocks is the maximum number of orphan blocks that can be
+	// queued.
+	maxOrphanBlocks = 100
+)
+
+// orphanBlock represents a block that we don't yet have the parent for.  It
+// is a normal block plus an expiration time to prevent caching the orphan
+// forever.
+type orphanBlock struct {
+	block      *Block
+	expiration time.Time
+}
+
 type BlockChain struct {
 	stateDB       *badger.Storage
 	chainDB       *chainDB
@@ -57,21 +69,38 @@ type BlockChain struct {
 	stateTree     *StateTree
 	mu            sync.RWMutex
 	chainmu       sync.RWMutex
-	orphansCache  *lru.Cache
 	eventBus      *EventBus
+
+	// These fields are related to handling of orphan blocks.  They are
+	// protected by a combination of the chain lock and the orphan lock.
+	orphanLock   sync.RWMutex
+	orphans      map[common.Hash]*orphanBlock
+	prevOrphans  map[common.Hash][]*orphanBlock
+	oldestOrphan *orphanBlock
 }
+
+// WriteStatus status of write
+type WriteStatus byte
+
+const (
+	NonStatTy WriteStatus = iota
+	CanonStatTy
+	SideStatTy
+)
 
 //NewBlockChain creates a initialised block chain using information available in the database.
 //this new blockchain includes a stateTree by which the blockchian can manage the whole state of the chainb.
 //such as the account's information of every user.
 func NewBlockChain(stateDB, chainDB, extraDB *badger.Storage, eventBus *EventBus) (*BlockChain, error) {
 	bc := &BlockChain{
-		chainDB:  newChainDB(chainDB),
-		stateDB:  stateDB,
-		extraDB:  newExtraDB(extraDB),
-		eventBus: eventBus,
+		chainDB:     newChainDB(chainDB),
+		stateDB:     stateDB,
+		extraDB:     newExtraDB(extraDB),
+		eventBus:    eventBus,
+		orphans:     make(map[common.Hash]*orphanBlock),
+		prevOrphans: make(map[common.Hash][]*orphanBlock),
 	}
-	bc.orphansCache = lru.NewCache(2048)
+	// bc.orphansCache = lru.NewCache(2048)
 	bc.genesisBlock = bc.GetBlockByNumber(0)
 	if bc.genesisBlock == nil {
 		return nil, errors.New("no genesis block")
@@ -161,21 +190,34 @@ func (bc *BlockChain) GetBalance(addr common.Address) *big.Int {
 
 }
 
-// WriteBlock stores the block inputed to the local database.
-func (bc *BlockChain) WriteBlock(block *Block) error {
-	cb := bc.currentBlock
-	if block.Height() > cb.Height() {
-		bc.mu.Lock()
-		if err := bc.chainDB.WriteHead(block); err != nil {
-			logrus.Errorf("write head err: %s", err)
-		}
-		bc.currentBlock = block
-		bc.lastBlockHash = block.Hash()
-		lastStateRoot := block.StateRoot()
-		bc.stateTree = NewStateTree(bc.stateDB, lastStateRoot.Bytes())
-		bc.mu.Unlock()
-		bc.eventBus.Publish(ChainHeadEvent{block})
+func (bc *BlockChain) removeHeadBlock(block *Block) {
+	bc.mu.Lock()
+	if err := bc.chainDB.DelHead(block); err != nil {
+		logrus.Errorf("best chain del head err: %s", err)
 	}
+	bc.currentBlock = bc.GetBlockByHash(block.HashPrevBlock())
+	bc.lastBlockHash = block.HashPrevBlock()
+	lastStateRoot := bc.currentBlock.StateRoot()
+	bc.stateTree = NewStateTree(bc.stateDB, lastStateRoot.Bytes())
+	bc.mu.Unlock()
+}
+
+func (bc *BlockChain) writeHeadBlock(block *Block) {
+	bc.mu.Lock()
+	if err := bc.chainDB.WriteHead(block); err != nil {
+		logrus.Errorf("write head err: %s", err)
+	}
+	bc.currentBlock = block
+	bc.lastBlockHash = block.Hash()
+	lastStateRoot := block.StateRoot()
+	bc.stateTree = NewStateTree(bc.stateDB, lastStateRoot.Bytes())
+	bc.mu.Unlock()
+	bc.eventBus.Publish(ChainHeadEvent{block})
+}
+
+// WriteBlock stores the block inputed to the local database.
+func (bc *BlockChain) WriteBlock2DB(block *Block) error {
+
 	if err := bc.extraDB.WriteBlockTransaction(block); err != nil {
 		return err
 	}
@@ -212,54 +254,267 @@ func AccumulateRewards(stateTree *StateTree, header *BlockHeader) {
 	stateTree.AddBalance(header.Coinbase, subsidy)
 }
 
-// InsertChain executes the actual chain insertion.
-func (bc *BlockChain) InsertChain(block *Block) error {
+// ProcessBlock is the main workhorse for handling insertion of new blocks into
+// the block chain.  It includes functionality such as rejecting duplicate
+// blocks, ensuring blocks follow all rules, orphan handling, and insertion into
+// the block chain along with best chain selection and reorganization.
+//
+// whether or not the block is on the main chain and the first indicates
+// whether or not the block is an orphan and the second value indicates.
+// When no errors occurred during processing, the third return value indicates
+// This function is safe for concurrent access.
+
+func (bc *BlockChain) InsertChain(block *Block) (bool, error) {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
 	blockHash := block.Hash()
-	txs := block.Transactions
-	header := block.GetHeader()
-	txsRoot := block.TransactionRoot()
-	rsRoot := block.ReceiptsRoot()
-	//logrus.Infof("Processing block %v", blockHash)
+
+	logrus.Debugf("Processing block %v", blockHash)
+
+	// The block must not already exist in the main chain or side chains.
 	if old := bc.GetBlockByHash(blockHash); old != nil {
-		return fmt.Errorf("already have block %v", blockHash)
+		return false, fmt.Errorf("already have block %v", blockHash)
 	}
-	if _, has := bc.orphansCache.Get(blockHash); has {
-		return fmt.Errorf("already have block (orphan) %v", blockHash)
+
+	// The block must not already exist as an orphan.
+	if _, exists := bc.orphans[blockHash]; exists {
+		return false, fmt.Errorf("already have block (orphan) %v", blockHash)
 	}
-	if err := bc.checkBlockHeaderSanity(header, blockHash); err != nil {
-		return err
+
+	if err := bc.checkBlockHeaderSanity(block.GetHeader(), blockHash); err != nil {
+		return false, err
 	}
 	var parent *Block
+
 	if parent = bc.GetBlockByHash(block.HashPrevBlock()); parent == nil {
-		encoded, _ := rawencode.Encode(block)
-		bc.orphansCache.Put(blockHash, encoded)
-		return nil
+		bc.addOrphanBlock(block)
+		return true, nil
 	}
+
+	parentHash := block.Header.HashPrevBlock
+	logrus.Debugf("(start write block to db and chain)--->block height:%d,hash:%s,parentHash:%s", block.Height(), block.HashHex(), parentHash.Hex())
+
+	status, err := bc.writeBlockWithState(block)
+	if err != nil {
+		return false, err
+	}
+	switch status {
+	case CanonStatTy:
+		logrus.Debugf("CanonStatTy--->Inserted new block-->number:%d hash:%s", block.Height(), block.HashHex())
+	case SideStatTy:
+		logrus.Debugf("SideStatTy--->Inserted forked block-->number:%d hash:%s", block.Height(), block.HashHex())
+
+	default:
+		// This in theory is impossible, but lets be nice to our future selves and leave
+		// a log, instead of trying to track down blocks imports that don't emit logs.
+		logrus.Warn("Inserted block with unknown status number:%d hash:%s", block.Height(), block.HashHex())
+	}
+
+	hash := block.Hash()
+	err = bc.processOrphans(&hash)
+	if err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+// WriteBlockWithState writes the block and all associated state to the database.
+func (bc *BlockChain) WriteBlockWithState(block *Block) (status WriteStatus, err error) {
+	bc.chainmu.Lock()
+	defer bc.chainmu.Unlock()
+	return bc.writeBlockWithState(block)
+}
+
+func (bc *BlockChain) writeBlockWithState(block *Block) (status WriteStatus, err error) {
+
+	currentBlock := bc.GetHead()
+
+	preBlock := bc.GetBlockByHash(block.HashPrevBlock())
+	if preBlock == nil {
+		return NonStatTy, nil
+	}
+	ptd := preBlock.Td
+	externTd := new(big.Int).Add(block.Td, ptd)
+	localTd := currentBlock.Td
+
+	preHash := block.HashPrevBlock()
+	parent := bc.GetBlockByHash(preHash)
+	if parent == nil {
+		return NonStatTy, fmt.Errorf("previous block %s is unknown", preHash)
+	}
+
+	txs := block.Transactions
+	txsRoot := block.TransactionRoot()
+	rsRoot := block.ReceiptsRoot()
+
+	header := block.GetHeader()
+
 	targetTxsRoot := CalcTxsRootHash(block.Transactions)
 	if !bytes.Equal(targetTxsRoot.Bytes(), txsRoot.Bytes()) {
-		return fmt.Errorf("check transaction root err")
+		return NonStatTy, fmt.Errorf("check transaction root err")
 	}
 	parentStateRoot := parent.StateRoot()
 	stateTree := NewStateTree(bc.stateDB, parentStateRoot.Bytes())
 	_, rec, err := bc.ApplyTransactions(stateTree, header, txs)
 	if err != nil {
-		return err
+		return NonStatTy, err
 	}
 	AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
 	targetRsRoot := CalcReceiptRootHash(rec)
 	if !bytes.Equal(rsRoot.Bytes(), targetRsRoot.Bytes()) {
-		return fmt.Errorf("check receipt root err")
+		return NonStatTy, fmt.Errorf("check receipt root err")
 	}
 	if err = stateTree.Commit(); err != nil {
-		return err
-	}
-	if err = bc.WriteBlock(block); err != nil {
-		return err
+		return NonStatTy, err
 	}
 
+	logrus.Debugf("WriteBlock2DB--->Inserted new block to DB First-->height:%d hash:%s", block.Height(), block.HashHex())
+	if err = bc.WriteBlock2DB(block); err != nil {
+		return NonStatTy, err
+	}
+
+	reorg := externTd.Cmp(localTd) > 0
+	if !reorg && externTd.Cmp(localTd) == 0 {
+		// Split same-difficulty blocks by number, then preferentially select
+		// the block generated by the local miner as the canonical block.
+		if block.Height() < currentBlock.Height() {
+			reorg = true
+		} else if block.Height() == currentBlock.Height() {
+			// target is same and height is same reorg true
+			reorg = false
+		}
+	}
+
+	if reorg {
+		// Reorganise the chain if the parent is not the head block
+		if block.HashPrevBlock() != currentBlock.Hash() {
+			newBlockPreHash := block.HashPrevBlock()
+			currentPreHash := currentBlock.HashPrevBlock()
+
+			logrus.Debugf("newblocKHash:%s, newBlockPreHash:%s, currentPreHash:%s, currentBlockHash:%s",
+				block.HashHex(), newBlockPreHash.Hex(), currentBlock.HashHex(), currentPreHash.Hex())
+
+			if err := bc.reorg(currentBlock, block); err != nil {
+				return NonStatTy, err
+			}
+		}
+		status = CanonStatTy
+	} else {
+		status = SideStatTy
+	}
+
+	if status == CanonStatTy {
+		logrus.Debugf("writeHeadBlock--->Inserted new block to Chain Second-->height:%d,hash:%s", block.Height(), block.HashHex())
+		bc.writeHeadBlock(block)
+	}
+
+	return status, nil
+}
+
+func (bc *BlockChain) reorg(oldBlock, newBlock *Block) error {
+	logrus.Debugf("start reorg\n")
+	var (
+		newChain    []*Block
+		oldChain    []*Block
+		commonBlock *Block
+	)
+	// Reduce the longer chain to the same number as the shorter one
+	if oldBlock.Height() > newBlock.Height() {
+		// Old chain is longer, gather all transactions and logs as deleted ones
+		for ; oldBlock != nil && oldBlock.Height() != newBlock.Height(); oldBlock = bc.GetBlockByHash(oldBlock.HashPrevBlock()) {
+			oldChain = append(oldChain, oldBlock)
+			// deletedTxs = append(deletedTxs, oldBlock.Transactions()...)
+			// collectLogs(oldBlock.Hash(), true)
+		}
+	} else {
+		// New chain is longer, stash all blocks away for subsequent insertion
+		for ; newBlock != nil && newBlock.Height() != oldBlock.Height(); newBlock = bc.GetBlockByHash(newBlock.HashPrevBlock()) {
+			newChain = append(newChain, newBlock)
+		}
+	}
+	if oldBlock == nil {
+		return fmt.Errorf("invalid old chain")
+	}
+	if newBlock == nil {
+		return fmt.Errorf("invalid new chain")
+	}
+	// Both sides of the reorg are at the same number, reduce both until the common
+	// ancestor is found
+	for {
+		// If the common ancestor was found, bail out
+		if oldBlock.Hash() == newBlock.Hash() {
+			commonBlock = oldBlock
+			break
+		}
+		// Remove an old block as well as stash away a new block
+		oldChain = append(oldChain, oldBlock)
+		// deletedTxs = append(deletedTxs, oldBlock.Transactions()...)
+		// collectLogs(oldBlock.Hash(), true)
+
+		newChain = append(newChain, newBlock)
+
+		// Step back with both chains
+		oldBlock = bc.GetBlockByHash(oldBlock.HashPrevBlock())
+		if oldBlock == nil {
+			return fmt.Errorf("invalid old chain")
+		}
+		newBlock = bc.GetBlockByHash(newBlock.HashPrevBlock())
+		if newBlock == nil {
+			return fmt.Errorf("invalid new chain")
+		}
+	}
+	// Ensure the user sees large reorgs
+	if len(oldChain) > 0 && len(newChain) > 0 {
+		logrus.Debugf("commonBlock.height:%d, commonBlock.hash:%s\nlen(oldChain):%d, oldchainhash:%s\nlen(newChain):%d, newchainhash:%s",
+			commonBlock.Height(), commonBlock.HashHex(), len(oldChain), oldChain[0].HashHex(), len(newChain), newChain[0].HashHex())
+	}
+	// Insert the new chain(except the head block(reverse order)),
+	// taking care of the proper incremental order.
+	for i := len(newChain) - 1; i >= 1; i-- {
+		// Insert the block in the canonical way, re-writing history
+		bc.writeHeadBlock(newChain[i])
+
+		// Collect reborn logs due to chain reorg
+		// collectLogs(newChain[i].Hash(), false)
+
+		// Collect the new added transactions.
+		// addedTxs = append(addedTxs, newChain[i].Transactions()...)
+	}
+	// Delete useless indexes right now which includes the non-canonical
+	// transaction indexes, canonical chain indexes which above the head.
+	// indexesBatch := bc.db.NewBatch()
+	// for _, tx := range types.TxDifference(deletedTxs, addedTxs) {
+	// 	rawdb.DeleteTxLookupEntry(indexesBatch, tx.Hash())
+	// }
+	// Delete any canonical number assignments above the new head
+	// number := bc.CurrentBlock().NumberU64()
+	// for i := number + 1; ; i++ {
+	// 	hash := rawdb.ReadCanonicalHash(bc.db, i)
+	// 	if hash == (common.Hash{}) {
+	// 		break
+	// 	}
+	// 	rawdb.DeleteCanonicalHash(indexesBatch, i)
+	// }
+	// if err := indexesBatch.Write(); err != nil {
+	// 	log.Crit("Failed to delete useless indexes", "err", err)
+	// }
+	// If any logs need to be fired, do it now. In theory we could avoid creating
+	// this goroutine if there are no events to fire, but realistcally that only
+	// ever happens if we're reorging empty blocks, which will only happen on idle
+	// networks where performance is not an issue either way.
+	// if len(deletedLogs) > 0 {
+	// 	bc.rmLogsFeed.Send(RemovedLogsEvent{mergeLogs(deletedLogs, true)})
+	// }
+	// if len(rebirthLogs) > 0 {
+	// 	bc.logsFeed.Send(mergeLogs(rebirthLogs, false))
+	// }
+	// if len(oldChain) > 0 {
+	// 	for i := len(oldChain) - 1; i >= 0; i-- {
+	// 		bc.chainSideFeed.Send(ChainSideEvent{Block: oldChain[i]})
+	// 	}
+	// }
 	return nil
 }
 
@@ -527,4 +782,146 @@ func (bc *BlockChain) CalcNextRequiredDifficulty() (uint32, error) {
 
 func (bc *BlockChain) CurrentStateTree() *StateTree {
 	return bc.stateTree
+}
+
+// removeOrphanBlock removes the passed orphan block from the orphan pool and
+// previous orphan index.
+func (bc *BlockChain) removeOrphanBlock(orphan *orphanBlock) {
+	// Protect concurrent access.
+	bc.orphanLock.Lock()
+	defer bc.orphanLock.Unlock()
+
+	// Remove the orphan block from the orphan pool.
+	orphanHash := orphan.block.Hash()
+	delete(bc.orphans, orphanHash)
+
+	// Remove the reference from the previous orphan index too.  An indexing
+	// for loop is intentionally used over a range here as range does not
+	// reevaluate the slice on each iteration nor does it adjust the index
+	// for the modified slice.
+	prevHash := orphan.block.HashPrevBlock()
+
+	orphans := bc.prevOrphans[prevHash]
+	for i := 0; i < len(orphans); i++ {
+		hash := orphans[i].block.Hash()
+		if hash.IsEqual(&orphanHash) {
+			copy(orphans[i:], orphans[i+1:])
+			orphans[len(orphans)-1] = nil
+			orphans = orphans[:len(orphans)-1]
+			i--
+		}
+	}
+	bc.prevOrphans[prevHash] = orphans
+
+	// Remove the map entry altogether if there are no longer any orphans
+	// which depend on the parent hash.
+	if len(bc.prevOrphans[prevHash]) == 0 {
+		delete(bc.prevOrphans, prevHash)
+	}
+}
+
+// addOrphanBlock adds the passed block (which is already determined to be
+// an orphan prior calling this function) to the orphan pool.  It lazily cleans
+// up any expired blocks so a separate cleanup poller doesn't need to be run.
+// It also imposes a maximum limit on the number of outstanding orphan
+// blocks and will remove the oldest received orphan block if the limit is
+// exceeded.
+func (b *BlockChain) addOrphanBlock(block *Block) {
+	// Remove expired orphan blocks.
+	for _, oBlock := range b.orphans {
+		if time.Now().After(oBlock.expiration) {
+			b.removeOrphanBlock(oBlock)
+			continue
+		}
+
+		// Update the oldest orphan block pointer so it can be discarded
+		// in case the orphan pool fills up.
+		if b.oldestOrphan == nil || oBlock.expiration.Before(b.oldestOrphan.expiration) {
+			b.oldestOrphan = oBlock
+		}
+	}
+
+	// Limit orphan blocks to prevent memory exhaustion.
+	if len(b.orphans)+1 > maxOrphanBlocks {
+		// Remove the oldest orphan to make room for the new one.
+		b.removeOrphanBlock(b.oldestOrphan)
+		b.oldestOrphan = nil
+	}
+
+	// Protect concurrent access.  This is intentionally done here instead
+	// of near the top since removeOrphanBlock does its own locking and
+	// the range iterator is not invalidated by removing map entries.
+	b.orphanLock.Lock()
+	defer b.orphanLock.Unlock()
+
+	// Insert the block into the orphan map with an expiration time
+	// 1 hour from now.
+	expiration := time.Now().Add(time.Hour)
+	oBlock := &orphanBlock{
+		block:      block,
+		expiration: expiration,
+	}
+	b.orphans[block.Hash()] = oBlock
+
+	// Add to previous hash lookup index for faster dependency lookups.
+	prevHash := block.HashPrevBlock()
+	b.prevOrphans[prevHash] = append(b.prevOrphans[prevHash], oBlock)
+}
+
+// processOrphans determines if there are any orphans which depend on the passed
+// block hash (they are no longer orphans if true) and potentially accepts them.
+// It repeats the process for the newly accepted blocks (to detect further
+// orphans which may no longer be orphans) until there are no more.
+//
+// The flags do not modify the behavior of this function directly, however they
+// are needed to pass along to maybeAcceptBlock.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (bc *BlockChain) processOrphans(hash *common.Hash) error {
+	// Start with processing at least the passed hash.  Leave a little room
+	// for additional orphan blocks that need to be processed without
+	// needing to grow the array in the common case.
+	processHashes := make([]*common.Hash, 0, 10)
+	processHashes = append(processHashes, hash)
+	for len(processHashes) > 0 {
+		// Pop the first hash to process from the slice.
+		processHash := processHashes[0]
+		processHashes[0] = nil // Prevent GC leak.
+		processHashes = processHashes[1:]
+
+		// Look up all orphans that are parented by the block we just
+		// accepted.  This will typically only be one, but it could
+		// be multiple if multiple blocks are mined and broadcast
+		// around the same time.  The one with the most proof of work
+		// will eventually win out.  An indexing for loop is
+		// intentionally used over a range here as range does not
+		// reevaluate the slice on each iteration nor does it adjust the
+		// index for the modified slice.
+		for i := 0; i < len(bc.prevOrphans[*processHash]); i++ {
+			orphan := bc.prevOrphans[*processHash][i]
+			if orphan == nil {
+				// log.Warnf("Found a nil entry at index %d in the "+
+				// 	"orphan dependency list for block %v", i,
+				// 	processHash)
+				continue
+			}
+
+			// Remove the orphan from the orphan pool.
+			orphanHash := orphan.block.Hash()
+			bc.removeOrphanBlock(orphan)
+			i--
+
+			// Potentially accept the block into the block chain.
+			_, err := bc.WriteBlockWithState(orphan.block)
+			if err != nil {
+				return err
+			}
+
+			// Add this block to the list of blocks to process so
+			// any orphan blocks that depend on this block are
+			// handled too.
+			processHashes = append(processHashes, &orphanHash)
+		}
+	}
+	return nil
 }

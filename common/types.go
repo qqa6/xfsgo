@@ -1,4 +1,4 @@
- // Copyright 2018 The xfsgo Authors
+// Copyright 2018 The xfsgo Authors
 // This file is part of the xfsgo library.
 //
 // The xfsgo library is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ type (
 
 var (
 	ZeroHash        = Bytes2Hash([]byte{})
-	HashZ = Hash{}
+	HashZ           = Hash{}
 	AddrCheckSumLen = 4
 )
 
@@ -74,6 +74,17 @@ func (h *Hash) Hex() string {
 }
 func (h *Hash) Bytes() []byte {
 	return h[:]
+}
+
+// IsEqual returns true if target is the same as hash.
+func (hash *Hash) IsEqual(target *Hash) bool {
+	if hash == nil && target == nil {
+		return true
+	}
+	if hash == nil || target == nil {
+		return false
+	}
+	return *hash == *target
 }
 
 func IsZeroHash(h Hash) bool {

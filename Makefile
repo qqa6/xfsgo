@@ -7,7 +7,7 @@ build: xfsgo
 
 .PHONY: xfsgo
 xfsgo:
-	go build -o xfsgo cmd/xfsgo/main.go
+	go build -o xfsgo.exe cmd/xfsgo/main.go
 
 .PHONY: clean
 clean:

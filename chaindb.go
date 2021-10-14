@@ -18,15 +18,20 @@ package xfsgo
 
 import (
 	"encoding/binary"
+	"math/big"
 	"xfsgo/common"
 	"xfsgo/common/rawencode"
 	"xfsgo/storage/badger"
+
+	"github.com/sirupsen/logrus"
 )
 
 var (
-	blockHashPre = []byte("bh:")
-	blockNumPre  = []byte("bn:")
-	lastBlockKey = []byte("LastBlock")
+	blockHashPre   = []byte("bh:")
+	blockNumPre    = []byte("bn:")
+	lastBlockKey   = []byte("LastBlock")
+	headerPrefix   = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
+	headerTDSuffix = []byte("t") // headerPrefix + num (uint64 big endian) + hash + headerTDSuffix -> td
 )
 
 type chainDB struct {
@@ -38,6 +43,23 @@ func newChainDB(db *badger.Storage) *chainDB {
 		storage: db,
 	}
 	return tdb
+}
+
+// encodeBlockNumber encodes a block number as big endian uint64
+func encodeBlockNumber(number uint64) []byte {
+	enc := make([]byte, 8)
+	binary.BigEndian.PutUint64(enc, number)
+	return enc
+}
+
+// headerKey = headerPrefix + num (uint64 big endian) + hash
+func headerKey(number uint64, hash common.Hash) []byte {
+	return append(append(headerPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
+}
+
+// headerTDKey = headerPrefix + num (uint64 big endian) + hash + headerTDSuffix
+func headerTDKey(number uint64, hash common.Hash) []byte {
+	return append(headerKey(number, hash), headerTDSuffix...)
 }
 
 func (db *chainDB) newWriteBatch() *badger.StorageWriteBatch {
@@ -105,10 +127,74 @@ func (db *chainDB) WriteCanonNumber(block *Block) error {
 	return nil
 }
 
+func (db *chainDB) DelUnCanonNumber(block *Block) error {
+	var numBuf [8]byte
+	binary.LittleEndian.PutUint64(numBuf[:], block.Height())
+	key := append(blockNumPre, numBuf[:]...)
+
+	err := db.storage.DelData(key)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (db *chainDB) WriteHead(block *Block) error {
 	if err := db.WriteCanonNumber(block); err != nil {
 		return err
 	}
 	blockHash := block.Hash()
 	return db.storage.SetData(lastBlockKey, blockHash.Bytes())
+}
+
+// Loss of main chain after fork
+func (db *chainDB) DelHead(block *Block) error {
+	if err := db.DelUnCanonNumber(block); err != nil {
+		return err
+	}
+
+	blockHash := block.HashPrevBlock()
+	// warning:The design here is unreasonable
+	return db.storage.SetData(lastBlockKey, blockHash.Bytes())
+}
+
+// ReadTd retrieves a block's total difficulty corresponding to the hash.
+func (db *chainDB) ReadTd(hash common.Hash, number uint64) *big.Int {
+
+	data, err := db.storage.GetData(headerTDKey(number, hash))
+	if err != nil {
+		return nil
+	}
+
+	td := &big.Int{}
+	if err := rawencode.Decode(data, td); err != nil {
+		return nil
+	}
+
+	return td
+}
+
+// WriteTd stores the total difficulty of a block into the database.
+func (db *chainDB) WriteTd(hash common.Hash, number uint64, td *big.Int) error {
+	data, err := rawencode.Encode(td)
+	if err != nil {
+		logrus.Errorf("Failed to RLP encode block total difficulty", "err", err)
+		return err
+	}
+	if err := db.storage.SetData(headerTDKey(number, hash), data); err != nil {
+		logrus.Errorf("Failed to store block total difficulty", "err", err)
+		return err
+	}
+
+	return nil
+}
+
+// DeleteTd removes all block total difficulty data associated with a hash.
+func (db *chainDB) DeleteTd(hash common.Hash, number uint64) error {
+	if err := db.storage.DelData(headerTDKey(number, hash)); err != nil {
+		logrus.Errorf("Failed to delete block total difficulty", "err", err)
+		return err
+	}
+
+	return nil
 }

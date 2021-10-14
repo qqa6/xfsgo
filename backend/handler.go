@@ -516,7 +516,7 @@ func (h *handler) process(blocks remoteBlocks) {
 	h.processLock.Lock()
 	defer h.processLock.Unlock()
 	for _, block := range blocks {
-		if err := h.blockchain.InsertChain(block); err != nil {
+		if _, err := h.blockchain.InsertChain(block); err != nil {
 			continue
 		}
 	}

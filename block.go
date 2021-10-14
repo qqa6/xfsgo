@@ -81,6 +81,10 @@ type Block struct {
 	Header       *BlockHeader   `json:"header"`
 	Transactions []*Transaction `json:"transactions"`
 	Receipts     []*Receipt     `json:"receipts"`
+
+	// Td is used by package core to store the total difficulty
+	// of the chain up to and including the block.
+	Td *big.Int
 }
 
 // NewBlock creates a new block. The input data, txs and receipts are copied,
@@ -91,8 +95,12 @@ type Block struct {
 func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt) *Block {
 	b := &Block{
 		Header: header,
+		Td:     new(big.Int),
 	}
 	b.Header.GasLimit = header.GasLimit
+	hash := b.Hash()
+	newTd := new(big.Int).SetBytes(hash[:])
+	b.Td = new(big.Int).Add(b.Td, newTd)
 	if len(txs) == 0 {
 		b.Header.TransactionsRoot = emptyHash
 	} else {

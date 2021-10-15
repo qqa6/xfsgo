@@ -25,7 +25,7 @@ import (
 const (
 	addrLen            = 25
 	hashLen            = 32
-	AddrDefaultVersion = 0
+	DefaultAddressVersion = 1
 )
 
 type (
@@ -74,16 +74,6 @@ func (h *Hash) Hex() string {
 }
 func (h *Hash) Bytes() []byte {
 	return h[:]
-}
-
-func IsZeroHash(h Hash) bool {
-	// z := make([]byte, hashLen)
-	// if bytes.Compare(h.Bytes(), z[:]) == Zero {
-	// 	return true
-	// }
-	// return false
-	var z [hashLen]byte
-	return bytes.Compare(h.Bytes(), z[:]) == Zero
 }
 
 func Bytes2Address(b []byte) Address {

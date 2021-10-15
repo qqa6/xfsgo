@@ -25,7 +25,6 @@ import (
 	"xfsgo/crypto"
 	"xfsgo/storage/badger"
 )
-const keyversion = uint8(1)
 // Wallet represents a software wallet that has a default address derived from private key.
 type Wallet struct {
 	db          *keyStoreDB
@@ -156,7 +155,7 @@ func (w *Wallet) Export(address common.Address) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return crypto.EncodePrivateKey(keyversion,key), nil
+	return crypto.DefaultEncodePrivateKey(key), nil
 }
 
 func (w *Wallet) Import(der []byte) (common.Address, error) {
@@ -164,8 +163,8 @@ func (w *Wallet) Import(der []byte) (common.Address, error) {
 	if err != nil {
 		return noneAddress, err
 	}
-	if kv != keyversion {
-		return noneAddress, fmt.Errorf("unknown private key version %d", keyversion)
+	if kv != crypto.DefaultKeyPackVersion {
+		return noneAddress, fmt.Errorf("unknown private key version %d", kv)
 	}
 	return w.AddWallet(pKey)
 }

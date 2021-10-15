@@ -12,7 +12,8 @@ import (
 	"xfsgo/common/ahash"
 	"xfsgo/common/urlsafeb64"
 )
-const exportTypeRaw= uint8(1)
+const defaultKeyPackType = uint8(1)
+const DefaultKeyPackVersion = uint8(1)
 func GenPrvKey() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 }
@@ -49,7 +50,7 @@ func VerifyAddress(addr common.Address) bool {
 }
 
 func DefaultPubKey2Addr(p ecdsa.PublicKey) common.Address {
-	return PubKey2Addr(common.AddrDefaultVersion, p)
+	return PubKey2Addr(common.DefaultAddressVersion, p)
 }
 
 func PubKeySha256HashBs(p ecdsa.PublicKey) []byte {
@@ -89,8 +90,12 @@ func B64StringDecodePrivateKey(enc string) (*ecdsa.PrivateKey, error) {
 
 func EncodePrivateKey(version uint8, key *ecdsa.PrivateKey) []byte {
 	dbytes := key.D.Bytes()
-	buf := append([]byte{version, exportTypeRaw}, dbytes...)
+	buf := append([]byte{version, defaultKeyPackType}, dbytes...)
 	return buf
+}
+
+func DefaultEncodePrivateKey(key *ecdsa.PrivateKey) []byte {
+	return EncodePrivateKey(DefaultKeyPackVersion, key)
 }
 
 func DecodePrivateKey(bs []byte) (uint8, *ecdsa.PrivateKey, error) {
@@ -111,7 +116,17 @@ func DecodePrivateKey(bs []byte) (uint8, *ecdsa.PrivateKey, error) {
 		priv.Curve = curve
 		priv.D = k
 		privateKey := make([]byte, (curveOrder.BitLen()+7)/8)
-		copy(privateKey, payload)
+		for len(payload) > len(privateKey) {
+			if payload[0] != 0 {
+				return 0, nil, errors.New("invalid private key length")
+			}
+			payload = payload[1:]
+		}
+
+		// Some private keys remove all leading zeros, this is also invalid
+		// according to [SEC1] but since OpenSSL used to do this, we ignore
+		// this too.
+		copy(privateKey[len(privateKey)-len(payload):], payload)
 		priv.X, priv.Y = curve.ScalarBaseMult(privateKey)
 	}else {
 		return 0, nil,  errors.New("unknown private key encrypt type")

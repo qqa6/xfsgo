@@ -112,7 +112,7 @@ func (tx *TxPoolHandler) SendRawTransaction(args RawTransactionArgs, resp *strin
 		return xfsgo.NewRPCErrorCause(-32001, fmt.Errorf("failed to parse data: %s", err))
 	}
 	logrus.Debugf("Handle RPC request by raw transaction: %s", rawtx)
-	txdata, err := coverTransaction(rawtx)
+	txdata, err := CoverTransaction(rawtx)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
@@ -120,6 +120,8 @@ func (tx *TxPoolHandler) SendRawTransaction(args RawTransactionArgs, resp *strin
 	if err := tx.TxPool.Add(txdata); err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
+	txhash := txdata.Hash()
+	*resp = txhash.Hex()
 	return nil
 }
 
@@ -131,7 +133,7 @@ func (t *StringRawTransaction) String() string {
 	return string(jsondata)
 }
 
-func coverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
+func CoverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
 	version, err := strconv.ParseInt(r.Version, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse version: %s", err)
@@ -149,11 +151,11 @@ func coverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
 	}else if r.Data == "" {
 		return nil, fmt.Errorf("failed to parse 'to' address")
 	}
-	gasprice, ok := new(big.Int).SetString(r.GasPrice, 16)
+	gasprice, ok := new(big.Int).SetString(r.GasPrice, 10)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse gasprice")
 	}
-	gaslimit, ok := new(big.Int).SetString(r.GasLimit, 16)
+	gaslimit, ok := new(big.Int).SetString(r.GasLimit, 10)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse gasprice")
 	}
@@ -162,7 +164,7 @@ func coverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse nonce: %s", err)
 	}
-	value, ok := new(big.Int).SetString(r.Value, 16)
+	value, ok := new(big.Int).SetString(r.Value, 10)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse value")
 	}

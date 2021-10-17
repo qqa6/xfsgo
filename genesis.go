@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	maxTarget = new(big.Int).Lsh(big0xff, ((32-4)*8)+6)
+	maxTarget = new(big.Int).Lsh(big0xff, (32-4)*8+4)
 )
 
 // WriteGenesisBlock constructs the genesis block for the blockchain and stores it in the hd.

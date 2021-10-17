@@ -17,10 +17,12 @@
 package xfsgo
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
 	"testing"
 	"xfsgo/assert"
 	"xfsgo/common"
@@ -62,7 +64,7 @@ func TestSign2(t *testing.T) {
 		Data: []byte("1"),
 		Nonce: 0,
 		Value: new(big.Int),
-		Time: 0,
+		Timestamp: 0,
 		Signature: nil,
 	}
 	keyhex := "0101ecad21153a7b7b8c745fc91c74e620233ec090dae8730e04deca43ddbff53f24"
@@ -88,6 +90,17 @@ func TestSign2(t *testing.T) {
 	}
 	pubdata := crypto.PubKeyEncode(*pub)
 	t.Logf("sign2pub: %x\n", pubdata)
+	txpub, err := tx.publicKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	txpubdata := crypto.PubKeyEncode(*txpub)
+	t.Logf("txpub: %x\n", txpubdata)
+	fromaddr, err := tx.FromAddr()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("txfrom: %s\n", fromaddr.B58String())
 }
 
 
@@ -128,10 +141,120 @@ func TestSign(t *testing.T) {
 	t.Logf("sign2: %x\n", sign)
 }
 
-func Test_abc(t *testing.T) {
-	a := new(big.Int).SetInt64(100)
-	var b *big.Int =  new(big.Int).SetInt64(10)
-	if a.Cmp(b) > 0 {
-		t.Fatal(fmt.Errorf("aaa"))
+type StringRawTransaction struct {
+	Version string `json:"version"`
+	To string `json:"to"`
+	Value string `json:"value"`
+	Data string `json:"data"`
+	GasLimit string `json:"gas_limit"`
+	GasPrice string `json:"gas_price"`
+	Signature string `json:"signature"`
+	Nonce     string `json:"nonce"`
+	Timestamp string `json:"timestamp"`
+}
+func CoverTransaction(r *StringRawTransaction) (*Transaction,error) {
+	version, err := strconv.ParseInt(r.Version, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse version: %s", err)
 	}
+	signature := common.Hex2bytes(r.Signature)
+	if signature == nil || len(signature) < 1 {
+		return nil, fmt.Errorf("failed to parse signature: %s", err)
+	}
+	toaddr := common.ZeroAddr
+	if r.To != "" {
+		toaddr = common.StrB58ToAddress(r.To)
+		if !crypto.VerifyAddress(toaddr) {
+			return nil, fmt.Errorf("failed to verify 'to' address: %s", r.To)
+		}
+	}else if r.Data == "" {
+		return nil, fmt.Errorf("failed to parse 'to' address")
+	}
+	gasprice, ok := new(big.Int).SetString(r.GasPrice, 16)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse gasprice")
+	}
+	gaslimit, ok := new(big.Int).SetString(r.GasLimit, 16)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse gasprice")
+	}
+	data := common.Hex2bytes(r.Data)
+	nonce, err := strconv.ParseInt(r.Nonce, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse nonce: %s", err)
+	}
+	value, ok := new(big.Int).SetString(r.Value, 16)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse value")
+	}
+	timestamp, err := strconv.ParseInt(r.Timestamp, 10, 64)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse timestamp")
+	}
+	return NewTransactionByStd(&StdTransaction{
+		Version: uint32(version),
+		To: toaddr,
+		GasPrice: gasprice,
+		GasLimit: gaslimit,
+		Data: data,
+		Nonce: uint64(nonce),
+		Value: value,
+		Timestamp: uint64(timestamp),
+		Signature: signature,
+	}), nil
+}
+func Test_abc(t *testing.T) {
+	privkeystr := "0x0101ecad21153a7b7b8c745fc91c74e620233ec090dae8730e04deca43ddbff53f24"
+	t.Logf("private key: %s", privkeystr)
+	privkeybytes := common.Hex2bytes(privkeystr)
+	_,privateKey,err := crypto.DecodePrivateKey(privkeybytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publickey := privateKey.PublicKey
+	publickeybytes := crypto.PubKeyEncode(publickey)
+	t.Logf("public key: %x", publickeybytes)
+	fromaddress := crypto.DefaultPubKey2Addr(publickey)
+	t.Logf("from address: %s", fromaddress.B58String())
+	signhex := "eaba0937d18cbf74e9143e1c15a066fffd16b1ab0a89be76010360bc3238095e3e8b9a5894b81b09307ed9ba18467c9a9cce7dfe9b06bdf4d503df016090a9e901"
+	wantsign := common.Hex2bytes(signhex)
+	tx, err := CoverTransaction(&StringRawTransaction{
+		Version: "0",
+		To: "beJLCrggTVQEASawNta4QFbGkLN51r3qj",
+		GasPrice: "10",
+		GasLimit: "10",
+		Nonce: "0",
+		Value: "10",
+		Timestamp: "1634438019",
+		Signature: signhex,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.SignWithPrivateKey(privateKey); err != nil {
+		t.Fatal(err)
+	}
+	realsign := tx.Signature
+	if !bytes.Equal(wantsign, realsign) {
+		t.Fatal(fmt.Errorf("want=%x, got: %x", wantsign, realsign))
+	}
+	gotpubkey, err := tx.publicKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotpubkeybytes := crypto.PubKeyEncode(*gotpubkey)
+	if !bytes.Equal(publickeybytes, gotpubkeybytes) {
+		t.Fatal(fmt.Errorf("want=%x, got: %x", publickeybytes, gotpubkeybytes))
+	}
+	gotaddr, err := tx.FromAddr()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(fromaddress[:], gotaddr[:]) {
+		t.Fatal(fmt.Errorf("want=%x, got: %x", fromaddress, gotaddr))
+	}
+	//signder, err := hex.DecodeString(signhex)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
 }

@@ -28,7 +28,6 @@ import (
 	"time"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
-	"xfsgo/common/rawencode"
 	"xfsgo/crypto"
 
 	"github.com/sirupsen/logrus"
@@ -45,7 +44,7 @@ type Transaction struct {
 	Data      []byte         `json:"data"`
 	Nonce     uint64         `json:"nonce"`
 	Value     *big.Int       `json:"value"`
-	Timestamp      uint64         `json:"timestamp"`
+	Timestamp uint64         `json:"timestamp"`
 	Signature []byte         `json:"signature"`
 }
 
@@ -110,11 +109,22 @@ func (t *Transaction) Decode(data []byte) error {
 }
 
 func (t *Transaction) Hash() common.Hash {
-	bs, err := rawencode.Encode(t)
-	if err != nil {
-		return common.ZeroHash
+	tmp := map[string]string{
+		"version": strconv.FormatInt(int64(t.Version), 10),
+		"to": t.To.String(),
+		"gas_price": t.GasPrice.Text(10),
+		"gas_limit": t.GasLimit.Text(10),
+		"data": hex.EncodeToString(t.Data),
+		"nonce": strconv.Itoa(int(t.Nonce)),
+		"value": t.Value.Text(10),
+		"timestamp": strconv.FormatInt(int64(t.Timestamp), 10),
+		"signature": hex.EncodeToString(t.Signature),
 	}
-	return common.Bytes2Hash(ahash.SHA256(bs))
+	enc := sortAndEncodeMap(tmp)
+	if enc == "" {
+		return common.Hash{}
+	}
+	return common.Bytes2Hash(ahash.SHA256([]byte(enc)))
 }
 
 func (t *Transaction) clone() *Transaction {
@@ -152,18 +162,18 @@ func (t *Transaction) SignHash() common.Hash {
 	tmp := map[string]string{
 		"version": strconv.FormatInt(int64(t.Version), 10),
 		"to": t.To.String(),
-		"gas_price": hex.EncodeToString(t.GasPrice.Bytes()),
-		"gas_limit": hex.EncodeToString(t.GasLimit.Bytes()),
+		"gas_price": t.GasPrice.Text(10),
+		"gas_limit": t.GasLimit.Text(10),
 		"data": hex.EncodeToString(t.Data),
 		"nonce": strconv.Itoa(int(t.Nonce)),
-		"value": hex.EncodeToString(t.Value.Bytes()),
+		"value": t.Value.Text(10),
 		"timestamp": strconv.FormatInt(int64(t.Timestamp), 10),
 	}
 	enc := sortAndEncodeMap(tmp)
+	logrus.Infof("signenc: %s", enc)
 	if enc == "" {
 		return common.Hash{}
 	}
-	logrus.Infof("signhash, enc: %s", enc)
 	return common.Bytes2Hash(ahash.SHA256([]byte(enc)))
 }
 

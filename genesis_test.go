@@ -61,9 +61,7 @@ func TestWriteGenesisBlock(t *testing.T) {
 	gotBalance := stateTree.GetBalance(coinbaseAddr)
 	wantBalance := new(big.Int).SetInt64(initCoinbaseBalance)
 	assert.BigIntEqual(t, gotBalance, wantBalance)
-	pkenc, err := crypto.PrivateKeyEncodeB64String(coinbaseKey)
 	assert.Error(t, err)
-	t.Logf("init coinbase private: %s\n", pkenc)
 	t.Logf("init coinbase address: %s\n", coinbaseAddr.B58String())
 }
 

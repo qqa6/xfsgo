@@ -17,9 +17,15 @@
 package api
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"github.com/sirupsen/logrus"
 	"math/big"
+	"strconv"
 	"xfsgo"
 	"xfsgo/common"
+	"xfsgo/crypto"
 )
 
 type TxPoolHandler struct {
@@ -34,6 +40,22 @@ type ModTranGasArgs struct {
 	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`
 	Hash     string `json:"hash"`
+}
+
+type RawTransactionArgs struct {
+	Data string `json:"data"`
+}
+
+type StringRawTransaction struct {
+	Version string `json:"version"`
+	To string `json:"to"`
+	Value string `json:"value"`
+	Data string `json:"data"`
+	GasLimit string `json:"gas_limit"`
+	GasPrice string `json:"gas_price"`
+	Signature string `json:"signature"`
+	Nonce     string `json:"nonce"`
+	Timestamp string `json:"timestamp"`
 }
 
 func (tx *TxPoolHandler) GetPending(_ EmptyArgs, resp *transactions) error {
@@ -72,4 +94,91 @@ func (tx *TxPoolHandler) ModifyTranGas(args ModTranGasArgs, resp *string) error 
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
 	return nil
+}
+
+
+func (tx *TxPoolHandler) SendRawTransaction(args RawTransactionArgs, resp *string) error {
+	if args.Data == "" {
+		return xfsgo.NewRPCError(-1006, "Parameter data cannot be empty")
+	}
+	logrus.Debugf("Handle RPC request by SendRawTransaction: args.data=%s", args.Data)
+	//databytes, err := urlsafeb64.Decode(args.Data)
+	databytes, err := base64.StdEncoding.DecodeString(args.Data)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, fmt.Errorf("failed to parse data: %s", err))
+	}
+	rawtx := &StringRawTransaction{}
+	if err := json.Unmarshal(databytes, rawtx); err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, fmt.Errorf("failed to parse data: %s", err))
+	}
+	logrus.Debugf("Handle RPC request by raw transaction: %s", rawtx)
+	txdata, err := coverTransaction(rawtx)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	logrus.Debugf("Handle RPC request by transaction: %s", txdata)
+	if err := tx.TxPool.Add(txdata); err != nil {
+		return xfsgo.NewRPCErrorCause(-32001, err)
+	}
+	return nil
+}
+
+func (t *StringRawTransaction) String() string {
+	jsondata, err := json.Marshal(t)
+	if err != nil {
+		panic(err)
+	}
+	return string(jsondata)
+}
+
+func coverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
+	version, err := strconv.ParseInt(r.Version, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse version: %s", err)
+	}
+	signature := common.Hex2bytes(r.Signature)
+	if signature == nil || len(signature) < 1 {
+		return nil, fmt.Errorf("failed to parse signature: %s", err)
+	}
+	toaddr := common.ZeroAddr
+	if r.To != "" {
+		toaddr = common.StrB58ToAddress(r.To)
+		if !crypto.VerifyAddress(toaddr) {
+			return nil, fmt.Errorf("failed to verify 'to' address: %s", r.To)
+		}
+	}else if r.Data == "" {
+		return nil, fmt.Errorf("failed to parse 'to' address")
+	}
+	gasprice, ok := new(big.Int).SetString(r.GasPrice, 16)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse gasprice")
+	}
+	gaslimit, ok := new(big.Int).SetString(r.GasLimit, 16)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse gasprice")
+	}
+	data := common.Hex2bytes(r.Data)
+	nonce, err := strconv.ParseInt(r.Nonce, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse nonce: %s", err)
+	}
+	value, ok := new(big.Int).SetString(r.Value, 16)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse value")
+	}
+	timestamp, err := strconv.ParseInt(r.Timestamp, 10, 64)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse timestamp")
+	}
+	return xfsgo.NewTransactionByStd(&xfsgo.StdTransaction{
+		Version: uint32(version),
+		To: toaddr,
+		GasPrice: gasprice,
+		GasLimit: gaslimit,
+		Data: data,
+		Nonce: uint64(nonce),
+		Value: value,
+		Timestamp: uint64(timestamp),
+		Signature: signature,
+	}), nil
 }

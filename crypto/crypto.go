@@ -3,23 +3,22 @@ package crypto
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/x509"
 	"errors"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"math/big"
 	"xfsgo/common"
 	"xfsgo/common/ahash"
-	"xfsgo/common/urlsafeb64"
 )
 const defaultKeyPackType = uint8(1)
 const DefaultKeyPackVersion = uint8(1)
+
 func GenPrvKey() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	return ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 }
 
 func MustGenPrvKey() *ecdsa.PrivateKey {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	key, err := GenPrvKey()
 	if err != nil {
 		print(err)
 	}
@@ -46,21 +45,11 @@ func Checksum(payload []byte) []byte {
 func VerifyAddress(addr common.Address) bool {
 	want := Checksum(addr.Payload())
 	got := addr.Checksum()
-	return bytes.Compare(want, got) == 0
+	return bytes.Equal(want, got)
 }
 
 func DefaultPubKey2Addr(p ecdsa.PublicKey) common.Address {
 	return PubKey2Addr(common.DefaultAddressVersion, p)
-}
-
-func PubKeySha256HashBs(p ecdsa.PublicKey) []byte {
-	pubEnc := PubKeyEncode(p)
-	pubHash256 := ahash.SHA256(pubEnc)
-	return pubHash256
-}
-func PubKeySha256Hash(p ecdsa.PublicKey) common.Hash {
-	pubHash256 := PubKeySha256HashBs(p)
-	return common.Bytes2Hash(pubHash256)
 }
 
 func PubKey2Addr(version uint8, p ecdsa.PublicKey) common.Address {
@@ -71,21 +60,6 @@ func PubKey2Addr(version uint8, p ecdsa.PublicKey) common.Address {
 	cs := Checksum(payload)
 	full := append(payload, cs...)
 	return common.Bytes2Address(full)
-}
-func PrivateKeyEncodeB64String(key *ecdsa.PrivateKey) (string, error) {
-	der, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return "", err
-	}
-	return urlsafeb64.Encode(der), nil
-}
-
-func B64StringDecodePrivateKey(enc string) (*ecdsa.PrivateKey, error) {
-	der, err := urlsafeb64.Decode(enc)
-	if err != nil {
-		return nil, err
-	}
-	return x509.ParseECPrivateKey(der)
 }
 
 func EncodePrivateKey(version uint8, key *ecdsa.PrivateKey) []byte {
@@ -108,7 +82,7 @@ func DecodePrivateKey(bs []byte) (uint8, *ecdsa.PrivateKey, error) {
 	priv := new(ecdsa.PrivateKey)
 	if keytype == 1 {
 		k := new(big.Int).SetBytes(payload)
-		curve := elliptic.P256()
+		curve := secp256k1.S256()
 		curveOrder := curve.Params().N
 		if k.Cmp(curveOrder) >= 0 {
 			return 0, nil, errors.New("invalid elliptic curve private key value")

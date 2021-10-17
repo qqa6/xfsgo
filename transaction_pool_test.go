@@ -17,10 +17,8 @@
 package xfsgo
 
 import (
-	"math/big"
 	"testing"
 	"xfsgo/assert"
-	"xfsgo/crypto"
 	"xfsgo/storage/badger"
 )
 
@@ -59,36 +57,6 @@ func TestTxPool_Add(t *testing.T) {
 			}
 		}
 	}()
-	txPoll := NewTxPool(func() *StateTree {
-		return st
-	},nil, eventBus)
-
-	key1, err := crypto.B64StringDecodePrivateKey(coinbasePrivateKey)
 	assert.Error(t, err)
-	key2, err := crypto.GenPrvKey()
-	assert.Error(t, err)
-	toAddr := crypto.DefaultPubKey2Addr(key2.PublicKey)
-	tx0 := &Transaction{
-		To:    toAddr,
-		Value: new(big.Int).SetInt64(100),
-	}
-	err = tx0.SignWithPrivateKey(key1)
-	assert.Error(t, err)
-	tx0Hash := tx0.Hash()
-	t.Logf("tx0: %s\n", tx0Hash.Hex())
-	tx1 := &Transaction{
-		To:    toAddr,
-		Value: new(big.Int).SetInt64(100),
-	}
-	err = tx1.SignWithPrivateKey(key1)
-	assert.Error(t, err)
-	tx1Hash := tx1.Hash()
-	t.Logf("tx1: %s\n", tx1Hash.Hex())
-	err = txPoll.Add(tx0)
-	assert.Error(t, err)
-	err = txPoll.Add(tx1)
-	assert.Error(t, err)
-	pending := txPoll.pending
-	assert.Equal(t, len(pending), 2)
 	select {}
 }

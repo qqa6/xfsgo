@@ -97,7 +97,6 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 		back.config.StateDB, back.config.ChainDB, back.config.ExtraDB, back.eventBus); err != nil {
 		return nil, err
 	}
-
 	back.wallet = xfsgo.NewWallet(back.config.KeysDB, common.DefaultGas, common.DefaultGasPrice)
 	back.txPool = xfsgo.NewTxPool(back.blockchain.CurrentStateTree, back.blockchain.CurrentBlock().Header.GasLimit, back.eventBus)
 

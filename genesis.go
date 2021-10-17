@@ -97,6 +97,7 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 	if err = chaindb.WriteHead(block); err != nil {
 		return nil, err
 	}
+
 	return block, nil
 }
 

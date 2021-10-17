@@ -89,6 +89,7 @@ func (db *chainDB) GetBlockByNumber(num uint64) *Block {
 	key := append(blockNumPre, numBuf[:]...)
 	val, err := db.storage.GetData(key)
 	if err != nil {
+		logrus.Debugf("GetBlockByNumber err height:%d", num)
 		return nil
 	}
 	hash := common.Bytes2Hash(val)
@@ -96,13 +97,21 @@ func (db *chainDB) GetBlockByNumber(num uint64) *Block {
 }
 
 func (db *chainDB) GetHeadBlock() *Block {
-
 	val, err := db.storage.GetData(lastBlockKey)
 	if err != nil {
 		return nil
 	}
 	hash := common.Bytes2Hash(val)
 	return db.GetBlockByHash(hash)
+}
+
+func (db *chainDB) WriteHead(block *Block) error {
+	if err := db.WriteCanonNumber(block); err != nil {
+		return err
+	}
+	hash := block.Hash()
+	err := db.storage.SetData(lastBlockKey, hash.Bytes())
+	return err
 }
 
 func (db *chainDB) WriteBlock(block *Block) error {
@@ -122,6 +131,19 @@ func (db *chainDB) WriteCanonNumber(block *Block) error {
 	blockHash := block.Hash()
 	err := db.storage.SetData(key, blockHash.Bytes())
 	if err != nil {
+		logrus.Debugf("WriteCanonNumber err height:%d, hash:%s", block.Height(), block.HashHex())
+		return err
+	}
+	logrus.Debugf("WriteCanonNumber success height:%d, hash:%s", block.Height(), block.HashHex())
+	return nil
+}
+
+func (db *chainDB) RemoveCanonNumber(block *Block) error {
+	var numBuf [8]byte
+	binary.LittleEndian.PutUint64(numBuf[:], block.Height())
+	key := append(blockNumPre, numBuf[:]...)
+	err := db.storage.DelData(key)
+	if err != nil {
 		return err
 	}
 	return nil
@@ -139,12 +161,18 @@ func (db *chainDB) DelUnCanonNumber(block *Block) error {
 	return nil
 }
 
-func (db *chainDB) WriteHead(block *Block) error {
+func (db *chainDB) RemoveNumBlock(block *Block) error {
+	if err := db.RemoveCanonNumber(block); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (db *chainDB) WriteNumBlock(block *Block) error {
 	if err := db.WriteCanonNumber(block); err != nil {
 		return err
 	}
-	blockHash := block.Hash()
-	return db.storage.SetData(lastBlockKey, blockHash.Bytes())
+	return nil
 }
 
 // Loss of main chain after fork

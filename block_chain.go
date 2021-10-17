@@ -181,7 +181,28 @@ func (bc *BlockChain) setLastState() error {
 	return nil
 }
 
+func (bc *BlockChain) WriteHead(block *Block) error {
+	bc.mu.Lock()
+
+	err := bc.chainDB.WriteHead(block)
+	if err != nil {
+		return err
+	}
+	bc.currentBlock = block
+	bc.lastBlockHash = block.Hash()
+	lastStateRoot := block.StateRoot()
+	bc.stateTree = NewStateTree(bc.stateDB, lastStateRoot.Bytes())
+	bc.mu.Unlock()
+
+	bc.eventBus.Publish(ChainHeadEvent{block})
+
+	return nil
+}
+
 func (bc *BlockChain) GetHead() *Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
 	return bc.chainDB.GetHeadBlock()
 }
 func (bc *BlockChain) GetBalance(addr common.Address) *big.Int {
@@ -190,29 +211,22 @@ func (bc *BlockChain) GetBalance(addr common.Address) *big.Int {
 
 }
 
-func (bc *BlockChain) removeHeadBlock(block *Block) {
+func (bc *BlockChain) removeNumBlock(block *Block) error {
 	bc.mu.Lock()
-	if err := bc.chainDB.DelHead(block); err != nil {
-		logrus.Errorf("best chain del head err: %s", err)
+	defer bc.mu.Unlock()
+	if err := bc.chainDB.RemoveNumBlock(block); err != nil {
+		return fmt.Errorf("remove NumBlock err: %s", err)
 	}
-	bc.currentBlock = bc.GetBlockByHash(block.HashPrevBlock())
-	bc.lastBlockHash = block.HashPrevBlock()
-	lastStateRoot := bc.currentBlock.StateRoot()
-	bc.stateTree = NewStateTree(bc.stateDB, lastStateRoot.Bytes())
-	bc.mu.Unlock()
+
+	return nil
 }
 
-func (bc *BlockChain) writeHeadBlock(block *Block) {
+func (bc *BlockChain) writeNumBlock(block *Block) {
 	bc.mu.Lock()
-	if err := bc.chainDB.WriteHead(block); err != nil {
-		logrus.Errorf("write head err: %s", err)
+	defer bc.mu.Unlock()
+	if err := bc.chainDB.WriteNumBlock(block); err != nil {
+		logrus.Errorf("write numBlock err: %s", err)
 	}
-	bc.currentBlock = block
-	bc.lastBlockHash = block.Hash()
-	lastStateRoot := block.StateRoot()
-	bc.stateTree = NewStateTree(bc.stateDB, lastStateRoot.Bytes())
-	bc.mu.Unlock()
-	bc.eventBus.Publish(ChainHeadEvent{block})
 }
 
 // WriteBlock stores the block inputed to the local database.
@@ -267,18 +281,18 @@ func AccumulateRewards(stateTree *StateTree, header *BlockHeader) {
 func (bc *BlockChain) InsertChain(block *Block) (bool, error) {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
-	blockHash := block.Hash()
 
-	logrus.Debugf("Processing block %v", blockHash)
+	blockHash := block.Hash()
+	logrus.Debugf("InsertChain--->Processing block %s", blockHash.Hex())
 
 	// The block must not already exist in the main chain or side chains.
 	if old := bc.GetBlockByHash(blockHash); old != nil {
-		return false, fmt.Errorf("already have block %v", blockHash)
+		return false, fmt.Errorf("already have block %s", blockHash.Hex())
 	}
 
 	// The block must not already exist as an orphan.
 	if _, exists := bc.orphans[blockHash]; exists {
-		return false, fmt.Errorf("already have block (orphan) %v", blockHash)
+		return false, fmt.Errorf("already have block (orphan) %s", blockHash.Hex())
 	}
 
 	if err := bc.checkBlockHeaderSanity(block.GetHeader(), blockHash); err != nil {
@@ -303,7 +317,6 @@ func (bc *BlockChain) InsertChain(block *Block) (bool, error) {
 		logrus.Debugf("CanonStatTy--->Inserted new block-->number:%d hash:%s", block.Height(), block.HashHex())
 	case SideStatTy:
 		logrus.Debugf("SideStatTy--->Inserted forked block-->number:%d hash:%s", block.Height(), block.HashHex())
-
 	default:
 		// This in theory is impossible, but lets be nice to our future selves and leave
 		// a log, instead of trying to track down blocks imports that don't emit logs.
@@ -407,7 +420,7 @@ func (bc *BlockChain) writeBlockWithState(block *Block) (status WriteStatus, err
 
 	if status == CanonStatTy {
 		logrus.Debugf("writeHeadBlock--->Inserted new block to Chain Second-->height:%d,hash:%s", block.Height(), block.HashHex())
-		bc.writeHeadBlock(block)
+		bc.WriteHead(block)
 	}
 
 	return status, nil
@@ -470,51 +483,26 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *Block) error {
 		logrus.Debugf("commonBlock.height:%d, commonBlock.hash:%s\nlen(oldChain):%d, oldchainhash:%s\nlen(newChain):%d, newchainhash:%s",
 			commonBlock.Height(), commonBlock.HashHex(), len(oldChain), oldChain[0].HashHex(), len(newChain), newChain[0].HashHex())
 	}
-	// Insert the new chain(except the head block(reverse order)),
-	// taking care of the proper incremental order.
+
 	for i := len(newChain) - 1; i >= 1; i-- {
 		// Insert the block in the canonical way, re-writing history
-		bc.writeHeadBlock(newChain[i])
-
-		// Collect reborn logs due to chain reorg
-		// collectLogs(newChain[i].Hash(), false)
-
-		// Collect the new added transactions.
-		// addedTxs = append(addedTxs, newChain[i].Transactions()...)
+		bc.WriteHead(newChain[i])
+		logrus.Debugf("insert height:%d,hash:%s\n", newChain[i].Height(), newChain[i].HashHex())
 	}
-	// Delete useless indexes right now which includes the non-canonical
-	// transaction indexes, canonical chain indexes which above the head.
-	// indexesBatch := bc.db.NewBatch()
-	// for _, tx := range types.TxDifference(deletedTxs, addedTxs) {
-	// 	rawdb.DeleteTxLookupEntry(indexesBatch, tx.Hash())
-	// }
+
 	// Delete any canonical number assignments above the new head
-	// number := bc.CurrentBlock().NumberU64()
-	// for i := number + 1; ; i++ {
-	// 	hash := rawdb.ReadCanonicalHash(bc.db, i)
-	// 	if hash == (common.Hash{}) {
-	// 		break
-	// 	}
-	// 	rawdb.DeleteCanonicalHash(indexesBatch, i)
-	// }
-	// if err := indexesBatch.Write(); err != nil {
-	// 	log.Crit("Failed to delete useless indexes", "err", err)
-	// }
-	// If any logs need to be fired, do it now. In theory we could avoid creating
-	// this goroutine if there are no events to fire, but realistcally that only
-	// ever happens if we're reorging empty blocks, which will only happen on idle
-	// networks where performance is not an issue either way.
-	// if len(deletedLogs) > 0 {
-	// 	bc.rmLogsFeed.Send(RemovedLogsEvent{mergeLogs(deletedLogs, true)})
-	// }
-	// if len(rebirthLogs) > 0 {
-	// 	bc.logsFeed.Send(mergeLogs(rebirthLogs, false))
-	// }
-	// if len(oldChain) > 0 {
-	// 	for i := len(oldChain) - 1; i >= 0; i-- {
-	// 		bc.chainSideFeed.Send(ChainSideEvent{Block: oldChain[i]})
-	// 	}
-	// }
+	number := bc.CurrentBlock().Height()
+	logrus.Errorf("start remove height:%d and so on from old chain", number)
+	for i := number + 1; ; i++ {
+		block := bc.getBlockByNumber(i)
+		if block == nil {
+			break
+		}
+
+		bc.removeNumBlock(block)
+		logrus.Errorf("del height from height and hash error block height:%d,hash:%s", block.Height(), block.HashHex())
+	}
+
 	return nil
 }
 
@@ -827,6 +815,7 @@ func (bc *BlockChain) removeOrphanBlock(orphan *orphanBlock) {
 // blocks and will remove the oldest received orphan block if the limit is
 // exceeded.
 func (b *BlockChain) addOrphanBlock(block *Block) {
+	logrus.Debugf("addOrphanBlock hash:%s", block.HashHex())
 	// Remove expired orphan blocks.
 	for _, oBlock := range b.orphans {
 		if time.Now().After(oBlock.expiration) {

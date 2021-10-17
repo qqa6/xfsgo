@@ -283,16 +283,16 @@ func (bc *BlockChain) InsertChain(block *Block) (bool, error) {
 	defer bc.chainmu.Unlock()
 
 	blockHash := block.Hash()
-	logrus.Debugf("InsertChain--->Processing block %s", blockHash.Hex())
+	logrus.Debugf("InsertChain--->Processing height:%d,block %s", block.Height(), blockHash.Hex())
 
 	// The block must not already exist in the main chain or side chains.
 	if old := bc.GetBlockByHash(blockHash); old != nil {
-		return false, fmt.Errorf("already have block %s", blockHash.Hex())
+		return false, fmt.Errorf("syncer(InsertChain)-->already have block %s", blockHash.Hex())
 	}
 
 	// The block must not already exist as an orphan.
 	if _, exists := bc.orphans[blockHash]; exists {
-		return false, fmt.Errorf("already have block (orphan) %s", blockHash.Hex())
+		return false, fmt.Errorf("syncer(InsertChain)-->already have block (orphan) %s", blockHash.Hex())
 	}
 
 	if err := bc.checkBlockHeaderSanity(block.GetHeader(), blockHash); err != nil {
@@ -306,7 +306,7 @@ func (bc *BlockChain) InsertChain(block *Block) (bool, error) {
 	}
 
 	parentHash := block.Header.HashPrevBlock
-	logrus.Debugf("(start write block to db and chain)--->block height:%d,hash:%s,parentHash:%s", block.Height(), block.HashHex(), parentHash.Hex())
+	logrus.Debugf("syncer(InsertChain)-->block height:%d,hash:%s,parentHash:%s", block.Height(), block.HashHex(), parentHash.Hex())
 
 	status, err := bc.writeBlockWithState(block)
 	if err != nil {
@@ -314,13 +314,13 @@ func (bc *BlockChain) InsertChain(block *Block) (bool, error) {
 	}
 	switch status {
 	case CanonStatTy:
-		logrus.Debugf("CanonStatTy--->Inserted new block-->number:%d hash:%s", block.Height(), block.HashHex())
+		logrus.Debugf("syncer(InsertChain)-->CanonStatTy--->Inserted new block-->number:%d hash:%s", block.Height(), block.HashHex())
 	case SideStatTy:
-		logrus.Debugf("SideStatTy--->Inserted forked block-->number:%d hash:%s", block.Height(), block.HashHex())
+		logrus.Debugf("syncer(InsertChain)-->SideStatTy--->Inserted forked block-->number:%d hash:%s", block.Height(), block.HashHex())
 	default:
 		// This in theory is impossible, but lets be nice to our future selves and leave
 		// a log, instead of trying to track down blocks imports that don't emit logs.
-		logrus.Warn("Inserted block with unknown status number:%d hash:%s", block.Height(), block.HashHex())
+		logrus.Warn("syncer(InsertChain)-->Inserted block with unknown status number:%d hash:%s", block.Height(), block.HashHex())
 	}
 
 	hash := block.Hash()
@@ -336,6 +336,10 @@ func (bc *BlockChain) InsertChain(block *Block) (bool, error) {
 func (bc *BlockChain) WriteBlockWithState(block *Block) (status WriteStatus, err error) {
 	bc.chainmu.Lock()
 	defer bc.chainmu.Unlock()
+	if old := bc.GetBlockByHash(block.Hash()); old != nil {
+		logrus.Debugf("hash %s exist!", block.HashHex())
+		return NonStatTy, fmt.Errorf("already have block %s", block.HashHex())
+	}
 	return bc.writeBlockWithState(block)
 }
 
@@ -419,8 +423,13 @@ func (bc *BlockChain) writeBlockWithState(block *Block) (status WriteStatus, err
 	}
 
 	if status == CanonStatTy {
+
+		err := bc.WriteHead(block)
+		if err != nil {
+			return NonStatTy, fmt.Errorf("WriteHead %s err", block.HashHex())
+		}
+
 		logrus.Debugf("writeHeadBlock--->Inserted new block to Chain Second-->height:%d,hash:%s", block.Height(), block.HashHex())
-		bc.WriteHead(block)
 	}
 
 	return status, nil
@@ -637,19 +646,6 @@ func (bc *BlockChain) transfer(st *StateTree, from, to common.Address, amount *b
 	fromObj.SubBalance(amount)
 	toObj.AddBalance(amount)
 	return nil
-}
-
-func (bc *BlockChain) GetBlockHashes(from uint64, count uint64) []common.Hash {
-	head := bc.currentBlock.Height()
-	if from+count > head {
-		count = head
-	}
-	hashes := make([]common.Hash, 0)
-	for h := uint64(0); from+h <= count; h++ {
-		block := bc.GetBlockByNumber(from + h)
-		hashes = append(hashes, block.Hash())
-	}
-	return hashes
 }
 
 func (bc *BlockChain) GetBlockHashesFromHash(hash common.Hash, max uint64) (chain []common.Hash) {

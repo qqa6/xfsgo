@@ -89,7 +89,6 @@ func (db *chainDB) GetBlockByNumber(num uint64) *Block {
 	key := append(blockNumPre, numBuf[:]...)
 	val, err := db.storage.GetData(key)
 	if err != nil {
-		logrus.Debugf("GetBlockByNumber err height:%d", num)
 		return nil
 	}
 	hash := common.Bytes2Hash(val)

@@ -316,10 +316,8 @@ out:
 			continue out
 		}
 		//sr := block.StateRoot()
-		logrus.Debugf("successfully Write new block, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
-		//st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
-		//balance := st.GetBalance(m.Coinbase)
-		//logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
+		logrus.Debugf("Miner--->successfully Write new block, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
+
 		m.eventBus.Publish(xfsgo.NewMinedBlockEvent{Block: block})
 	}
 	//logrus.Debugf("Ended work id=%-3d", num)

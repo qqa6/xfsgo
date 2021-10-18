@@ -114,6 +114,24 @@ func (handler *ChainAPIHandler) GetBlockByNumber(args GetBlockByNumArgs, resp **
 	return coverBlock2Resp(gotBlock, resp)
 }
 
+func (handler *ChainAPIHandler) GetBlocksByNumber(args GetBlockByNumArgs, resp *blocks) error {
+	if args.Number == "" {
+		return xfsgo.NewRPCError(-1006, "number not be empty")
+	}
+	number, ok := new(big.Int).SetString(args.Number, 0)
+	if !ok {
+		return xfsgo.NewRPCError(-1006, "number format error")
+	}
+	numbern := number.Uint64()
+	gotBlocks := handler.BlockChain.GetBlocksFromNumber(numbern)
+	blks := make(blocks, 0)
+	for _, blk := range gotBlocks {
+		blks = append(blks, blk)
+	}
+	*resp = blks
+	return nil
+}
+
 func (handler *ChainAPIHandler) Head(_ EmptyArgs, resp **BlockHeaderResp) error {
 	gotBlock := handler.BlockChain.GetHead()
 	return coverBlockHeader2Resp(gotBlock, resp)

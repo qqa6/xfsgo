@@ -42,6 +42,7 @@ var (
 	importchain    string
 	bootstrap      string
 	testnet        bool
+	debug        bool
 	netid          int
 	daemonCmd      = &cobra.Command{
 		Use:   "daemon [flags]",
@@ -117,8 +118,10 @@ func runDaemon() error {
 		safeclose(stateDB.Close)
 		safeclose(extraDB.Close)
 	}()
+	backparams := &config.backendParams
+	backparams.Debug = debug
 	if back, err = backend.NewBackend(stack, &backend.Config{
-		Params:  &config.backendParams,
+		Params:  backparams,
 		ChainDB: chainDb,
 		KeysDB:  keysDb,
 		StateDB: stateDB,
@@ -172,6 +175,7 @@ func init() {
 	mFlags.StringVarP(&importchain, "importchain", "", "", "Import data from the specified chain file and start the service")
 	mFlags.StringVarP(&bootstrap, "bootstrap", "", "", "Specify boot node")
 	mFlags.BoolVarP(&testnet, "testnet", "t", false, "Enable test network")
+	mFlags.BoolVarP(&debug, "debug", "", false, "Enable debug")
 	mFlags.IntVarP(&netid, "netid", "n", 0, "Explicitly set network id")
 	rootCmd.AddCommand(daemonCmd)
 }

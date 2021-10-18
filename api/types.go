@@ -91,6 +91,7 @@ type MinStatusResp struct {
 }
 
 type GetBlockChains []*xfsgo.Block
+type blocks []*xfsgo.Block
 type transactions []*xfsgo.Transaction
 type TransactionsResp []*TransactionResp
 

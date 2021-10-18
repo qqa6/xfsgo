@@ -65,8 +65,12 @@ type BlockChain struct {
 //this new blockchain includes a stateTree by which the blockchian can manage the whole state of the chainb.
 //such as the account's information of every user.
 func NewBlockChain(stateDB, chainDB, extraDB *badger.Storage, eventBus *EventBus) (*BlockChain, error) {
+	return NewBlockChainN(stateDB, chainDB, extraDB, eventBus, false)
+}
+
+func NewBlockChainN(stateDB, chainDB, extraDB *badger.Storage, eventBus *EventBus, debug bool) (*BlockChain, error) {
 	bc := &BlockChain{
-		chainDB:  newChainDB(chainDB),
+		chainDB:  newChainDBN(chainDB, debug),
 		stateDB:  stateDB,
 		extraDB:  newExtraDB(extraDB),
 		eventBus: eventBus,
@@ -104,6 +108,10 @@ func (bc *BlockChain) GetBlockByHash(hash common.Hash) *Block {
 
 func (bc *BlockChain) GetReceiptByHash(hash common.Hash) *Receipt {
 	return bc.extraDB.GetReceipt(hash)
+}
+
+func (bc *BlockChain) GetBlocksFromNumber(num uint64) []*Block {
+	return bc.chainDB.GetBlocksByNumber(num)
 }
 
 func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) []*Block {

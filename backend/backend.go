@@ -44,6 +44,7 @@ type Params struct {
 	GenesisFile     string
 	Coinbase        common.Address
 	ProtocolVersion uint32
+	Debug bool
 }
 
 // Config contains the configuration options of the Backend.
@@ -93,8 +94,8 @@ func NewBackend(stack *node.Node, config *Config) (*Backend, error) {
 			return nil, err
 		}
 	}
-	if back.blockchain, err = xfsgo.NewBlockChain(
-		back.config.StateDB, back.config.ChainDB, back.config.ExtraDB, back.eventBus); err != nil {
+	if back.blockchain, err = xfsgo.NewBlockChainN(
+		back.config.StateDB, back.config.ChainDB, back.config.ExtraDB, back.eventBus, config.Debug); err != nil {
 		return nil, err
 	}
 	back.wallet = xfsgo.NewWallet(back.config.KeysDB, common.DefaultGas, common.DefaultGasPrice)

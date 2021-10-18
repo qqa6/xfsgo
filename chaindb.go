@@ -17,6 +17,7 @@
 package xfsgo
 
 import (
+	"bytes"
 	"encoding/binary"
 	"xfsgo/common"
 	"xfsgo/common/rawencode"
@@ -26,16 +27,22 @@ import (
 var (
 	blockHashPre = []byte("bh:")
 	blockNumPre  = []byte("bn:")
+	blockNumHashPre  = []byte("bnh:")
 	lastBlockKey = []byte("LastBlock")
 )
 
 type chainDB struct {
 	storage *badger.Storage
+	debug bool
 }
 
 func newChainDB(db *badger.Storage) *chainDB {
+	return newChainDBN(db, false)
+}
+func newChainDBN(db *badger.Storage, debug bool) *chainDB {
 	tdb := &chainDB{
 		storage: db,
+		debug: debug,
 	}
 	return tdb
 }
@@ -90,7 +97,48 @@ func (db *chainDB) WriteBlock(block *Block) error {
 	if err != nil {
 		return err
 	}
+	if db.debug {
+		_ = db.WriteBlockNumberHash(block)
+	}
 	return db.storage.SetData(key, val)
+}
+
+func (db *chainDB) WriteBlockNumberHash(block *Block) error {
+	height := block.Height()
+	var heightbytes = make([]byte, 8)
+	binary.BigEndian.PutUint64(heightbytes, height)
+	hash := block.Hash()
+	// bnh:<height_64bits><hash>
+	key := append(blockNumHashPre, heightbytes...)
+	key = append(key, hash[:]...)
+	val, err := rawencode.Encode(block)
+	if err != nil {
+		return err
+	}
+	return db.storage.SetData(key, val)
+}
+
+
+func (db *chainDB) GetBlocksByNumber(num uint64) []*Block {
+	var heightbytes = make([]byte, 8)
+	binary.BigEndian.PutUint64(heightbytes, num)
+	key := append(blockHashPre, heightbytes...)
+	blks := make([]*Block, 0)
+	db.storage.For(func(k []byte, v []byte) {
+		if len(k) < len(blockNumHashPre) + 8 {
+			return
+		}
+		gotkeypre := k[0:len(blockNumHashPre)+8]
+		if !bytes.Equal(gotkeypre, key) {
+			return
+		}
+		block := &Block{}
+		if err := rawencode.Decode(v, block); err != nil {
+			return
+		}
+		blks = append(blks, block)
+	})
+	return blks
 }
 
 func (db *chainDB) WriteCanonNumber(block *Block) error {

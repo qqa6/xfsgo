@@ -104,7 +104,10 @@ func (handler *ChainAPIHandler) GetBlockByNumber(args GetBlockByNumArgs, resp **
 	if args.Number == "" {
 		last = handler.BlockChain.CurrentBlock().Header.Height
 	} else {
-		number, _ := new(big.Int).SetString(args.Number, 0)
+		number, ok := new(big.Int).SetString(args.Number, 0)
+		if !ok {
+			return xfsgo.NewRPCError(-1006, "string to big.Int error")
+		}
 		last = number.Uint64()
 	}
 	gotBlock := handler.BlockChain.GetBlockByNumber(last)
@@ -121,7 +124,10 @@ func (handler *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNumb
 	if args.Number == "" {
 		last = handler.BlockChain.CurrentBlock().Header.Height
 	} else {
-		number, _ := new(big.Int).SetString(args.Number, 0)
+		number, ok := new(big.Int).SetString(args.Number, 0)
+		if !ok {
+			return xfsgo.NewRPCError(-1006, "string to big.Int error")
+		}
 		last = number.Uint64()
 	}
 	gotBlock := handler.BlockChain.GetBlockByNumber(last)
@@ -150,7 +156,10 @@ func (handler *ChainAPIHandler) GetTxsByBlockNum(args GetTxsByBlockNumArgs, resp
 	if args.Number == "" {
 		last = handler.BlockChain.CurrentBlock().Header.Height
 	} else {
-		number, _ := new(big.Int).SetString(args.Number, 0)
+		number, ok := new(big.Int).SetString(args.Number, 0)
+		if !ok {
+			return xfsgo.NewRPCError(-1006, "string to big.Int error")
+		}
 		last = number.Uint64()
 	}
 	blk := handler.BlockChain.GetBlockByNumber(last)

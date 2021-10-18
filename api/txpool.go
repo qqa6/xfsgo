@@ -20,12 +20,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"math/big"
 	"strconv"
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/crypto"
+
+	"github.com/sirupsen/logrus"
 )
 
 type TxPoolHandler struct {
@@ -47,12 +48,12 @@ type RawTransactionArgs struct {
 }
 
 type StringRawTransaction struct {
-	Version string `json:"version"`
-	To string `json:"to"`
-	Value string `json:"value"`
-	Data string `json:"data"`
-	GasLimit string `json:"gas_limit"`
-	GasPrice string `json:"gas_price"`
+	Version   string `json:"version"`
+	To        string `json:"to"`
+	Value     string `json:"value"`
+	Data      string `json:"data"`
+	GasLimit  string `json:"gas_limit"`
+	GasPrice  string `json:"gas_price"`
 	Signature string `json:"signature"`
 	Nonce     string `json:"nonce"`
 	Timestamp string `json:"timestamp"`
@@ -96,7 +97,6 @@ func (tx *TxPoolHandler) ModifyTranGas(args ModTranGasArgs, resp *string) error 
 	return nil
 }
 
-
 func (tx *TxPoolHandler) SendRawTransaction(args RawTransactionArgs, resp *string) error {
 	if args.Data == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter data cannot be empty")
@@ -133,7 +133,7 @@ func (t *StringRawTransaction) String() string {
 	return string(jsondata)
 }
 
-func CoverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
+func CoverTransaction(r *StringRawTransaction) (*xfsgo.Transaction, error) {
 	version, err := strconv.ParseInt(r.Version, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse version: %s", err)
@@ -148,7 +148,7 @@ func CoverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
 		if !crypto.VerifyAddress(toaddr) {
 			return nil, fmt.Errorf("failed to verify 'to' address: %s", r.To)
 		}
-	}else if r.Data == "" {
+	} else if r.Data == "" {
 		return nil, fmt.Errorf("failed to parse 'to' address")
 	}
 	gasprice, ok := new(big.Int).SetString(r.GasPrice, 10)
@@ -169,17 +169,17 @@ func CoverTransaction(r *StringRawTransaction) (*xfsgo.Transaction,error) {
 		return nil, fmt.Errorf("failed to parse value")
 	}
 	timestamp, err := strconv.ParseInt(r.Timestamp, 10, 64)
-	if !ok {
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse timestamp")
 	}
 	return xfsgo.NewTransactionByStd(&xfsgo.StdTransaction{
-		Version: uint32(version),
-		To: toaddr,
-		GasPrice: gasprice,
-		GasLimit: gaslimit,
-		Data: data,
-		Nonce: uint64(nonce),
-		Value: value,
+		Version:   uint32(version),
+		To:        toaddr,
+		GasPrice:  gasprice,
+		GasLimit:  gaslimit,
+		Data:      data,
+		Nonce:     uint64(nonce),
+		Value:     value,
 		Timestamp: uint64(timestamp),
 		Signature: signature,
 	}), nil

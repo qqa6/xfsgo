@@ -309,7 +309,7 @@ func getWalletList() error {
 		if balanceStr == "" {
 			bal = new(big.Int).SetUint64(0)
 		} else {
-			bal, _ = new(big.Int).SetString(balanceStr, 0)
+			bal = common.ParseString2BigInt(balanceStr)
 		}
 		fto := common.Atto2BaseCoin(bal)
 		toFloat := new(big.Float).SetUint64(fto.Uint64())

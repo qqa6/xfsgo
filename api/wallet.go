@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"math/big"
+	"sort"
 	"xfsgo"
 	"xfsgo/common"
 
@@ -87,12 +88,25 @@ func (handler *WalletHandler) Del(args WalletByAddressArgs, resp *interface{}) e
 
 func (handler *WalletHandler) List(_ EmptyArgs, resp *[]common.Address) error {
 	data := handler.Wallet.All()
-	out := make([]common.Address, 0)
+	var out Wallets
 	for addr, v := range data {
 		_ = v
-		out = append(out, addr)
+		r, _ := handler.Wallet.GetWalletNewTime(addr)
+		req := &Wallet{
+			addr:    addr,
+			newTime: int64(common.Byte2Int(r)),
+		}
+		out = append(out, req)
 	}
-	*resp = out
+
+	sort.Sort(Wallets(out))
+
+	result := make([]common.Address, 0)
+	for i := 0; i < len(out); i++ {
+		result = append(result, out[i].addr)
+	}
+
+	*resp = result
 	return nil
 }
 

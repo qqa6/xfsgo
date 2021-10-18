@@ -25,6 +25,7 @@ import (
 	"xfsgo/crypto"
 	"xfsgo/storage/badger"
 )
+
 // Wallet represents a software wallet that has a default address derived from private key.
 type Wallet struct {
 	db          *keyStoreDB
@@ -71,6 +72,10 @@ func (w *Wallet) AddByRandom() (common.Address, error) {
 		return noneAddress, err
 	}
 	return w.AddWallet(key)
+}
+
+func (w *Wallet) GetWalletNewTime(addr common.Address) ([]byte, error) {
+	return w.db.GetAddressNewTime(addr)
 }
 
 func (w *Wallet) AddWallet(key *ecdsa.PrivateKey) (common.Address, error) {

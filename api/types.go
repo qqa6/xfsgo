@@ -93,6 +93,24 @@ type MinStatusResp struct {
 type GetBlockChains []*xfsgo.Block
 type transactions []*xfsgo.Transaction
 type TransactionsResp []*TransactionResp
+type Wallet struct {
+	addr    common.Address
+	newTime int64
+}
+
+type Wallets []*Wallet
+
+func (a Wallets) Len() int {
+	return len(a)
+}
+
+func (a Wallets) Less(i, j int) bool {
+	return a[i].newTime > a[j].newTime
+}
+
+func (a Wallets) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
 
 func coverBlock2Resp(block *xfsgo.Block, dst **BlockResp) error {
 	if block == nil {

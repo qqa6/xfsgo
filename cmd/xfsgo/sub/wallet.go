@@ -314,7 +314,7 @@ func getWalletList() error {
 		fto := common.Atto2BaseCoin(bal)
 		toFloat := new(big.Float).SetUint64(fto.Uint64())
 		fmt.Printf("%-35v", w.B58String())
-		fmt.Printf("%-30.9f", toFloat)
+		fmt.Printf("%-30.6f", toFloat)
 
 		if w == defAddr {
 			fmt.Printf("%-10v", "x")

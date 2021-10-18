@@ -120,6 +120,7 @@ func runDaemon() error {
 	}()
 	backparams := &config.backendParams
 	backparams.Debug = debug
+	logrus.Debugf("Set debug mode: %v", backparams.Debug)
 	if back, err = backend.NewBackend(stack, &backend.Config{
 		Params:  backparams,
 		ChainDB: chainDb,

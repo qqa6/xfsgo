@@ -30,6 +30,7 @@ func (block BlocksMap) MapMerge() map[string]interface{} {
 	result["state_root"] = blockheader["state_root"]
 	result["transactions_root"] = blockheader["transactions_root"]
 	result["receipts_root"] = blockheader["receipts_root"]
+	result["worksum"] = blockheader["worksum"]
 	bitsStr := strconv.FormatInt(int64(blockheader["bits"].(float64)), 10)
 	bits := Hex2Hash(bitsStr)
 	result["bits"] = bits.Hex()

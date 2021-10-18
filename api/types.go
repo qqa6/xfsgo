@@ -42,6 +42,7 @@ type BlockHeaderResp struct {
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
 	GasLimit         *big.Int    `json:"gas_limit"`
 	GasUsed          *big.Int    `json:"gas_used"`
+	WorkSum  *big.Int `json:"worksum"`
 	// pow
 	Bits  uint32      `json:"bits"`
 	Nonce uint64      `json:"nonce"`

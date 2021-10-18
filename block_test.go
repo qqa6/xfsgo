@@ -47,7 +47,7 @@ func TestBlock_Hash(t *testing.T) {
 		Timestamp:     0,
 		Coinbase:      noneAddress,
 		Nonce:         0,
-	}, nil, nil)
+	}, nil, nil, nil)
 	t.Logf("%s\n", block)
 	blockHash := block.Hash()
 	want := common.Hex2Hash("0xd3706b6c55aeee64baef8b01f85a05ffa6830e77a94558813baaef3d67e5cf16")
@@ -65,7 +65,7 @@ func TestBlock_Decode(t *testing.T) {
 		Coinbase:      common.Bytes2Address([]byte{0xff, 0xff}),
 		Bits:          4,
 		Nonce:         0,
-	}, nil, nil)
+	}, nil, nil, nil)
 	wantHash := block.Hash()
 	t.Logf("block: %s\n", block)
 	blockData, err := rawencode.Encode(block)

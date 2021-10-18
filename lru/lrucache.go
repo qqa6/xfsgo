@@ -18,6 +18,7 @@ package lru
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 )
 
@@ -31,8 +32,9 @@ type Cache struct {
 }
 
 type cacheData struct {
-	key [cacheKeySize]byte
-	val []byte
+	key   [cacheKeySize]byte
+	extra [cacheKeySize]byte
+	val   []byte
 }
 
 func NewCache(size int) *Cache {
@@ -110,5 +112,69 @@ func (c *Cache) Remove(key [cacheKeySize]byte) {
 	if ok {
 		delete(c.items, key)
 		c.access.Remove(elem)
+	}
+}
+
+func (c *Cache) GetWithExtra(pkey [cacheKeySize]byte) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	fmt.Printf("pkey:%v\n", pkey)
+
+	for _, elem := range c.items {
+		if elem.Value.(*cacheData).extra == pkey {
+			return elem.Value.(*cacheData).val, true
+		}
+	}
+
+	return nil, false
+}
+
+func (c *Cache) GetOrPutWithExtra(key [cacheKeySize]byte, val []byte, pkey [cacheKeySize]byte) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	elem, ok := c.items[key]
+
+	if ok {
+		val = elem.Value.(*cacheData).val
+		c.access.MoveToFront(elem)
+	} else {
+		c.items[key] = c.access.PushFront(&cacheData{
+			key:   key,
+			val:   val,
+			extra: pkey,
+		})
+		for len(c.items) > c.size {
+			back := c.access.Back()
+			info := back.Value.(*cacheData)
+			delete(c.items, info.key)
+			c.access.Remove(back)
+		}
+	}
+	return val, ok
+}
+
+func (c *Cache) PutWithExtra(key [cacheKeySize]byte, val []byte, prekey [cacheKeySize]byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	elem, ok := c.items[key]
+	if ok {
+		elem.Value.(*cacheData).val = val
+		elem.Value.(*cacheData).extra = prekey
+		c.access.MoveToFront(elem)
+	} else {
+		c.items[key] = c.access.PushFront(&cacheData{
+			key:   key,
+			val:   val,
+			extra: prekey,
+		})
+		for len(c.items) > c.size {
+			back := c.access.Back()
+			info := back.Value.(*cacheData)
+			delete(c.items, info.key)
+			c.access.Remove(back)
+		}
 	}
 }

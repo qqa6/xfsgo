@@ -48,6 +48,7 @@ type BlockHeader struct {
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
 	GasLimit         *big.Int    `json:"gas_limit"`
 	GasUsed          *big.Int    `json:"gas_used"`
+	WorkSum          *big.Int    `json:"worksum"`
 	// pow consensus.
 	Bits  uint32 `json:"bits"`
 	Nonce uint64 `json:"nonce"`
@@ -88,11 +89,14 @@ type Block struct {
 //
 // The values of TransactionsRoot, ReceiptsRoot in header
 // are ignored and set to values derived from the given txs, and receipts.
-func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt) *Block {
+func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt, parentBlock *Block) *Block {
 	b := &Block{
 		Header: header,
 	}
+
+	b.Header.WorkSum = CalcWorkload(header.Bits)
 	b.Header.GasLimit = header.GasLimit
+
 	if len(txs) == 0 {
 		b.Header.TransactionsRoot = emptyHash
 	} else {
@@ -106,6 +110,10 @@ func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt) *Blo
 		b.Header.ReceiptsRoot = CalcReceiptRootHash(receipts)
 		b.Receipts = make([]*Receipt, len(receipts))
 		copy(b.Receipts, receipts)
+	}
+
+	if parentBlock != nil {
+		b.Header.WorkSum = b.Header.WorkSum.Add(parentBlock.Header.WorkSum, b.Header.WorkSum)
 	}
 	return b
 }

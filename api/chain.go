@@ -283,7 +283,7 @@ func (handler *ChainAPIHandler) ImportBlock(args GetBlocksArgs, resp *string) er
 	handler.number = len(blockChain) - 1
 
 	for _, item := range blockChain {
-		if err := handler.BlockChain.InsertChain(item); err != nil {
+		if _, err := handler.BlockChain.InsertChain(item); err != nil {
 			continue
 		}
 	}

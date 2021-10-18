@@ -235,7 +235,7 @@ func (m *Miner) mimeBlockWithParent(
 	header.StateRoot = stateRootHash
 
 	//create a new block and execite the consensus algorithms
-	perBlock := xfsgo.NewBlock(header, txs, res)
+	perBlock := xfsgo.NewBlock(header, txs, res, parentBlock)
 	return m.execPow(perBlock, quit, ticker)
 }
 
@@ -265,8 +265,8 @@ out:
 		}
 		hash := perBlock.UpdateNonce(nonce)
 		if bytes.Compare(hash.Bytes(), targetHash) <= 0 {
-			lashBlock := m.chain.CurrentBlock()
-			lastHeight := lashBlock.Height()
+			lastBlock := m.chain.CurrentBlock()
+			lastHeight := lastBlock.Height()
 			currentBlockHeight := perBlock.Height()
 			if lastHeight >= currentBlockHeight {
 				break out
@@ -297,9 +297,9 @@ out:
 		stateTree := xfsgo.NewStateTree(m.stateDb, lastStateRoot.Bytes())
 		startTime := time.Now()
 
-		m.newBlockMux.Lock()
+		// m.newBlockMux.Lock()
 		block, err := m.mimeBlockWithParent(stateTree, lastBlock, m.Coinbase, txs, quit, ticker)
-		m.newBlockMux.Unlock()
+		// m.newBlockMux.Unlock()
 		if err != nil {
 			continue out
 		}
@@ -310,14 +310,12 @@ out:
 		if err = stateTree.Commit(); err != nil {
 			continue out
 		}
-		if err = m.chain.WriteBlock(block); err != nil {
+		if _, err = m.chain.WriteBlockWithState(block); err != nil {
 			continue out
 		}
 		//sr := block.StateRoot()
-		logrus.Debugf("successfully Write new block, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
-		//st := xfsgo.NewStateTree(m.stateDb, sr.Bytes())
-		//balance := st.GetBalance(m.Coinbase)
-		//logrus.Infof("current coinbase: %s, balance: %d", m.Coinbase.B58String(), balance)
+		logrus.Debugf("Miner--->successfully Write new block, height=%d, hash=0x%x...%x, workerId=%-3d", block.Height(), hash[:4], hash[len(hash)-4:], num)
+
 		m.eventBus.Publish(xfsgo.NewMinedBlockEvent{Block: block})
 	}
 	//logrus.Debugf("Ended work id=%-3d", num)

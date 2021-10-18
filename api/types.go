@@ -37,6 +37,7 @@ type GetBlockByNumberBlockHeader struct {
 
 	GasLimit *big.Int `json:"gas_limit"`
 	GasUsed  *big.Int `json:"gas_used"`
+	WorkSum  *big.Int `json:"worksum"`
 	// pow
 	Bits  uint32      `json:"bits"`
 	Nonce uint64      `json:"nonce"`

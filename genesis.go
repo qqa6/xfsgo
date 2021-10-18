@@ -80,7 +80,7 @@ func WriteGenesisBlock(stateDB, chainDB *badger.Storage, reader io.Reader) (*Blo
 		GasLimit:      common.GenesisGasLimit,
 		Bits:          genesis.Bits,
 		StateRoot:     rootHash,
-	}, nil, nil)
+	}, nil, nil, nil)
 	if old := chaindb.GetBlockByHash(block.Hash()); old != nil {
 		logrus.WithField("hash", old.HashHex()).Infof("Genesis Block")
 		//logrus.Infof("get genesis block hash %s", old.HashHex())

@@ -235,7 +235,7 @@ func (m *Miner) mimeBlockWithParent(
 	header.StateRoot = stateRootHash
 
 	//create a new block and execite the consensus algorithms
-	perBlock := xfsgo.NewBlock(header, txs, res)
+	perBlock := xfsgo.NewBlock(header, txs, res, parentBlock)
 	return m.execPow(perBlock, quit, ticker)
 }
 
@@ -268,8 +268,6 @@ out:
 			lastBlock := m.chain.CurrentBlock()
 			lastHeight := lastBlock.Height()
 			currentBlockHeight := perBlock.Height()
-			newTd := new(big.Int).SetBytes(hash[:])
-			perBlock.Td = new(big.Int).Add(newTd, lastBlock.Td)
 			if lastHeight >= currentBlockHeight {
 				break out
 			}

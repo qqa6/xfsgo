@@ -48,6 +48,7 @@ type BlockHeader struct {
 	ReceiptsRoot     common.Hash `json:"receipts_root"`
 	GasLimit         *big.Int    `json:"gas_limit"`
 	GasUsed          *big.Int    `json:"gas_used"`
+	WorkSum          *big.Int    `json:"worksum"`
 	// pow consensus.
 	Bits  uint32 `json:"bits"`
 	Nonce uint64 `json:"nonce"`
@@ -81,10 +82,6 @@ type Block struct {
 	Header       *BlockHeader   `json:"header"`
 	Transactions []*Transaction `json:"transactions"`
 	Receipts     []*Receipt     `json:"receipts"`
-
-	// Td is used by package core to store the total difficulty
-	// of the chain up to and including the block.
-	Td *big.Int
 }
 
 // NewBlock creates a new block. The input data, txs and receipts are copied,
@@ -92,15 +89,14 @@ type Block struct {
 //
 // The values of TransactionsRoot, ReceiptsRoot in header
 // are ignored and set to values derived from the given txs, and receipts.
-func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt) *Block {
+func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt, parentBlock *Block) *Block {
 	b := &Block{
 		Header: header,
-		Td:     new(big.Int),
 	}
+
+	b.Header.WorkSum = CalcWorkload(header.Bits)
 	b.Header.GasLimit = header.GasLimit
-	hash := b.Hash()
-	newTd := new(big.Int).SetBytes(hash[:])
-	b.Td = new(big.Int).Add(b.Td, newTd)
+
 	if len(txs) == 0 {
 		b.Header.TransactionsRoot = emptyHash
 	} else {
@@ -114,6 +110,10 @@ func NewBlock(header *BlockHeader, txs []*Transaction, receipts []*Receipt) *Blo
 		b.Header.ReceiptsRoot = CalcReceiptRootHash(receipts)
 		b.Receipts = make([]*Receipt, len(receipts))
 		copy(b.Receipts, receipts)
+	}
+
+	if parentBlock != nil {
+		b.Header.WorkSum = b.Header.WorkSum.Add(parentBlock.Header.WorkSum, b.Header.WorkSum)
 	}
 	return b
 }

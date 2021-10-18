@@ -100,14 +100,14 @@ type GetBlockTxByNumAndIndexArgs struct {
 }
 
 func (handler *ChainAPIHandler) GetBlockByNumber(args GetBlockByNumArgs, resp **BlockResp) error {
-	var (
-		number = int64(0)
-		err    error
-	)
-	if number, err = strconv.ParseInt(args.Number, 10, 64); err != nil {
-		return err
+	var last uint64
+	if args.Number == "" {
+		last = handler.BlockChain.CurrentBlock().Header.Height
+	} else {
+		number, _ := new(big.Int).SetString(args.Number, 0)
+		last = number.Uint64()
 	}
-	gotBlock := handler.BlockChain.GetBlockByNumber(uint64(number))
+	gotBlock := handler.BlockChain.GetBlockByNumber(last)
 	return coverBlock2Resp(gotBlock, resp)
 }
 
@@ -117,14 +117,14 @@ func (handler *ChainAPIHandler) Head(_ EmptyArgs, resp **BlockHeaderResp) error 
 }
 
 func (handler *ChainAPIHandler) GetBlockHeaderByNumber(args GetBlockHeaderByNumberArgs, resp **BlockHeaderResp) error {
-	var (
-		number = int64(0)
-		err    error
-	)
-	if number, err = strconv.ParseInt(args.Number, 10, 64); err != nil {
-		return err
+	var last uint64
+	if args.Number == "" {
+		last = handler.BlockChain.CurrentBlock().Header.Height
+	} else {
+		number, _ := new(big.Int).SetString(args.Number, 0)
+		last = number.Uint64()
 	}
-	gotBlock := handler.BlockChain.GetBlockByNumber(uint64(number))
+	gotBlock := handler.BlockChain.GetBlockByNumber(last)
 	return coverBlockHeader2Resp(gotBlock, resp)
 }
 
@@ -146,14 +146,14 @@ func (handler *ChainAPIHandler) GetBlockByHash(args GetBlockByHashArgs, resp **B
 }
 
 func (handler *ChainAPIHandler) GetTxsByBlockNum(args GetTxsByBlockNumArgs, resp *TransactionsResp) error {
-	var (
-		number = int64(0)
-		err    error
-	)
-	if number, err = strconv.ParseInt(args.Number, 10, 64); err != nil {
-		return err
+	var last uint64
+	if args.Number == "" {
+		last = handler.BlockChain.CurrentBlock().Header.Height
+	} else {
+		number, _ := new(big.Int).SetString(args.Number, 0)
+		last = number.Uint64()
 	}
-	blk := handler.BlockChain.GetBlockByNumber(uint64(number))
+	blk := handler.BlockChain.GetBlockByNumber(last)
 	if blk == nil {
 		return xfsgo.NewRPCError(-1006, "Not found block")
 	}

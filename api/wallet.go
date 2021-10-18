@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/big"
+	"strconv"
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/common/urlsafeb64"
@@ -185,10 +186,19 @@ func (handler *WalletHandler) SendRawTransaction(args SendRawTransactionArgs, re
 	}
 
 	if val, ok := encodeList["gas_limit"].(string); ok {
-		gasLimit, _ = new(big.Int).SetString(val, 0)
+		valInt64, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return xfsgo.NewRPCErrorCause(-32001, err)
+		}
+		gasLimit = new(big.Int).SetInt64(valInt64)
 	}
+
 	if val, ok := encodeList["gas_price"].(string); ok {
-		gasPrice, _ = new(big.Int).SetString(val, 0)
+		valInt64, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return xfsgo.NewRPCErrorCause(-32001, err)
+		}
+		gasPrice = new(big.Int).SetInt64(valInt64)
 	}
 
 	fromAddr := common.B58ToAddress([]byte(encodeList["from"].(string)))

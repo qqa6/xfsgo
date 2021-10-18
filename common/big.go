@@ -36,6 +36,7 @@ func ParseString2BigInt(str string) *big.Int {
 	if str == "" {
 		return Big0
 	}
+
 	num, success := new(big.Int).SetString(str, 0)
 	if !success {
 		return Big0

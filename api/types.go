@@ -114,7 +114,9 @@ func coverBlock2Resp(block *xfsgo.Block, dst **BlockResp) error {
 		}
 		txs = append(txs, txres)
 	}
-	result.Transactions = txs
+	if len(txs) > 1 {
+		result.Transactions = txs
+	}
 	*dst = result
 	return nil
 }

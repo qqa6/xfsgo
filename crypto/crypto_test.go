@@ -14,11 +14,6 @@ func TestPubKey2Addr(t *testing.T) {
 	}
 	addr := DefaultPubKey2Addr(prv.PublicKey)
 	t.Logf("addr: %s\n", addr.String())
-	keyEnc, err := PrivateKeyEncodeB64String(prv)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("privateKey: %s\n", keyEnc)
 	got := common.StrB58ToAddress(addr.String())
 
 	if !addr.Equals(got) {

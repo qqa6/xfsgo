@@ -19,6 +19,7 @@ package xfsgo
 import (
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"math/big"
 	"sort"
 	"sync"
@@ -87,13 +88,12 @@ func (pool *TxPool) validateTx(tx *Transaction) error {
 	)
 	// Drop transactions under our own minimal accepted gas price
 	if pool.minGasPrice.Cmp(tx.GasPrice) > 0 {
-		return errors.New("gas price too low for acceptance")
+		return  fmt.Errorf("gas price is lower than expected: %s", tx.GasPrice)
 	}
-
 	if from, err = tx.FromAddr(); err != nil {
-		return errors.New("from fields is invalid")
+		return fmt.Errorf("unable to recover address from signature: %x", tx.Signature)
 	}
-
+	logrus.Debugf("Successfully recover from addr from tx sign: %s", from.B58String())
 	if !pool.currentState().HashAccount(from) {
 		return errors.New("account not enough balance")
 	}

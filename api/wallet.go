@@ -18,6 +18,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"strconv"
@@ -134,7 +135,7 @@ func (handler *WalletHandler) ExportByAddress(args WalletByAddressArgs, resp *st
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-6001, err)
 	}
-	*resp = urlsafeb64.Encode(pk)
+	*resp = "0x"+ hex.EncodeToString(pk)
 	return nil
 }
 
@@ -143,7 +144,12 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
 	}
 	keyEnc := args.Key
-	keyDer, err := urlsafeb64.Decode(keyEnc)
+	if len(keyEnc) > 1 {
+		if keyEnc[0] == '0' && keyEnc[1] == 'x' {
+			keyEnc = keyEnc[2:]
+		}
+	}
+	keyDer, err := hex.DecodeString(keyEnc)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-6001, err)
 	}

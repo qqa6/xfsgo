@@ -18,8 +18,8 @@ package xfsgo
 
 import (
 	"crypto/ecdsa"
-	"crypto/x509"
 	"xfsgo/common"
+	"xfsgo/crypto"
 	"xfsgo/storage/badger"
 )
 
@@ -48,12 +48,12 @@ func (db *keyStoreDB) GetDefaultAddress() (common.Address, error) {
 
 func (db *keyStoreDB) Foreach(fn func(address common.Address, key *ecdsa.PrivateKey)) {
 	_ = db.storage.PrefixForeachData(addrKeyPre, func(k []byte, v []byte) error {
-		privateKey, err := x509.ParseECPrivateKey(v)
+		_, pkey, err := crypto.DecodePrivateKey(v)
 		if err != nil {
 			return err
 		}
 		addr := common.Bytes2Address(k)
-		fn(addr, privateKey)
+		fn(addr, pkey)
 		return nil
 	})
 }
@@ -64,16 +64,17 @@ func (db *keyStoreDB) GetPrivateKey(address common.Address) (*ecdsa.PrivateKey, 
 	if err != nil {
 		return nil, err
 	}
-	return x509.ParseECPrivateKey(keyDer)
+	_, pkey, err := crypto.DecodePrivateKey(keyDer)
+	if err != nil {
+		return nil, err
+	}
+	return pkey, nil
 }
 
 func (db *keyStoreDB) PutPrivateKey(addr common.Address, key *ecdsa.PrivateKey) error {
-	bs, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return err
-	}
 	sKey := append(addrKeyPre, addr.Bytes()...)
-	return db.storage.SetData(sKey, bs)
+	keybytes := crypto.DefaultEncodePrivateKey(key)
+	return db.storage.SetData(sKey, keybytes)
 }
 
 func (db *keyStoreDB) SetDefaultAddress(address common.Address) error {

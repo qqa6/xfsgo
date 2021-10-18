@@ -18,8 +18,10 @@ package api
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"math/big"
+	"strconv"
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/common/urlsafeb64"
@@ -37,7 +39,7 @@ type SendRawTransactionArgs struct {
 	Data string `json:"data"`
 }
 
-type GetWalletByAddressArgs struct {
+type WalletByAddressArgs struct {
 	Address string `json:"address"`
 }
 
@@ -49,15 +51,15 @@ type SetDefaultAddrArgs struct {
 	Address string `json:"address"`
 }
 
-type TransferArgs struct {
-	To       string `json:"to"`
-	GasLimit string `json:"gas_limit"`
-	GasPrice string `json:"gas_price"`
-	Value    string `json:"value"`
-}
+// type TransferArgs struct {
+// 	To       string `json:"to"`
+// 	GasLimit string `json:"gas_limit"`
+// 	GasPrice string `json:"gas_price"`
+// 	Value    string `json:"value"`
+// }
 
-type TransferFromArgs struct {
-	From     string `json:"form"`
+type SendTransactionArgs struct {
+	From     string `json:"from"`
 	To       string `json:"to"`
 	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`
@@ -81,7 +83,7 @@ func (handler *WalletHandler) Create(_ EmptyArgs, resp *string) error {
 	return nil
 }
 
-func (handler *WalletHandler) Del(args GetWalletByAddressArgs, resp *interface{}) error {
+func (handler *WalletHandler) Del(args WalletByAddressArgs, resp *interface{}) error {
 	addr := common.StrB58ToAddress(args.Address)
 	err := handler.Wallet.Remove(addr)
 	if err != nil {
@@ -124,7 +126,7 @@ func (handler *WalletHandler) SetDefaultAddress(args SetDefaultAddrArgs, resp *s
 
 }
 
-func (handler *WalletHandler) ExportByAddress(args GetWalletByAddressArgs, resp *string) error {
+func (handler *WalletHandler) ExportByAddress(args WalletByAddressArgs, resp *string) error {
 	if args.Address == "" {
 		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
 	}
@@ -133,7 +135,7 @@ func (handler *WalletHandler) ExportByAddress(args GetWalletByAddressArgs, resp 
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-6001, err)
 	}
-	*resp = urlsafeb64.Encode(pk)
+	*resp = "0x"+ hex.EncodeToString(pk)
 	return nil
 }
 
@@ -142,7 +144,12 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 		return xfsgo.NewRPCError(-1006, "parameter cannot be empty")
 	}
 	keyEnc := args.Key
-	keyDer, err := urlsafeb64.Decode(keyEnc)
+	if len(keyEnc) > 1 {
+		if keyEnc[0] == '0' && keyEnc[1] == 'x' {
+			keyEnc = keyEnc[2:]
+		}
+	}
+	keyDer, err := hex.DecodeString(keyEnc)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-6001, err)
 	}
@@ -154,52 +161,7 @@ func (handler *WalletHandler) ImportByPrivateKey(args WalletImportArgs, resp *st
 	return nil
 }
 
-// func (handler *WalletHandler) Transfer(args TransferArgs, resp *TransferObj) error {
-// 	if args.To == "" {
-// 		return xfsgo.NewRPCError(-1006, "to addr not be empty")
-// 	}
-// 	if args.Value == "" {
-// 		return xfsgo.NewRPCError(-1006, "value not be empty")
-// 	}
-// formAddr, err := handler.Wallet.GetKeyByAddress(handler.Wallet.GetDefault())
-// if err != nil {
-// 	return err
-// }
-// var GasLimit, GasPrice *big.Int
-
-// if args.GasLimit != "" {
-// 	GasLimit = common.ParseString2BigInt(args.GasLimit)
-// 	GasLimit = common.Atto2BaseCoin(GasLimit)
-// } else {
-// 	GasLimit = handler.Wallet.GasLimit
-// }
-
-// if args.GasPrice != "" {
-// 	GasPrice = common.ParseString2BigInt(args.GasPrice)
-// 	GasPrice = common.Atto2BaseCoin(GasPrice)
-// } else {
-// 	GasPrice = handler.Wallet.GasPrice
-// }
-
-// toAddr := common.B58ToAddress([]byte(args.To))
-// value := common.ParseString2BigInt(args.Value)
-
-// tx := xfsgo.NewTransaction(toAddr, GasLimit, GasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
-// tx.Nonce = handler.BlockChain.GetNonce(handler.Wallet.GetDefault())
-
-// 	if err = tx.SignWithPrivateKey(formAddr); err != nil {
-// 		return xfsgo.NewRPCErrorCause(-1006, err)
-// 	}
-// 	if err = handler.TxPendingPool.Add(tx); err != nil {
-// 		return xfsgo.NewRPCErrorCause(-1006, err)
-// 	}
-
-// 	result := NewTransferObj(tx)
-// 	*resp = *result
-// 	return nil
-// }
-
-func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, resp *TransferObj) error {
+func (handler *WalletHandler) SendRawTransaction(args SendRawTransactionArgs, resp *string) error {
 	if args.Data == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
@@ -207,42 +169,93 @@ func (handler *ChainAPIHandler) SendRawTransaction(args SendRawTransactionArgs, 
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	var tx *xfsgo.Transaction
-	err = json.Unmarshal(databytes, &tx)
+
+	var gasPrice, gasLimit *big.Int
+	gasLimit = handler.Wallet.GetGas()
+	gasPrice = handler.Wallet.GetGasPrice()
+	encodeList := make(map[string]interface{})
+
+	err = json.Unmarshal(databytes, &encodeList)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	if tx.GasLimit.String() != "" {
-		tx.GasLimit.Set(common.NanoCoin2BaseCoin(tx.GasLimit))
+
+	if _, ok := encodeList["value"].(string); !ok {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
-	if tx.GasPrice.String() != "" {
-		tx.GasPrice.Set(common.NanoCoin2BaseCoin(tx.GasLimit))
+
+	if _, ok := encodeList["from"].(string); !ok {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+	if _, ok := encodeList["to"].(string); !ok {
+		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
+	}
+
+	if val, ok := encodeList["gas_limit"].(string); ok {
+		valInt64, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return xfsgo.NewRPCErrorCause(-32001, err)
+		}
+		gasLimit = new(big.Int).SetInt64(valInt64)
+	}
+
+	if val, ok := encodeList["gas_price"].(string); ok {
+		valInt64, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return xfsgo.NewRPCErrorCause(-32001, err)
+		}
+		gasPrice = new(big.Int).SetInt64(valInt64)
+	}
+
+	fromAddr := common.B58ToAddress([]byte(encodeList["from"].(string)))
+	toAddr := common.B58ToAddress([]byte(encodeList["to"].(string)))
+	value := common.ParseString2BigInt(encodeList["value"].(string))
+
+	// Take out the private key according to the wallet address of the initiating transaction
+	privateKey, err := handler.Wallet.GetKeyByAddress(fromAddr)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-1006, err)
+	}
+
+	logrus.Debugf("transaction obj: gasPrice=%v, gasLimit=%v, From=%v, to=%v val:%v", gasPrice, gasLimit, fromAddr.B58String(), toAddr.B58String(), value)
+
+	tx := xfsgo.NewTransaction(toAddr, gasLimit, gasPrice, common.BaseCoin2Atto(float64(value.Uint64())))
+	tx.Nonce = handler.BlockChain.GetNonce(fromAddr)
+	err = tx.SignWithPrivateKey(privateKey)
+	if err != nil {
+		return xfsgo.NewRPCErrorCause(-1006, err)
 	}
 
 	err = handler.TxPendingPool.Add(tx)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-32001, err)
 	}
-	result := NewTransferObj(tx)
-	*resp = *result
+
+	result := tx.Hash()
+	*resp = result.Hex()
 
 	return nil
 }
-func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *TransferObj) error {
+
+func (handler *WalletHandler) SendTransaction(args SendTransactionArgs, resp *string) error {
+
+	// Judgment target address cannot be empty
 	if args.To == "" {
 		return xfsgo.NewRPCError(-1006, "to addr not be empty")
 	}
+	// Judge that the transfer amount cannot be blank
 	if args.Value == "" {
 		return xfsgo.NewRPCError(-1006, "value not be empty")
 	}
 
+	// Get the wallet address of the initiating transaction
 	var fromAddr common.Address
 	if args.From != "" {
 		fromAddr = common.B58ToAddress([]byte(args.From))
 	} else {
 		fromAddr = handler.Wallet.GetDefault()
 	}
-
+	// Take out the private key according to the wallet address of the initiating transaction
 	privateKey, err := handler.Wallet.GetKeyByAddress(fromAddr)
 	if err != nil {
 		return xfsgo.NewRPCErrorCause(-1006, err)
@@ -251,18 +264,16 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 	toAddr := common.B58ToAddress([]byte(args.To))
 	value := common.ParseString2BigInt(args.Value)
 
+	// Set the gas price and gas limit of this transaction
 	var GasLimit, GasPrice *big.Int
-
 	if args.GasLimit != "" {
 		GasLimit = common.ParseString2BigInt(args.GasLimit)
-		GasLimit = common.NanoCoin2BaseCoin(GasLimit)
 	} else {
 		GasLimit = handler.Wallet.GetGas()
 	}
 
 	if args.GasPrice != "" {
 		GasPrice = common.ParseString2BigInt(args.GasPrice)
-		GasPrice = common.NanoCoin2BaseCoin(GasPrice)
 	} else {
 		GasPrice = handler.Wallet.GetGasPrice()
 	}
@@ -281,8 +292,8 @@ func (handler *WalletHandler) TransferFrom(args TransferFromArgs, resp *Transfer
 		return xfsgo.NewRPCErrorCause(-1006, err)
 	}
 
-	result := NewTransferObj(tx)
-	*resp = *result
+	result := tx.Hash()
+	*resp = result.Hex()
 	return nil
 }
 
@@ -295,7 +306,7 @@ func (handler *WalletHandler) SetGasLimit(args SetGasLimitArgs, resp *string) er
 	if GasLimitBigInt.Uint64() == uint64(0) {
 		GasLimitBigInt = common.DefaultGasPrice
 	}
-	handler.Wallet.SetGas(common.BaseCoin2Nano(float64(GasLimitBigInt.Uint64())))
+	handler.Wallet.SetGas(GasLimitBigInt)
 	return nil
 }
 
@@ -308,6 +319,6 @@ func (handler *WalletHandler) SetGasPrice(args SetGasPriceArgs, resp *string) er
 	if GasPriceBigInt.Uint64() == uint64(0) {
 		GasPriceBigInt = common.DefaultGasPrice
 	}
-	handler.Wallet.SetGasPrice(common.BaseCoin2Nano(float64(GasPriceBigInt.Uint64())))
+	handler.Wallet.SetGasPrice(GasPriceBigInt)
 	return nil
 }

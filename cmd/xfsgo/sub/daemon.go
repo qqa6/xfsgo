@@ -142,7 +142,7 @@ func runDaemon() error {
 		req := &GetBlocksArgs{
 			Blocks: string(data),
 		}
-		cli := xfsgo.NewClient(config.rpcClientApiHost)
+		cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 		var result string
 		err = cli.CallMethod(1, "Chain.ImportBlock", req, &result)
 		if err != nil {

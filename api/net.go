@@ -20,11 +20,11 @@ type DelPeerArgs struct {
 
 func (net *NetAPIHandler) GetPeers(_ EmptyArgs, resp *[]string) error {
 	peer := net.NetServer.Peers()
-	peerid := make([]string, 1)
+	peersid := make([]string, 0)
 	for _, item := range peer {
-		peerid = append(peerid, item.ID().String())
+		peersid = append(peersid, item.ID().String())
 	}
-	*resp = peerid
+	*resp = peersid
 	return nil
 }
 

@@ -16,16 +16,16 @@
 
 package common
 
-import (
-	"bytes"
-	"encoding/hex"
-	"fmt"
-)
+ import (
+	 "bytes"
+	 "encoding/hex"
+	 "fmt"
+ )
 
 const (
 	addrLen            = 25
 	hashLen            = 32
-	AddrDefaultVersion = 0
+	DefaultAddressVersion = 1
 )
 
 type (
@@ -37,6 +37,7 @@ var (
 	ZeroHash        = Bytes2Hash([]byte{})
 	HashZ           = Hash{}
 	AddrCheckSumLen = 4
+	ZeroAddr = Address{}
 )
 
 func Hex2bytes(s string) []byte {
@@ -153,6 +154,7 @@ func (a *Address) B58String() string {
 	return string(a.B58())
 }
 
+
 func (a *Address) Equals(b Address) bool {
 	return bytes.Compare(a.Bytes(), b.Bytes()) == Zero
 }
@@ -184,3 +186,4 @@ func (a *Address) UnmarshalJSON(data []byte) error {
 	a.SetBytes(b58a.Bytes())
 	return nil
 }
+

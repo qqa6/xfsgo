@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -92,7 +93,24 @@ func ginlogger(log log.Logger) gin.HandlerFunc {
 	}
 }
 
-//// NewRPCServer creates a new server instance with given configuration options.
+func ginCors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		method := c.Request.Method
+		origin := c.Request.Header.Get("Origin")
+		if origin != "" {
+			c.Header("Access-Control-Allow-Origin", "*")
+			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
+			c.Header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
+			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Cache-Control, Content-Language, Content-Type")
+			c.Header("Access-Control-Allow-Credentials", "true")
+		}
+		if method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+		}
+		c.Next()
+	}
+}
+
 func NewRPCServer(config *RPCConfig) *RPCServer {
 	server := &RPCServer{
 		logger:     config.Logger,
@@ -111,6 +129,7 @@ func NewRPCServer(config *RPCConfig) *RPCServer {
 	server.ginEngine = gin.New()
 	server.ginEngine.Use(ginlogger(server.logger))
 	server.ginEngine.Use(gin.Recovery())
+	server.ginEngine.Use(ginCors())
 	return server
 }
 
@@ -274,6 +293,7 @@ func (server *RPCServer) parseJsonRPCObj(jsonObjMap map[string]interface{}, obj 
 	if err != nil {
 		return NewRPCError(-32600, err.Error())
 	}
+
 	obj.id = &id
 	version, ok := jsonObjMap["jsonrpc"].(string)
 	if !ok || version != "2.0" {
@@ -306,6 +326,14 @@ func (server *RPCServer) jsonRPCCall(data []byte, rpcId **int, w io.Writer) erro
 	if err != nil {
 		return err
 	}
+
+	_, ok := rpcObj.params.(map[string]interface{})
+	if ok {
+		if len(rpcObj.params.(map[string]interface{})) == 0 {
+			rpcObj.params = nil
+		}
+	}
+
 	rec, err := s.callMethod(t, rpcObj.params)
 	if err != nil {
 		return err

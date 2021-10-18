@@ -25,16 +25,17 @@ import (
 )
 
 type Receipt struct {
-	Version uint32 `json:"version"`
-	Status uint32 `json:"status"`
-	TxHash common.Hash `json:"tx_hash"`
-	GasUsed *big.Int `json:"gas_used"`
+	Version uint32      `json:"version"`
+	Status  uint32      `json:"status"`
+	TxHash  common.Hash `json:"tx_hash"`
+	Time    uint64      `json:"time"`
+	GasUsed *big.Int    `json:"gas_used"`
 }
 
 func NewReceipt(txHash common.Hash) *Receipt {
 	return &Receipt{
 		Version: version0,
-		TxHash: txHash,
+		TxHash:  txHash,
 	}
 }
 func (r *Receipt) Encode() ([]byte, error) {

@@ -18,10 +18,8 @@ package sub
 
 import (
 	"fmt"
-	"math/big"
 	"strconv"
 	"xfsgo"
-	"xfsgo/common"
 
 	"github.com/spf13/cobra"
 )
@@ -52,15 +50,15 @@ var (
 		Short: "Stop mining services",
 		RunE:  runMinerStop,
 	}
-	minerWorkersAddCommand = &cobra.Command{
+	minerAddWorkerCommand = &cobra.Command{
 		Use:   "addworker [count]",
 		Short: "Add number of workers",
-		RunE:  WorkersAdd,
+		RunE:  addWorker,
 	}
-	minerWorkersDownCommand = &cobra.Command{
+	minerDelWorkerCommand = &cobra.Command{
 		Use:   "delworker [count]",
 		Short: "Miners reduce threads",
-		RunE:  WorkersDown,
+		RunE:  delWorker,
 	}
 	minerSetGasPriceCommand = &cobra.Command{
 		Use:   "setgasprice <price>",
@@ -86,7 +84,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	if err = cli.CallMethod(1, "Miner.Start", nil, &res); err != nil {
 		return nil
 	}
@@ -101,7 +99,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 			WorkerNum: num,
 		}
 
-		err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+		err = cli.CallMethod(1, "Miner.AddWorker", &req, &res)
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
@@ -112,7 +110,7 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 		req := &MinSetCoinbaseArgs{
 			Coinbase: args[1],
 		}
-		err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+		err = cli.CallMethod(1, "Miner.AddWorker", &req, &res)
 		if err != nil {
 			fmt.Println(err.Error())
 			return nil
@@ -120,10 +118,8 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 	}
 	// gasprice
 	if gasprice != "" {
-		gasPrice, _ := new(big.Int).SetString(args[2], 0)
-		bigGasPrice := common.NanoCoin2BaseCoin(gasPrice)
 		req := &MinSetGasPriceArgs{
-			GasPrice: bigGasPrice.String(),
+			GasPrice: args[2],
 		}
 		err = cli.CallMethod(1, "Miner.MinSetGasPrice", &req, &res)
 		if err != nil {
@@ -133,10 +129,8 @@ func runMinerStart(_ *cobra.Command, args []string) error {
 	}
 	// gaslimit
 	if gaslimit != "" {
-		gasLimit, _ := new(big.Int).SetString(args[3], 0)
-		bigGasLimit := common.NanoCoin2BaseCoin(gasLimit)
 		req := &MinSetGasLimitArgs{
-			GasLimit: bigGasLimit.String(),
+			GasLimit: args[3],
 		}
 		err = cli.CallMethod(1, "Miner.MinSetGasLimit", &req, &res)
 		if err != nil {
@@ -154,7 +148,7 @@ func runMinerStop(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "Miner.Stop", nil, &res)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -164,14 +158,14 @@ func runMinerStop(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func WorkersAdd(cmd *cobra.Command, args []string) error {
+func addWorker(cmd *cobra.Command, args []string) error {
 
 	config, err := parseClientConfig(cfgFile)
 	if err != nil {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 
 	req := &MinWorkerArgs{
 		WorkerNum: 1,
@@ -186,7 +180,7 @@ func WorkersAdd(cmd *cobra.Command, args []string) error {
 	}
 	req.WorkerNum = num
 
-	err = cli.CallMethod(1, "Miner.WorkersAdd", &req, &res)
+	err = cli.CallMethod(1, "Miner.AddWorker", &req, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -195,7 +189,7 @@ func WorkersAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func WorkersDown(cmd *cobra.Command, args []string) error {
+func delWorker(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		cmd.Help()
 		return nil
@@ -206,7 +200,7 @@ func WorkersDown(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	num, err := strconv.Atoi(args[0])
 	if err != nil {
 		return err
@@ -214,7 +208,7 @@ func WorkersDown(cmd *cobra.Command, args []string) error {
 	req := &MinWorkerArgs{
 		WorkerNum: num,
 	}
-	err = cli.CallMethod(1, "Miner.WorkersDown", &req, &res)
+	err = cli.CallMethod(1, "Miner.DelWorker", &req, &res)
 	if err != nil {
 		fmt.Println(err.Error())
 		return nil
@@ -233,11 +227,9 @@ func MinSetGasPrice(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	gasPrice, _ := new(big.Int).SetString(args[2], 0)
-	bigGasPrice := common.NanoCoin2BaseCoin(gasPrice)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &MinSetGasPriceArgs{
-		GasPrice: bigGasPrice.String(),
+		GasPrice: args[2],
 	}
 	err = cli.CallMethod(1, "Miner.MinSetGasPrice", &req, &res)
 	if err != nil {
@@ -258,11 +250,9 @@ func MinSetGasLimit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res *string = nil
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	gasLimit, _ := new(big.Int).SetString(args[0], 0)
-	bigGasLimit := common.NanoCoin2BaseCoin(gasLimit)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &MinSetGasLimitArgs{
-		GasLimit: bigGasLimit.String(),
+		GasLimit: args[0],
 	}
 	err = cli.CallMethod(1, "Miner.MinSetGasLimit", &req, &res)
 	if err != nil {
@@ -278,7 +268,7 @@ func MinGetStatus(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	res := make(map[string]interface{}, 1)
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "Miner.MinGetStatus", nil, &res)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -296,14 +286,8 @@ func MinGetStatus(_ *cobra.Command, _ []string) error {
 	fmt.Printf("Workers: %v\n", res["workers"])
 	fmt.Printf("Coinbase: %v\n", res["coinbase"])
 
-	gasPrice2NewBig, _ := new(big.Int).SetString(res["gas_price"].(string), 0)
-	gasPrice2Big := common.NanoCoin2BaseCoin(gasPrice2NewBig)
-
-	gasLimit2NewBig, _ := new(big.Int).SetString(res["gas_limit"].(string), 0)
-	gasLimit2Big := common.NanoCoin2BaseCoin(gasLimit2NewBig)
-
-	fmt.Printf("GasPrice: %v (Nanox)\n", gasPrice2Big)
-	fmt.Printf("GasLimit: %v (Nanox)\n", gasLimit2Big)
+	fmt.Printf("GasPrice: %v (Atto)\n", res["gas_price"].(string))
+	fmt.Printf("GasLimit: %v (Atto)\n", res["gas_limit"].(string))
 	fmt.Printf("HashRate: %v\n", res["hash_rate"])
 	return nil
 }
@@ -315,8 +299,8 @@ func init() {
 	mFlags.StringVarP(&gasprice, "gasprice", "", "", "Set expected gas unit price")
 	mFlags.StringVarP(&gaslimit, "gaslimit", "", "", "Set maximum gas purchase quantity")
 	minerCommand.AddCommand(minerStopCommand)
-	minerCommand.AddCommand(minerWorkersAddCommand)
-	minerCommand.AddCommand(minerWorkersDownCommand)
+	minerCommand.AddCommand(minerAddWorkerCommand)
+	minerCommand.AddCommand(minerDelWorkerCommand)
 	minerCommand.AddCommand(minerSetGasPriceCommand)
 	minerCommand.AddCommand(minerSetGasLimitCommand)
 	minerCommand.AddCommand(minerGetStatusCommand)

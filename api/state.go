@@ -17,8 +17,6 @@
 package api
 
 import (
-	"encoding/hex"
-	"math/big"
 	"xfsgo"
 	"xfsgo/common"
 	"xfsgo/storage/badger"
@@ -29,13 +27,17 @@ type StateAPIHandler struct {
 	BlockChain *xfsgo.BlockChain
 }
 
-type GetStateObjArgs struct {
+type GetAccountArgs struct {
 	RootHash string `json:"root_hash"`
 	Address  string `json:"address"`
 }
 
-func (state *StateAPIHandler) GetStateObj(args GetStateObjArgs, resp *StateObj) error {
+type GetBalanceArgs struct {
+	RootHash string `json:"root_hash"`
+	Address  string `json:"address"`
+}
 
+func (state *StateAPIHandler) GetBalance(args GetBalanceArgs, resp *string) error {
 	if args.RootHash == "" {
 		rootHash := state.BlockChain.CurrentBlock().StateRoot()
 		args.RootHash = rootHash.Hex()
@@ -55,7 +57,37 @@ func (state *StateAPIHandler) GetStateObj(args GetStateObjArgs, resp *StateObj) 
 	data := stateTree.GetStateObj(address)
 
 	if data == (&xfsgo.StateObj{}) || data == nil {
-		result := &StateObj{}
+		*resp = "0"
+		return nil
+	}
+	*resp = data.GetBalance().String()
+	return nil
+
+}
+
+func (state *StateAPIHandler) GetAccount(args GetAccountArgs, resp *StateObjResp) error {
+
+	if args.RootHash == "" {
+		rootHash := state.BlockChain.CurrentBlock().StateRoot()
+		args.RootHash = rootHash.Hex()
+	}
+
+	if args.Address == "" {
+		return xfsgo.NewRPCError(-32601, "Address not found")
+	}
+	roothash := common.Hex2Hash(args.RootHash)
+
+	rootHashByte := roothash.Bytes()
+
+	stateTree := xfsgo.NewStateTree(state.StateDb, rootHashByte)
+
+	address := common.B58ToAddress([]byte(args.Address))
+
+	data := stateTree.GetStateObj(address)
+	if data == (&xfsgo.StateObj{}) || data == nil {
+		result := &StateObjResp{
+			Address: args.Address,
+		}
 		*resp = *result
 		return nil
 	}
@@ -66,12 +98,12 @@ func (state *StateAPIHandler) GetStateObj(args GetStateObjArgs, resp *StateObj) 
 		addrStr = addressEqual.B58String()
 	}
 	ist := data.GetBalance()
-	if ist == nil {
-		ist = new(big.Int).SetUint64(0)
-	}
-	bal2Byte := ist.Bytes()
-	result := &StateObj{
-		Balance: hex.EncodeToString(bal2Byte),
+	// if ist == nil {
+	// 	ist = new(big.Int).SetUint64(0)
+	// }
+	// bal2Byte := ist.Bytes()
+	result := &StateObjResp{
+		Balance: ist.String(),
 		Nonce:   data.GetNonce(),
 		Address: addrStr,
 	}

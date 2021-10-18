@@ -41,8 +41,8 @@ var (
 	}
 	getGetTranCommand = &cobra.Command{
 		Use:   "gettx <transaction_hash>",
-		Short: "get transaction pool pending queue",
-		RunE:  GetTran,
+		Short: "get transaction pool pending by transaction hash",
+		RunE:  GetTransaction,
 	}
 	getTxpoolCountCommand = &cobra.Command{
 		Use:   "count",
@@ -54,7 +54,7 @@ var (
 	modifyTransCommand = &cobra.Command{
 		Use:   "replace <gas_limit> <gas_price> <transaction_hash>",
 		Short: "Replace the information of the specified transaction in the transaction pool",
-		RunE:  ModifyTrans,
+		RunE:  ModifyTranGas,
 	}
 )
 
@@ -65,7 +65,7 @@ func GetPending() error {
 		return err
 	}
 	txPending := make([]*xfsgo.Transaction, 1)
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	err = cli.CallMethod(1, "TxPool.GetPending", nil, &txPending)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func runTxPoolCount() error {
 		fmt.Println(err)
 		return err
 	}
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	var txPoolCount int
 	err = cli.CallMethod(1, "TxPool.GetPendingSize", nil, &txPoolCount)
 	if err != nil {
@@ -95,7 +95,7 @@ func runTxPoolCount() error {
 	return nil
 }
 
-func GetTran(cmd *cobra.Command, args []string) error {
+func GetTransaction(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		return cmd.Help()
 	}
@@ -104,23 +104,30 @@ func GetTran(cmd *cobra.Command, args []string) error {
 		fmt.Println(err)
 		return err
 	}
+	fmt.Printf(args[0])
 	res := make(map[string]interface{}, 1)
-	hash := args[0]
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
-	err = cli.CallMethod(1, "TxPool.GetPendingSize", &hash, &res)
+	hash := &getTranByHashArgs{
+		Hash: args[0],
+	}
+
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
+	err = cli.CallMethod(1, "TxPool.GetTranByHash", &hash, &res)
 	if err != nil {
 		return err
+	}
+	if len(res) < 1 {
+		return nil
 	}
 	bs, err := common.MarshalIndent(res)
 	if err != nil {
 		return err
 	}
-	fmt.Println(bs)
+	fmt.Println(string(bs))
 
 	return nil
 }
 
-func ModifyTrans(cmd *cobra.Command, args []string) error {
+func ModifyTranGas(cmd *cobra.Command, args []string) error {
 	if len(args) < 3 {
 		return cmd.Help()
 	}
@@ -130,13 +137,13 @@ func ModifyTrans(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var res string
-	cli := xfsgo.NewClient(config.rpcClientApiHost)
+	cli := xfsgo.NewClient(config.rpcClientApiHost, config.rpcClientApiTimeOut)
 	req := &TranGasArgs{
 		GasLimit: args[0],
 		GasPrice: args[1],
 		Hash:     args[2],
 	}
-	err = cli.CallMethod(1, "TxPool.ModifyTrans", &req, &res)
+	err = cli.CallMethod(1, "TxPool.ModifyTranGas", &req, &res)
 	if err != nil {
 		return err
 	}

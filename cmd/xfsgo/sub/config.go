@@ -44,7 +44,7 @@ const (
 	defaultNetworkId         = uint32(1)
 	defaultTestNetworkId     = uint32(2)
 	defaultProtocolVersion   = uint32(1)
-	defaultLoggerLevel   = "INFO"
+	defaultLoggerLevel       = "INFO"
 )
 
 type storageParams struct {
@@ -61,14 +61,15 @@ type loggerParams struct {
 }
 
 type daemonConfig struct {
-	loggerParams loggerParams
+	loggerParams  loggerParams
 	storageParams storageParams
 	nodeConfig    node.Config
 	backendParams backend.Params
 }
 
 type clientConfig struct {
-	rpcClientApiHost string
+	rpcClientApiHost    string
+	rpcClientApiTimeOut string
 }
 
 func readFromConfigPath(v *viper.Viper, customFile string) error {
@@ -82,7 +83,7 @@ func readFromConfigPath(v *viper.Viper, customFile string) error {
 	v.SetConfigName(strings.TrimSuffix(filename, ext))
 	v.SetConfigFile(customFile)
 	if err := v.ReadInConfig(); err != nil {
-		return fmt.Errorf("read config file err: %s",err)
+		return fmt.Errorf("read config file err: %s", err)
 	}
 	return nil
 }
@@ -200,7 +201,7 @@ func parseDaemonConfig(configFilePath string) (daemonConfig, error) {
 	nodeParams := parseConfigNodeParams(config, mBackendParams.NetworkID)
 	nodeParams.NodeDBPath = mStorageParams.nodesDir
 	return daemonConfig{
-		loggerParams: mLoggerParams,
+		loggerParams:  mLoggerParams,
 		storageParams: mStorageParams,
 		nodeConfig:    nodeParams,
 		backendParams: mBackendParams,
@@ -216,7 +217,9 @@ func parseClientConfig(configFilePath string) (clientConfig, error) {
 	if mRpcClientApiHost == "" {
 		mRpcClientApiHost = defaultRPCClientAPIHost
 	}
+	mRpcClientApiTimeOut := config.GetString("rpclient.timeout")
 	return clientConfig{
-		rpcClientApiHost: mRpcClientApiHost,
+		rpcClientApiHost:    mRpcClientApiHost,
+		rpcClientApiTimeOut: mRpcClientApiTimeOut,
 	}, nil
 }

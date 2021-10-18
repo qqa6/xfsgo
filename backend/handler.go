@@ -234,7 +234,6 @@ func (h *handler) handleMsg(p *peer) error {
 			if blockHeight > p.Height() {
 				p.SetHeight(data.Height())
 				p.SetHead(blockHash)
-
 				go h.synchronise(p)
 			}
 			//go h.lessPeer(p)
@@ -507,6 +506,7 @@ func (h *handler) fetchBlocks(p *peer) error {
 			}
 			logrus.Debugf("Successfully fetched block pack: count=%d, peerId=%x...%x", len(blocks),
 				gotPeerId[0:4], gotPeerId[len(gotPeerId)-4:])
+
 			go h.process(blocks)
 		}
 	}
@@ -516,6 +516,7 @@ func (h *handler) process(blocks remoteBlocks) {
 	h.processLock.Lock()
 	defer h.processLock.Unlock()
 	for _, block := range blocks {
+		h.BroadcastBlock(block)
 		if _, err := h.blockchain.InsertChain(block); err != nil {
 			continue
 		}

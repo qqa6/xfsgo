@@ -127,22 +127,12 @@ func (bc *BlockChain) getBlockByNumber(num uint64) *Block {
 	return bc.chainDB.GetBlockByNumber(num)
 }
 
-func (bc *BlockChain) GetBlockHeaderByNumber(num uint64) (*BlockHeader, common.Hash) {
-	data := bc.chainDB.GetBlockByNumber(num)
-	return data.Header, data.Hash()
-}
-
 func (bc *BlockChain) GetBlockByHash(hash common.Hash) *Block {
 	return bc.chainDB.GetBlockByHash(hash)
 }
 
 func (bc *BlockChain) GetReceiptByHash(hash common.Hash) *Receipt {
 	return bc.extraDB.GetReceipt(hash)
-}
-
-func (bc *BlockChain) GetBlockHeaderByHash(hash common.Hash) (*BlockHeader, common.Hash) {
-	data := bc.chainDB.GetBlockByHash(hash)
-	return data.Header, data.Hash()
 }
 
 func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) []*Block {
@@ -233,6 +223,9 @@ func (bc *BlockChain) writeNumBlock(block *Block) {
 func (bc *BlockChain) WriteBlock2DB(block *Block) error {
 
 	if err := bc.extraDB.WriteBlockTransaction(block); err != nil {
+		return err
+	}
+	if err := bc.extraDB.WriteReceipts(block.Receipts); err != nil {
 		return err
 	}
 	if err := bc.extraDB.WriteBlockReceipts(block); err != nil {
@@ -377,6 +370,7 @@ func (bc *BlockChain) writeBlockWithState(block *Block) (status WriteStatus, err
 	if err != nil {
 		return NonStatTy, err
 	}
+	block.Receipts = rec
 	AccumulateRewards(stateTree, header)
 	stateTree.UpdateAll()
 	targetRsRoot := CalcReceiptRootHash(rec)
@@ -518,17 +512,19 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *Block) error {
 }
 
 func (bc *BlockChain) ApplyTransactions(stateTree *StateTree, header *BlockHeader, txs []*Transaction) (*big.Int, []*Receipt, error) {
-	receipts := make([]*Receipt, 1)
+	receipts := make([]*Receipt, 0)
 	totalUsedGas := big.NewInt(0)
 	for _, tx := range txs {
 		rec, err := bc.applyTransaction(stateTree, header, tx)
 		if err != nil {
-			logrus.Errorf(" wrong to execute the transactions: %s", tx.Hash())
+			logrus.Errorf("wrong to execute the transactions: %s err:%v", tx.Hash(), err.Error())
 			return nil, nil, err
 		}
 		logrus.Infof("excute the transactions successfully: %s, receipt: %d", tx.Hash(), rec.Hash())
-		totalUsedGas.Add(big.NewInt(0), rec.GasUsed)
-		receipts = append(receipts, rec)
+		if rec != nil {
+			totalUsedGas.Add(big.NewInt(0), rec.GasUsed)
+			receipts = append(receipts, rec)
+		}
 	}
 	return totalUsedGas, receipts, nil
 }
@@ -629,6 +625,7 @@ func (bc *BlockChain) applyTransaction(stateTree *StateTree, header *BlockHeader
 		Version: tx.Version,
 		Status:  uint32(1),
 		GasUsed: basicGas,
+		Time:    uint64(time.Now().Unix()),
 	}
 	return receipt, nil
 }
@@ -666,16 +663,17 @@ func (bc *BlockChain) GetBlockHashesFromHash(hash common.Hash, max uint64) (chai
 
 	return
 }
-
-func (bc *BlockChain) GetBlockSection(from uint64, count uint64) []*Block {
+func (bc *BlockChain) GetBlocks(from uint64, count uint64) []*Block {
 	head := bc.currentBlock.Height()
-	if count > head {
-		return nil
+	if from+count > head {
+		count = head
 	}
-
 	hashes := make([]*Block, 0)
 	for h := uint64(0); from+h <= count; h++ {
 		block := bc.GetBlockByNumber(from + h)
+		if block == nil {
+			break
+		}
 		hashes = append(hashes, block)
 	}
 	return hashes

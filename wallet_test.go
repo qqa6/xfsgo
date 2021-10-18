@@ -59,7 +59,7 @@ func TestWallets_AddByRandom(t *testing.T) {
 			t.Fatalf("Sotrage close errors: %s", err)
 		}
 	}()
-	ws := NewWallet(storage)
+	ws := NewWallet(storage, nil,nil)
 	addr, err := ws.AddByRandom()
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestWallet_AddWallet(t *testing.T) {
 		}
 	}()
 	key := randomKey(t)
-	ws := NewWallet(storage)
+	ws := NewWallet(storage,nil,nil)
 	gotAddr, err := ws.AddWallet(key)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestWallet_Export(t *testing.T) {
 		}
 	}()
 	key := randomKey(t)
-	ws := NewWallet(storage)
+	ws := NewWallet(storage,nil,nil)
 	addr, err := ws.AddWallet(key)
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestWallet_All(t *testing.T) {
 	key1 := randomKey(t)
 	key2 := randomKey(t)
 	key3 := randomKey(t)
-	ws := NewWallet(storage)
+	ws := NewWallet(storage,nil,nil)
 	addr1, err := ws.AddWallet(key1)
 	if err != nil {
 		t.Fatal(err)

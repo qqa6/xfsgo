@@ -36,22 +36,12 @@ type MinSetGasPriceArgs struct {
 	GasPrice string `json:"gas_price"`
 }
 
-type MinCoinbaseArgs struct {
+type MinSetCoinbaseArgs struct {
 	Coinbase string `json:"coinbase"`
 }
 
 type MinWorkerArgs struct {
 	WorkerNum int `json:"worker_num"`
-}
-
-type MinStatusArgs struct {
-	Status        bool   `json:"status"`
-	LastStartTime string `json:"last_start_time"`
-	Workers       int    `json:"workers"`
-	Coinbase      string `json:"coinbase"`
-	GasPrice      string `json:"gas_price"`
-	GasLimit      string `json:"gas_limit"`
-	HashRate      int    `json:"hash_rate"`
 }
 
 func (handler *MinerAPIHandler) Start(_ EmptyArgs, resp *string) error {
@@ -66,7 +56,7 @@ func (handler *MinerAPIHandler) Stop(_ EmptyArgs, resp *string) error {
 	return nil
 }
 
-func (handler *MinerAPIHandler) WorkersAdd(args MinWorkerArgs, resp *string) error {
+func (handler *MinerAPIHandler) AddWorker(args MinWorkerArgs, resp *string) error {
 	var num int
 	if args.WorkerNum < 1 {
 		num = 1
@@ -84,7 +74,7 @@ func (handler *MinerAPIHandler) WorkersAdd(args MinWorkerArgs, resp *string) err
 	return nil
 }
 
-func (handler *MinerAPIHandler) WorkersDown(args MinWorkerArgs, resp *string) error {
+func (handler *MinerAPIHandler) DelWorker(args MinWorkerArgs, resp *string) error {
 
 	var num int
 	if args.WorkerNum < 1 {
@@ -104,7 +94,7 @@ func (handler *MinerAPIHandler) WorkersDown(args MinWorkerArgs, resp *string) er
 	return nil
 }
 
-func (handler *MinerAPIHandler) MinSetCoinbase(args MinCoinbaseArgs, resp *string) error {
+func (handler *MinerAPIHandler) MinSetCoinbase(args MinSetCoinbaseArgs, resp *string) error {
 	if args.Coinbase == "" {
 		return xfsgo.NewRPCError(-1006, "Parameter cannot be empty")
 	}
@@ -121,7 +111,7 @@ func (handler *MinerAPIHandler) MinSetGasLimit(args MinSetGasLimitArgs, resp *st
 	if GasLimitBigInt.Uint64() == uint64(0) {
 		GasLimitBigInt = common.MinGasLimit
 	}
-	handler.Miner.SetGasLimit(common.BaseCoin2Nano(float64(GasLimitBigInt.Uint64())))
+	handler.Miner.SetGasLimit(GasLimitBigInt)
 	return nil
 }
 
@@ -134,11 +124,11 @@ func (handler *MinerAPIHandler) MinSetGasPrice(args MinSetGasPriceArgs, resp *st
 	if GasPriceBigInt.Uint64() == uint64(0) {
 		GasPriceBigInt = common.MinGasLimit
 	}
-	handler.Miner.SetGasPrice(common.BaseCoin2Nano(float64(GasPriceBigInt.Uint64())))
+	handler.Miner.SetGasPrice(GasPriceBigInt)
 	return nil
 }
 
-func (handler *MinerAPIHandler) MinGetStatus(_ EmptyArgs, resp *MinStatusArgs) error {
+func (handler *MinerAPIHandler) MinGetStatus(_ EmptyArgs, resp *MinStatusResp) error {
 	gasLimit := handler.Miner.GetGasLimit()
 	gasPrice := handler.Miner.GetGasPrice()
 	MinStartTime := handler.Miner.LastStartTime
@@ -147,7 +137,7 @@ func (handler *MinerAPIHandler) MinGetStatus(_ EmptyArgs, resp *MinStatusArgs) e
 	MinWorkers := handler.Miner.GetWorkerNum()
 	MinStatus := handler.Miner.GetMinStatus()
 
-	result := &MinStatusArgs{
+	result := &MinStatusResp{
 		Status:        MinStatus,
 		GasPrice:      gasPrice.String(),
 		GasLimit:      gasLimit.String(),

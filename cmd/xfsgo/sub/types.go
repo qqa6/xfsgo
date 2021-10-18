@@ -16,7 +16,7 @@
 
 package sub
 
-type getBlockHashArgs struct {
+type getBlockByHashArgs struct {
 	Hash string `json:"hash"`
 }
 
@@ -24,15 +24,15 @@ type getTransactionArgs struct {
 	Hash string `json:"hash"`
 }
 
-type getReceiptArgs struct {
+type getReceiptByHashArgs struct {
 	Hash string `json:"hash"`
 }
 
-type gettxbyBlocknumArgs struct {
+type getTxsByBlockNumArgs struct {
 	Number string `json:"number"`
 }
 
-type gettxbyBlockHashArgs struct {
+type getTxsByBlockHashArgs struct {
 	Hash string `json:"hash"`
 }
 
@@ -53,17 +53,16 @@ type setWalletAddrDefArgs struct {
 	Address string `json:"address"`
 }
 
-type transferFromArgs struct {
-	From     string `json:"form"`
+type sendTransactionArgs struct {
+	From     string `json:"from"`
 	To       string `json:"to"`
 	GasLimit string `json:"gas_limit"`
 	GasPrice string `json:"gas_price"`
 	Value    string `json:"value"`
 }
 
-type getBlockNumArgs struct {
-	From  string `json:"from"`
-	Count string `json:"count"`
+type getBlockByNumArgs struct {
+	Number string `json:"number"`
 }
 
 type GetBlocksArgs struct {
@@ -102,6 +101,15 @@ type AddPeerArgs struct {
 	Url string `json:"url"`
 }
 
-type DelPeerArgs struct {
+type getBlocksByRangeArgs struct {
+	From  string `json:"from"`
+	Count string `json:"count"`
+}
+
+type delPeerArgs struct {
 	Id string `json:"id"`
+}
+
+type getTranByHashArgs struct {
+	Hash string `json:"hash"`
 }

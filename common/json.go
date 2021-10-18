@@ -11,12 +11,16 @@ import (
 	"time"
 )
 
-type BlockMap map[string]interface{}
+type BlocksMap map[string]interface{}
 
-func (block BlockMap) MapMerge() map[string]interface{} {
+func (block BlocksMap) MapMerge() map[string]interface{} {
 
 	result := make(map[string]interface{}, 1)
-	blockheader := block["header"].(map[string]interface{})
+	blockheader := block
+	_, ok := block["header"].(map[string]interface{})
+	if ok {
+		blockheader = block["header"].(map[string]interface{})
+	}
 
 	result["version"] = blockheader["version"]
 	result["height"] = blockheader["height"]
@@ -33,17 +37,14 @@ func (block BlockMap) MapMerge() map[string]interface{} {
 	result["nonce"] = blockheader["nonce"]
 	result["coinbase"] = blockheader["coinbase"]
 
-	gasNano := BaseCoin2Nano(blockheader["gas_limit"].(float64))
-	gasUesdNano := BaseCoin2Nano(blockheader["gas_used"].(float64))
-	gas := Atto2BaseCoin(gasNano)
-	gasUsed := Atto2BaseCoin(gasUesdNano)
-
-	result["gas_limit"] = gas.String() + " (Nanox)"
-	result["gas_used"] = gasUsed.String() + " (Nanox)"
+	gas := blockheader["gas_limit"].(float64)
+	gasUesd := blockheader["gas_used"].(float64)
+	result["gas_limit"] = gas
+	result["gas_used"] = gasUesd
 	return result
 }
 
-func Marshal(info BlockMap, sortIndex []string, isIndent bool) (string, error) {
+func Marshal(info map[string]interface{}, sortIndex []string, isIndent bool) (string, error) {
 
 	if len(info) != len(sortIndex) {
 		return "", errors.New("inconsistent array length")
@@ -88,7 +89,7 @@ func Marshal(info BlockMap, sortIndex []string, isIndent bool) (string, error) {
 
 }
 
-func Marshals(info []BlockMap, sortIndex []string, isIndent bool) (string, error) {
+func Marshals(info []BlocksMap, sortIndex []string, isIndent bool) (string, error) {
 
 	var jsonBuf bytes.Buffer
 	jsonBuf.WriteString("[")

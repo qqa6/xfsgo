@@ -63,3 +63,19 @@ func NanoCoin2BaseCoin(nano *big.Int) *big.Int {
 	i.Div(i, big.NewInt(int64(NanoCoin)))
 	return i
 }
+
+// nano to atto
+func NanoCoin2Atto(nano *big.Int) *big.Int {
+	a := new(big.Float).SetInt64(nano.Int64())
+	a.Mul(a, big.NewFloat(float64(NanoCoin)))
+	i, _ := a.Int(nil)
+	return i
+}
+
+// atto to nano
+func AttoCoin2Nano(atto *big.Int) *big.Int {
+	i := big.NewInt(0)
+	i.Add(i, atto)
+	i.Div(i, big.NewInt(int64(NanoCoin)))
+	return i
+}

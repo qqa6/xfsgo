@@ -16,31 +16,36 @@
 
 package xfsgo
 
-import "math/big"
+import (
+	"fmt"
+	"log"
+	"testing"
 
-type SyncStartEvent struct{}
-type SyncDoneEvent struct{}
+	"github.com/dgraph-io/badger/v3"
+)
 
-type TxPreEvent struct {
-	Tx *Transaction
-}
+func TestBlockExtradb(t *testing.T) {
 
-type TxPostEvent struct {
-	Tx *Transaction
-}
+	opts := badger.DefaultOptions("./cmd/xfsgo/d0/extra")
+	db, err := badger.Open(opts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	err = db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			fmt.Printf("key=%v\n", string(k))
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-type ChainHeadEvent struct {
-	Block *Block
-}
-
-type GasPriceChanged struct {
-	Price *big.Int
-}
-
-type NewMinedBlockEvent struct {
-	Block *Block
-}
-
-type NewBlockEvent struct {
-	Block *Block
 }
